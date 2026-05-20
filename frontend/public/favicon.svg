@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <title>kr8bit</title>
+
+  <!-- Background -->
+  <rect width="32" height="32" rx="5" fill="#121218"/>
+
+  <!-- Crate left panel -->
+  <rect x="1"  y="13" width="3" height="17" fill="#3B22A8"/>
+  <!-- Crate right panel -->
+  <rect x="28" y="13" width="3" height="17" fill="#3B22A8"/>
+  <!-- Crate front face -->
+  <rect x="4"  y="13" width="24" height="17" fill="#4F2ED0"/>
+  <!-- Top lip -->
+  <rect x="1"  y="11" width="30" height="3" fill="#3B22A8"/>
+  <rect x="1"  y="11" width="30" height="1" fill="#6B48E8"/>
+  <!-- Bottom edge -->
+  <rect x="1"  y="29" width="30" height="2" fill="#3B22A8"/>
+  <!-- Corner bolts -->
+  <rect x="1"  y="11" width="3" height="3" fill="#2A1870"/>
+  <rect x="28" y="11" width="3" height="3" fill="#2A1870"/>
+  <rect x="1"  y="29" width="3" height="2" fill="#2A1870"/>
+  <rect x="28" y="29" width="3" height="2" fill="#2A1870"/>
+
+  <!-- "8" top hole -->
+  <rect x="6"  y="14" width="20" height="6"  fill="#121218"/>
+  <!-- middle bar (purple face showing through) -->
+  <!-- "8" bottom hole -->
+  <rect x="6"  y="22" width="20" height="7"  fill="#121218"/>
+
+  <!-- Cartridge body -->
+  <rect x="10" y="2"  width="12" height="10" fill="#2C2C3A"/>
+  <!-- Cartridge label -->
+  <rect x="11" y="3"  width="10" height="7"  fill="#E8E8F0"/>
+  <!-- Tiny invader on label -->
+  <rect x="14" y="4"  width="1" height="1" fill="#39FF6A"/>
+  <rect x="17" y="4"  width="1" height="1" fill="#39FF6A"/>
+  <rect x="13" y="5"  width="6" height="1" fill="#39FF6A"/>
+  <rect x="13" y="6"  width="1" height="1" fill="#39FF6A"/>
+  <rect x="15" y="6"  width="2" height="1" fill="#39FF6A"/>
+  <rect x="18" y="6"  width="1" height="1" fill="#39FF6A"/>
+  <rect x="14" y="7"  width="4" height="1" fill="#39FF6A"/>
+  <!-- Connector notches -->
+  <rect x="11" y="11" width="2" height="2" fill="#121218"/>
+  <rect x="14" y="11" width="2" height="2" fill="#121218"/>
+  <rect x="17" y="11" width="2" height="2" fill="#121218"/>
+  <rect x="20" y="11" width="2" height="2" fill="#121218"/>
+</svg>

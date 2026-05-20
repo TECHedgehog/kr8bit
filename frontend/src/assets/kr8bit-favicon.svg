@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <title>kr8bit favicon</title>
+
+  <!-- Background -->
+  <rect width="32" height="32" rx="5" ry="5" fill="#121218"/>
+
+  <!-- Crate body -->
+  <rect x="1"  y="10" width="30" height="21" fill="#4F2ED0"/>
+  <!-- Top lip -->
+  <rect x="1"  y="8"  width="30" height="3"  fill="#3a22a0"/>
+  <!-- Left / right panels -->
+  <rect x="1"  y="11" width="3"  height="19" fill="#3a22a0"/>
+  <rect x="28" y="11" width="3"  height="19" fill="#3a22a0"/>
+  <!-- Bottom edge -->
+  <rect x="1"  y="29" width="30" height="2"  fill="#3a22a0"/>
+
+  <!-- Cartridge stub -->
+  <rect x="11" y="2"  width="10" height="7"  fill="#2a2a35"/>
+  <rect x="13" y="3"  width="6"  height="4"  fill="#1a1a22"/>
+  <!-- Tiny invader dot -->
+  <rect x="15" y="4"  width="2"  height="2"  fill="#39FF6A"/>
+
+  <!-- "8" top hole -->
+  <rect x="5"  y="11" width="22" height="7"  fill="#121218"/>
+  <!-- Middle bar -->
+  <rect x="5"  y="18" width="22" height="2"  fill="#4F2ED0"/>
+  <!-- "8" bottom hole -->
+  <rect x="5"  y="20" width="22" height="8"  fill="#121218"/>
+</svg>

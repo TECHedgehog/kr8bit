@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 80" shape-rendering="crispEdges">
+  <title>kr8bit wordmark</title>
+
+  <!-- "kr" in white, "8" in purple, "bit" in white -->
+  <!-- Uses a blocky pixel-style approach via text with monospace font -->
+  <text
+    x="0" y="68"
+    font-family="'Courier New', 'Lucida Console', monospace"
+    font-size="80"
+    font-weight="700"
+    letter-spacing="-4"
+    fill="#F2F2F7"
+  >kr</text>
+  <text
+    x="118" y="68"
+    font-family="'Courier New', 'Lucida Console', monospace"
+    font-size="80"
+    font-weight="700"
+    fill="#8B5CF6"
+  >8</text>
+  <text
+    x="175" y="68"
+    font-family="'Courier New', 'Lucida Console', monospace"
+    font-size="80"
+    font-weight="700"
+    letter-spacing="-4"
+    fill="#F2F2F7"
+  >bit</text>
+</svg>
