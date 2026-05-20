@@ -1,0 +1,54 @@
+# Kr8bit - Docker Compose for Unraid
+# Place in /mnt/user/appdata/kr8bit/docker-compose.yml
+#
+# Prerequisites:
+#   - qBittorrent already running on Unraid (note its WebUI host:port)
+#   - Docker Compose Manager plugin installed on Unraid
+#
+# Usage:
+#   1. Copy this file to /mnt/user/appdata/kr8bit/
+#   2. Copy .env.example to .env and edit values (especially QBITTORRENT_HOST)
+#   3. In Unraid terminal: cd /mnt/user/appdata/kr8bit && docker compose up -d
+#
+# Access:
+#   - Frontend: http://<unraid-ip>:8080
+#   - Backend API: http://<unraid-ip>:8000
+
+services:
+  backend:
+    image: ghcr.io/<your-username>/kr8bit-backend:latest
+    container_name: kr8bit-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - /mnt/user/appdata/kr8bit/data:/app/data
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/kr8bit.db
+      - SCRAPER_BASE_URL=https://fitgirl-repacks.site
+      - SCRAPER_POSTS_PER_PAGE=100
+      - SCRAPER_DELAY_SECONDS=1.0
+      - SCRAPE_INTERVAL_HOURS=6
+      - GAME_CATEGORY_IDS=[5,42,43,319]
+      # Point to your existing qBittorrent WebUI on Unraid.
+      # If qBit is on the Unraid host IP 192.168.1.10 on port 8090:
+      - QBITTORRENT_HOST=http://192.168.1.10:8090
+      - QBITTORRENT_USER=admin
+      - QBITTORRENT_PASS=adminadmin
+      - QBIT_SYNC_INTERVAL_SECONDS=30
+      - ENRICHMENT_ENABLED=true
+      - STEAM_MATCH_THRESHOLD=0.7
+      - STEAM_APP_LIST_CACHE_HOURS=24
+      - ENRICHMENT_BATCH_SIZE=50
+      - ENRICHMENT_DELAY_SECONDS=2.0
+      - TWITCH_CLIENT_ID=
+      - TWITCH_CLIENT_SECRET=
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/<your-username>/kr8bit-frontend:latest
+    container_name: kr8bit-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
