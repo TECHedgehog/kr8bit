@@ -1,3 +1,5 @@
+const ARCHIVE_EXTENSION_PATTERN = /\.(7z|zip|rar|r\d{2,3}|tar(\.gz)?|gz|bz2|xz|iso|exe|msi|bin)$/i;
+
 const TAG_PATTERNS: RegExp[] = [
   /\(repack[^)]*\)/gi,
   /\(fitgirl[^)]*\)/gi,
@@ -68,8 +70,7 @@ function extractYear(input: string): { cleaned: string; year?: number } {
 export function normalizeGameName(rawName: string): NormalizedName {
   let name = rawName;
 
-  const stemMatch = /^(.+)\.7z$/i.exec(name);
-  if (stemMatch) name = stemMatch[1];
+  name = name.replace(ARCHIVE_EXTENSION_PATTERN, '');
 
   name = stripTags(name);
   name = stripNoise(name);
