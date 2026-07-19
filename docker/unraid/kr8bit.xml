@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<Container>
+  <Name>kr8bit</Name>
+  <Repository>kr8bit:latest</Repository>
+  <Registry>https://github.com/eric/kr8bit</Registry>
+  <Branch>main</Branch>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/eric/kr8bit/issues</Support>
+  <TemplateURL>https://raw.githubusercontent.com/eric/kr8bit/main/docker/unraid/kr8bit.xml</TemplateURL>
+  <Project>https://github.com/eric/kr8bit</Project>
+  <Overview>
+    Self-hosted game library manager. Scans local installer folders, fetches Steam metadata + artwork, and lets you organize your library through a web UI. Kind of like Jellyfin for games.
+  </Overview>
+  <Category>MediaApp:Other</Category>
+  <WebUI>http://[IP]:[PORT:8080]</WebUI>
+  <TemplateSource>https://github.com/eric/kr8bit</TemplateSource>
+
+  <Config Name="HTTP Port" Target="PORT" Default="8080" Mode="" Description="Web UI port" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
+
+  <Config Name="Library Path" Target="/games" Default="/mnt/user/games/" Mode="ro" Description="Folder with your .7z files or unpacked game folders (each containing setup.exe)" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/games/</Config>
+
+  <Config Name="Data Path" Target="/data" Default="/mnt/user/appdata/kr8bit/" Mode="rw" Description="Holds the SQLite DB and artwork cache" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/kr8bit/</Config>
+
+  <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="fatal | error | warn | info | debug | trace" Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
+
+  <Config Name="Steam Index Refresh (hours)" Target="STEAM_INDEX_REFRESH_INTERVAL_HOURS" Default="168" Mode="" Description="How often to refresh the local Steam app list cache" Type="Variable" Display="advanced" Required="false" Mask="false">168</Config>
+
+  <Config Name="Scan Max Depth" Target="SCAN_MAX_DEPTH" Default="1" Mode="" Description="Directory depth when scanning library root (1 = flat scan)" Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
+</Container>

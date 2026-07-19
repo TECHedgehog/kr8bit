@@ -1,0 +1,47 @@
+{
+  "name": "kr8bit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Self-hosted game library manager",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "fastify": "^4.28.1",
+    "@fastify/static": "^7.0.4",
+    "@fastify/cors": "^9.0.1",
+    "undici": "^6.19.8",
+    "fuse.js": "^7.0.0",
+    "pino": "^9.4.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "^5.18.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5",
+    "@types/node": "^20.14.15",
+    "eslint": "^9.9.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.1",
+    "@typescript-eslint/parser": "^8.0.1",
+    "pino-pretty": "^11.2.2"
+  }
+}
