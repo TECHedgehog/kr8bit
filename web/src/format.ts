@@ -29,3 +29,9 @@ export function parseStringList(value: string): string[] {
 export function joinStringList(values: string[]): string {
   return values.join(', ');
 }
+
+const ARCHIVE_EXTENSION_PATTERN = /\.(7z|zip|rar|r\d{2,3}|tar(\.gz)?|gz|bz2|xz|iso|exe|msi|bin)$/i;
+
+export function stripArchiveExtension(name: string): string {
+  return name.replace(ARCHIVE_EXTENSION_PATTERN, '');
+}

@@ -4,7 +4,7 @@ import type { Game, GameUpdateInput } from '../api/types';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { MetadataPicker } from '../components/MetadataPicker';
-import { formatBytes, formatDateTime, joinStringList, parseStringList } from '../format';
+import { formatBytes, formatDateTime, joinStringList, parseStringList, stripArchiveExtension } from '../format';
 
 interface GameDetailPageProps {
   gameId: string;
@@ -122,7 +122,7 @@ export function GameDetailPage({ gameId, onBack }: GameDetailPageProps): JSX.Ele
 
   const title = game.title ?? game.entryName;
   const hasSteam = game.steamAppId !== null;
-  const normalizedQuery = game.title ?? game.entryName;
+  const normalizedQuery = game.title ?? stripArchiveExtension(game.entryName);
 
   return (
     <div className="page">
