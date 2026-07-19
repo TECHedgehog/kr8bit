@@ -140,6 +140,16 @@ npm run lint                # eslint
 - HTTP: undici
 - Container: `node:20-slim` + `p7zip-full` + `tini`
 
+## Documentation
+
+Detailed docs live in [`docs/`](./docs):
+
+- [`architecture.md`](./docs/architecture.md) — module layout, dependency flow, runtime model.
+- [`api.md`](./docs/api.md) — HTTP endpoints (scan, library, metadata, settings, health).
+- [`providers.md`](./docs/providers.md) — how metadata / download providers plug in.
+- [`decisions.md`](./docs/decisions.md) — ADR-style log of significant choices.
+- [`roadmap.md`](./docs/roadmap.md) — phased plan, ordered by dependency.
+
 ## Architecture
 
 ```
