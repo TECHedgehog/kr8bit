@@ -6,6 +6,7 @@ import type { Game } from '../library/library.types.js';
 import type { MetadataProvider, SearchResult } from '../../shared/types.js';
 import { steamProvider } from '../metadata/steam/steam.provider.js';
 import { artworkService, type ArtworkService, type ArtworkKind } from '../artwork/artwork.service.js';
+import { normalizeGameName } from '../scanner/name-normalizer.js';
 
 export interface MetadataDeps {
   provider: MetadataProvider;
@@ -34,7 +35,8 @@ export class MetadataService {
 
   async searchForGame(gameId: string, query: string): Promise<ValidationResult> {
     const game = await libraryRepository.findById(gameId);
-    const normalized = query.trim();
+    if (!query.trim()) return { gameId: game.id, results: [] };
+    const normalized = normalizeGameName(query).query;
     const results = normalized ? await this.deps.provider.search(normalized) : [];
     return { gameId: game.id, results };
   }
