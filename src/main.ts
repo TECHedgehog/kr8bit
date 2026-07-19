@@ -3,6 +3,7 @@ import { buildServer } from './http/server.js';
 import { logger } from './logger/index.js';
 import { config } from './config/index.js';
 import { recoverStaleScanRuns } from './modules/scanner/scanner.recovery.js';
+import './shared/bigint.js';
 
 let app: FastifyInstance | null = null;
 
