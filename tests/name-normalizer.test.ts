@@ -6,6 +6,20 @@ describe('normalizeGameName', () => {
     expect(normalizeGameName('Skyrim.7z').query).toBe('Skyrim');
   });
 
+  it('strips other archive extensions', () => {
+    expect(normalizeGameName('Skyrim.zip').query).toBe('Skyrim');
+    expect(normalizeGameName('Skyrim.rar').query).toBe('Skyrim');
+    expect(normalizeGameName('Skyrim.iso').query).toBe('Skyrim');
+    expect(normalizeGameName('Skyrim.r00').query).toBe('Skyrim');
+    expect(normalizeGameName('Skyrim.tar.gz').query).toBe('Skyrim');
+    expect(normalizeGameName('Setup.exe').query).toBe('Setup');
+  });
+
+  it('strips extension before tag removal', () => {
+    expect(normalizeGameName('Skyrim (FitGirl).7z').query).toBe('Skyrim');
+    expect(normalizeGameName('Hogwarts Legacy [FitGirl].zip').query).toBe('Hogwarts Legacy');
+  });
+
   it('strips repack tags', () => {
     expect(normalizeGameName('Skyrim (repack).7z').query).toBe('Skyrim');
     expect(normalizeGameName('Skyrim (FitGirl Repacks).7z').query).toBe('Skyrim');
