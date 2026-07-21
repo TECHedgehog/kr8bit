@@ -1,4 +1,5 @@
 export interface SearchResult {
+  providerName: string;
   remoteId: string;
   title: string;
   releaseYear?: number;

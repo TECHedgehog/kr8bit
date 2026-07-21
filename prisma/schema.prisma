@@ -51,3 +51,17 @@ model Setting {
   key   String @id
   value String
 }
+
+model ProviderMatch {
+  id           String   @id @default(uuid())
+  gameId       String
+  providerName String // e.g. "steam" | "igdb"
+  remoteId     String // stringified provider-specific id
+  matchScore   Float?
+  matchedAt    DateTime
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@unique([gameId, providerName])
+  @@index([providerName, remoteId])
+}

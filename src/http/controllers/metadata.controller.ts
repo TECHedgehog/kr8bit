@@ -5,18 +5,22 @@ import { ValidationError } from '../../shared/errors.js';
 export const metadataController = {
   async search(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
-    const body = (req.body as { query?: string } | null) ?? {};
+    const body = (req.body as { query?: string; provider?: string } | null) ?? {};
     const query = typeof body.query === 'string' ? body.query : '';
-    return metadataService.searchForGame(id, query);
+    const provider =
+      typeof body.provider === 'string' && body.provider.length > 0 ? body.provider : undefined;
+    return metadataService.searchForGame(id, query, provider);
   },
 
   async assign(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
-    const body = req.body as { remoteId?: string } | null;
+    const body = req.body as { remoteId?: string; provider?: string } | null;
     if (!body?.remoteId || typeof body.remoteId !== 'string') {
       throw new ValidationError('remoteId is required');
     }
-    return metadataService.assign(id, body.remoteId);
+    const provider =
+      typeof body.provider === 'string' && body.provider.length > 0 ? body.provider : 'steam';
+    return metadataService.assign(id, provider, body.remoteId);
   },
 
   async unlink(req: FastifyRequest, _reply: FastifyReply) {
