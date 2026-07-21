@@ -113,6 +113,64 @@ export class ArtworkService {
       logger.debug({ err: (err as Error).message, steamAppId }, 'artwork cache prune skipped');
     }
   }
+
+  cachePathGeneric(provider: string, remoteId: string, kind: ArtworkKind): string {
+    return join(this.cacheDir, 'artwork', provider, remoteId, kind);
+  }
+
+  async downloadToCacheGeneric(
+    provider: string,
+    remoteId: string,
+    kind: ArtworkKind,
+    remoteUrl: string | null | undefined,
+  ): Promise<string | null> {
+    if (!remoteUrl) return null;
+    const target = this.cachePathGeneric(provider, remoteId, kind);
+    try {
+      const bytes = await this.client.download(remoteUrl);
+      await fs.mkdir(join(this.cacheDir, 'artwork', provider, remoteId), { recursive: true });
+      await fs.writeFile(target, bytes);
+      logger.info(
+        { provider, remoteId, kind, bytes: bytes.byteLength, contentType: detectContentType(bytes) },
+        'artwork cached (generic)',
+      );
+      return target;
+    } catch (err) {
+      logger.warn(
+        { err: (err as Error).message, provider, remoteId, kind, url: remoteUrl },
+        'artwork download failed (generic)',
+      );
+      return null;
+    }
+  }
+
+  async readWithContentTypeGeneric(
+    provider: string,
+    remoteId: string,
+    kind: ArtworkKind,
+  ): Promise<{ bytes: Buffer; contentType: string } | null> {
+    const path = this.cachePathGeneric(provider, remoteId, kind);
+    try {
+      const buf = await fs.readFile(path);
+      const contentType = detectContentType(new Uint8Array(buf));
+      return { bytes: buf, contentType };
+    } catch {
+      return null;
+    }
+  }
+
+  async removeGeneric(provider: string, remoteId: string): Promise<void> {
+    const dir = join(this.cacheDir, 'artwork', provider, remoteId);
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+      logger.info({ provider, remoteId }, 'artwork cache pruned (generic)');
+    } catch (err) {
+      logger.debug(
+        { err: (err as Error).message, provider, remoteId },
+        'artwork cache prune skipped (generic)',
+      );
+    }
+  }
 }
 
 export const artworkService = new ArtworkService();

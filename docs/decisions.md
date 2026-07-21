@@ -162,6 +162,49 @@ ADR-style log. Each entry: context + decision + consequences. Open issues at the
 - Static frontend assets served at root (`/static/...`) without clash.
 - No versioning in URL (no `/api/v1/`); version exposed via `/api/health` and negotiated if/when needed.
 
+## ADR-016 — Second Metadata Provider: IGDB
+
+**Context:** Steam alone is insufficient for non-Steam titles. IGDB (Twitch) offers broad coverage and a stable public API.
+
+**Decision:** Add `src/modules/metadata/igdb/` implementing the existing `MetadataProvider` contract. OAuth client-credentials flow, token cached in-memory with 60s refresh margin. Credentials via env vars (`IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`); provider disabled at boot when missing.
+
+**Consequences:**
+- Provider benefits are gated by user registering a Twitch app — fair trade-off.
+- Failure modes are soft: provider errors degrade to empty search results / null metadata, never break the request.
+- `SearchResult` gained a `providerName` field so the UI can pass it back to `assign`.
+
+## ADR-017 — `ProviderMatch` Table for Non-Steam Providers
+
+**Context:** `Game.steamAppId Int?` is Steam-only. With a second provider, linkage must generalize.
+
+**Decision:** Add a `ProviderMatch` table (`gameId`, `providerName`, `remoteId`, `matchScore`, `matchedAt`, `isPrimary`), unique on `(gameId, providerName)`. Only non-Steam providers write rows for now — Steam keeps writing `Game.steamAppId` (minimal-scope migration, ADR-009 storage remains Steam's source of truth). `MetadataService.refresh` checks `ProviderMatch` primary first, falls back to `steamAppId`.
+
+**Consequences:**
+- Two storage mechanisms coexist (debt). A future migration will backfill Steam into `ProviderMatch` and drop `steamAppId`.
+- `MetadataService.assign(gameId, providerName, remoteId)` clears `steamAppId` when assigning a non-Steam provider — the primary switch is recorded in `ProviderMatch`.
+- Only one `ProviderMatch` per game may be `isPrimary=true`; `upsert` demotes prior primary rows in a transaction.
+
+## ADR-018 — First-Match-Wins Provider Ordering
+
+**Context:** Multiple providers may return matches for the same query. Need a deterministic precedence for default (unscoped) search and auto-match.
+
+**Decision:** `ProviderRegistry` returns providers in fixed insertion order: `['steam', 'igdb']`. `MetadataService.searchForGame` without a `providerName` returns concatenated results in registry order. Manual assignment is explicit — the UI passes the chosen `providerName` back.
+
+**Consequences:**
+- Auto-match (when added) will walk providers in order and stop on first acceptable score.
+- Adding a third provider requires only appending to the registry; no negotiation logic.
+- Users can always scope search/assign to a specific provider via the `?provider` body param.
+
+## ADR-019 — Generic Artwork Cache Path for Non-Steam Providers
+
+**Context:** `ArtworkService` keyed cache by `appId: number` — Steam-specific.
+
+**Decision:** Add parallel generic methods (`downloadToCacheGeneric`, `readWithContentTypeGeneric`, `removeGeneric`, `cachePathGeneric`) keyed by `providerName/remoteId` strings. Steam methods untouched to preserve minimal scope (ADR-017 coexistence principle).
+
+**Consequences:**
+- Two API surfaces on `ArtworkService`. A future refactor will fold both into a single `cacheKey`-based API once Steam is also migrated to `ProviderMatch`.
+- `artwork.controller` dispatches by primary `ProviderMatch` first, falls back to `steamAppId` — single URL serves both.
+
 ---
 
 ## Open Issues
@@ -211,10 +254,9 @@ Track here before they become closed decisions or roadmap tasks.
 - Type exists; no Prisma model for screenshot rows.
 - Owner: Phase 5 (Artwork).
 
-### O-8 — Single-Provider Schema
+### O-8 — Single-Provider Schema (resolved by ADR-017)
 
-- `Game.steamAppId` is Steam-only. Once a second metadata provider lands, decide between per-provider columns vs. a `ProviderMatch` table.
-- Owner: deferred until a second provider is planned.
+- Closed: `ProviderMatch` table added; IGDB writes rows. Steam still uses `Game.steamAppId`; future migration to consolidate is tracked as new debt.
 
 ### O-9 — No Auth
 

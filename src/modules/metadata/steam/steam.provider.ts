@@ -66,6 +66,7 @@ export class SteamProvider implements MetadataProvider {
 
   private buildResult(item: SteamStoreSearchItem, score: number | undefined): SearchResult {
     return {
+      providerName: this.name,
       remoteId: String(item.id),
       title: item.name,
       coverUrl: item.tiny_image,
