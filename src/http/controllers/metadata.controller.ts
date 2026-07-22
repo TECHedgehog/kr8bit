@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { metadataService } from '../../modules/metadata/metadata.service.js';
 import { steamIndexService } from '../../modules/metadata/steam-index/steam-index.service.js';
+import { config } from '../../config/index.js';
 import { ConflictError, ValidationError } from '../../shared/errors.js';
 
 export const metadataController = {
@@ -35,6 +36,10 @@ export const metadataController = {
   },
 
   async refreshIndex(_req: FastifyRequest, reply: FastifyReply) {
+    if (!config.steamIndex.enabled) {
+      reply.status(503);
+      return { ok: false, reason: 'steam-index-disabled', message: 'STEAM_API_KEY not set' };
+    }
     if (steamIndexService.isRefreshing()) {
       throw new ConflictError('steam index refresh already in progress');
     }
