@@ -3,12 +3,14 @@ import { buildServer } from './http/server.js';
 import { logger } from './logger/index.js';
 import { config } from './config/index.js';
 import { recoverStaleScanRuns } from './modules/scanner/scanner.recovery.js';
+import { steamIndexService } from './modules/metadata/steam-index/steam-index.service.js';
 import './shared/bigint.js';
 
 let app: FastifyInstance | null = null;
 
 async function bootstrap(): Promise<void> {
   await recoverStaleScanRuns();
+  await steamIndexService.start();
   app = await buildServer();
   await app.listen({ port: config.port, host: config.host });
   logger.info(`kr8bit listening on http://${config.host}:${config.port}`);
@@ -24,6 +26,7 @@ async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info({ signal }, 'shutting down');
+  steamIndexService.stop();
   if (app) {
     try {
       await app.close();

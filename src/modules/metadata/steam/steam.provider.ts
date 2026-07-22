@@ -9,6 +9,8 @@ import { STEAM_CDN_BASE } from './steam.http.types.js';
 import type { SteamHttpClient } from './steam.http.js';
 import { steamHttpClient as defaultClient } from './steam.http.js';
 import type { SteamAppDetailsData, SteamStoreSearchItem } from './steam.http.types.js';
+import type { SteamIndexSearcher, SteamIndexSearchResult } from '../steam-index/steam-index.service.js';
+import { steamIndexService } from '../steam-index/steam-index.service.js';
 
 const SEARCH_LIMIT = 20;
 const FUSE_THRESHOLD = 0.6;
@@ -16,11 +18,17 @@ const FUSE_THRESHOLD = 0.6;
 export class SteamProvider implements MetadataProvider {
   readonly name = 'steam';
 
-  constructor(private readonly client: SteamHttpClient = defaultClient) {}
+  constructor(
+    private readonly client: SteamHttpClient = defaultClient,
+    private readonly indexSearcher: SteamIndexSearcher | null = steamIndexService,
+  ) {}
 
   async search(query: string): Promise<SearchResult[]> {
     const normalized = query.trim();
     if (!normalized) return [];
+
+    const local = await this.searchViaIndex(normalized);
+    if (local.length > 0) return local;
 
     let response;
     try {
@@ -44,6 +52,18 @@ export class SteamProvider implements MetadataProvider {
     return fuse
       .search(normalized, { limit: SEARCH_LIMIT })
       .map(({ item, score }) => this.buildResult(item, score));
+  }
+
+  private async searchViaIndex(query: string): Promise<SearchResult[]> {
+    if (!this.indexSearcher) return [];
+    try {
+      const candidates = await this.indexSearcher.searchByName(query);
+      if (candidates.length === 0) return [];
+      return candidates.map((c) => this.buildIndexResult(c));
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, query }, 'steam index search failed; fallback to storesearch');
+      return [];
+    }
   }
 
   async getGame(remoteId: string): Promise<GameMetadata | null> {
@@ -71,6 +91,15 @@ export class SteamProvider implements MetadataProvider {
       title: item.name,
       coverUrl: item.tiny_image,
       score: score !== undefined ? Math.round((1 - score) * 100) : undefined,
+    };
+  }
+
+  private buildIndexResult(c: SteamIndexSearchResult): SearchResult {
+    return {
+      providerName: this.name,
+      remoteId: String(c.appId),
+      title: c.name,
+      score: Math.round((1 - c.score) * 100),
     };
   }
 

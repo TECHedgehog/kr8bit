@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { metadataService } from '../../modules/metadata/metadata.service.js';
-import { ValidationError } from '../../shared/errors.js';
+import { steamIndexService } from '../../modules/metadata/steam-index/steam-index.service.js';
+import { ConflictError, ValidationError } from '../../shared/errors.js';
 
 export const metadataController = {
   async search(req: FastifyRequest, _reply: FastifyReply) {
@@ -31,5 +32,28 @@ export const metadataController = {
   async refresh(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
     return metadataService.refresh(id);
+  },
+
+  async refreshIndex(_req: FastifyRequest, reply: FastifyReply) {
+    if (steamIndexService.isRefreshing()) {
+      throw new ConflictError('steam index refresh already in progress');
+    }
+    const result = await steamIndexService.refresh();
+    if (!result.ok) {
+      if (result.reason === 'in-progress') {
+        throw new ConflictError('steam index refresh already in progress');
+      }
+      reply.status(502);
+      return { ok: false, reason: result.reason };
+    }
+    return { ok: true, rows: result.rows, refreshedAt: result.refreshedAt };
+  },
+
+  async searchSteamIndex(req: FastifyRequest, _reply: FastifyReply) {
+    const q = (req.query as { q?: string } | null)?.q ?? '';
+    const query = q.trim();
+    if (!query) return { results: [] };
+    const results = await steamIndexService.searchByName(query);
+    return { results };
   },
 };
