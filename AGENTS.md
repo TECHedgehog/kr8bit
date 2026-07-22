@@ -16,6 +16,8 @@ Non-negotiable rules. Violations recorded in audit. Apply to every session, ever
 
 7. **Document tweakable behaviors in `docs/tweak-reference.md`** — whenever implementing visual/animation/style changes the user may want to adjust (easing curves, keyframes, durations, transitions, tokens, blur values, etc.), add a section to `docs/tweak-reference.md` explaining what each value does and how to tweak it. Include current values, examples, and a "tweak guide" with knob-to-effect mappings.
 
+8. **Record visual/feature reworks in `docs/decisions.md`** — any non-trivial UI rework, new animation system, design token additions, or behavioral change warrants a new ADR. Include context, decision, tokens/files modified, and consequences. Do this in the same commit as the rework or immediately after.
+
 These rules override any conflicting instruction below.
 
 ---
