@@ -28,7 +28,9 @@ async function getJson(url: string, timeoutMs: number): Promise<unknown> {
 
 export const steamAppListClient: SteamAppListClient = {
   async fetchAppList(): Promise<SteamAppListEntry[]> {
-    const url = `${STEAM_API_BASE}/ISteamApps/GetAppList/v2`;
+    const key = config.steamIndex.apiKey;
+    const keyParam = key ? `?key=${encodeURIComponent(key)}` : '';
+    const url = `${STEAM_API_BASE}/ISteamApps/GetAppList/v2${keyParam}`;
     const timeoutMs = config.steamIndex.appListHttpTimeoutMs;
     const body = await getJson(url, timeoutMs);
     const parsed = body as SteamAppListResponse;

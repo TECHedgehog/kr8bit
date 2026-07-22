@@ -17,6 +17,7 @@ const schema = z.object({
   IGDB_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
   STEAM_INDEX_REFRESH_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
   STEAM_APP_LIST_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  STEAM_API_KEY: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -48,6 +49,8 @@ export const config = {
   steamIndex: {
     refreshIntervalHours: parsed.data.STEAM_INDEX_REFRESH_INTERVAL_HOURS,
     appListHttpTimeoutMs: parsed.data.STEAM_APP_LIST_HTTP_TIMEOUT_MS,
+    apiKey: parsed.data.STEAM_API_KEY ?? null,
+    enabled: Boolean(parsed.data.STEAM_API_KEY),
   },
 } as const;
 

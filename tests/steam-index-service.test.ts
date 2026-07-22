@@ -21,6 +21,15 @@ function failingAppListClient(): SteamAppListClient {
   };
 }
 
+function makeDeps(overrides: { appListClient: SteamAppListClient; now?: () => Date }) {
+  return {
+    appListClient: overrides.appListClient,
+    now: overrides.now ?? (() => new Date()),
+    enabled: true,
+    refreshIntervalHours: 24,
+  };
+}
+
 beforeEach(async () => {
   await prisma.steamAppIndex.deleteMany({});
   await prisma.setting.deleteMany({ where: { key: SETTING_LAST_REFRESH } });
@@ -37,10 +46,10 @@ describe('SteamIndexService.refresh', () => {
       { appid: 620, name: 'Portal 2' },
     ];
     const now = new Date('2026-01-15T10:00:00Z');
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: mockAppListClient(entries),
       now: () => now,
-    });
+    }));
 
     const result = await service.refresh();
     expect(result.ok).toBe(true);
@@ -61,10 +70,9 @@ describe('SteamIndexService.refresh', () => {
     const client: SteamAppListClient = {
       fetchAppList: vi.fn(() => fetchPromise),
     };
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: client,
-      now: () => new Date(),
-    });
+    }));
 
     const firstCall = service.refresh();
     const second = await service.refresh();
@@ -76,20 +84,18 @@ describe('SteamIndexService.refresh', () => {
   });
 
   it('reports fetch-failed when client throws', async () => {
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: failingAppListClient(),
-      now: () => new Date(),
-    });
+    }));
     const result = await service.refresh();
     expect(result.ok).toBe(false);
     expect(result.reason).toBe('fetch-failed');
   });
 
   it('isRefreshing flag is reset after failure', async () => {
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: failingAppListClient(),
-      now: () => new Date(),
-    });
+    }));
     await service.refresh();
     expect(service.isRefreshing()).toBe(false);
   });
@@ -97,10 +103,9 @@ describe('SteamIndexService.refresh', () => {
 
 describe('SteamIndexService.searchByName', () => {
   it('returns empty when fuse not built', async () => {
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: mockAppListClient([]),
-      now: () => new Date(),
-    });
+    }));
     expect(await service.searchByName('Skyrim')).toEqual([]);
   });
 
@@ -111,10 +116,9 @@ describe('SteamIndexService.searchByName', () => {
       { appid: 1746860, name: 'The Elder Scrolls V: Skyrim Anniversary Upgrade' },
       { appid: 70, name: 'Half-Life' },
     ];
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: mockAppListClient(entries),
-      now: () => new Date(),
-    });
+    }));
     await service.refresh();
 
     const results = await service.searchByName('Skyrim');
@@ -132,20 +136,18 @@ describe('SteamIndexService.searchByName', () => {
       { appid: 730, name: 'Counter-Strike 2' },
       { appid: 620, name: 'Portal 2' },
     ];
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: mockAppListClient(entries),
-      now: () => new Date(),
-    });
+    }));
     await service.refresh();
     const results = await service.searchByName('xyzzy-no-such-game');
     expect(results).toEqual([]);
   });
 
   it('handles empty query', async () => {
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: mockAppListClient([{ appid: 1, name: 'Whatever' }]),
-      now: () => new Date(),
-    });
+    }));
     await service.refresh();
     expect(await service.searchByName('')).toEqual([]);
     expect(await service.searchByName('   ')).toEqual([]);
@@ -153,12 +155,24 @@ describe('SteamIndexService.searchByName', () => {
 });
 
 describe('SteamIndexService.start / stop', () => {
+  it('skips start when disabled', async () => {
+    const service = new SteamIndexService({
+      appListClient: mockAppListClient([{ appid: 1, name: 'Game' }]),
+      now: () => new Date(),
+      enabled: false,
+      refreshIntervalHours: 24,
+    });
+    await service.start();
+    await new Promise((r) => setImmediate(r));
+    expect(await prisma.steamAppIndex.count()).toBe(0);
+    service.stop();
+  });
+
   it('kicks off boot refresh when stale and registers interval handle', async () => {
     const entries = [{ appid: 1, name: 'Boot Game' }];
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: mockAppListClient(entries),
-      now: () => new Date(),
-    });
+    }));
     await service.start();
     // Drain microtask queue until boot refresh (fire-and-forget) lands.
     for (let i = 0; i < 20 && (await prisma.steamAppIndex.count()) === 0; i += 1) {
@@ -169,10 +183,9 @@ describe('SteamIndexService.start / stop', () => {
   });
 
   it('stop is idempotent', async () => {
-    const service = new SteamIndexService({
+    const service = new SteamIndexService(makeDeps({
       appListClient: mockAppListClient([]),
-      now: () => new Date(),
-    });
+    }));
     service.stop();
     service.stop();
   });

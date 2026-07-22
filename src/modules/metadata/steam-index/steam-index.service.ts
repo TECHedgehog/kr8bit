@@ -27,11 +27,15 @@ export interface SteamIndexRefreshResult {
 export interface SteamIndexDeps {
   appListClient: SteamAppListClient;
   now: () => Date;
+  enabled: boolean;
+  refreshIntervalHours: number;
 }
 
 export const defaultSteamIndexDeps: SteamIndexDeps = {
   appListClient: defaultAppListClient,
   now: () => new Date(),
+  enabled: config.steamIndex.enabled,
+  refreshIntervalHours: config.steamIndex.refreshIntervalHours,
 };
 
 export interface SteamIndexSearcher {
@@ -49,25 +53,30 @@ export class SteamIndexService implements SteamIndexSearcher {
   }
 
   /**
-   * Boot hook: if index empty OR stale beyond refresh interval, schedule refresh
+   * Boot hook: if STEAM_API_KEY is set and index is stale, schedule refresh
    * in background (fire-and-forget). Then schedule periodic refresh.
-   * Non-blocking; never throws.
+   * Without a key, indexer stays disabled — SteamProvider.search falls back
+   * to live storesearch. Non-blocking; never throws.
    */
   async start(): Promise<void> {
+    if (!this.deps.enabled) {
+      logger.info('steam index disabled (no STEAM_API_KEY) — search will use live storesearch');
+      return;
+    }
     const stale = await this.isStale();
     if (stale) {
       this.refresh().catch((err) => {
         logger.error({ err: (err as Error).message }, 'steam index boot refresh failed');
       });
     }
-    const intervalMs = config.steamIndex.refreshIntervalHours * 60 * 60 * 1000;
+    const intervalMs = this.deps.refreshIntervalHours * 60 * 60 * 1000;
     this.intervalHandle = setInterval(() => {
       this.refresh().catch((err) => {
         logger.error({ err: (err as Error).message }, 'steam index scheduled refresh failed');
       });
     }, intervalMs);
     logger.info(
-      { refreshIntervalHours: config.steamIndex.refreshIntervalHours, staleAtBoot: stale },
+      { refreshIntervalHours: this.deps.refreshIntervalHours, staleAtBoot: stale },
       'steam index service started',
     );
   }
@@ -130,7 +139,7 @@ export class SteamIndexService implements SteamIndexSearcher {
     if (!last) return true;
     const lastMs = Date.parse(last);
     if (Number.isNaN(lastMs)) return true;
-    const intervalMs = config.steamIndex.refreshIntervalHours * 60 * 60 * 1000;
+    const intervalMs = this.deps.refreshIntervalHours * 60 * 60 * 1000;
     return Date.now() - lastMs >= intervalMs;
   }
 
