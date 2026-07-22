@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   Search, Grid3x3, List, ArrowDownUp, Filter, ScanLine,
@@ -54,6 +54,49 @@ export function GamesPage(): JSX.Element {
   const [filterOpen, setFilterOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
+  const viewToggleRef = useRef<HTMLDivElement>(null);
+  const viewToggleIndicatorRef = useRef<HTMLDivElement>(null);
+  const viewIsFirstRender = useRef(true);
+  const [viewSuppressTransition, setViewSuppressTransition] = useState(true);
+  const [viewIndicatorStyle, setViewIndicatorStyle] = useState<{ translate: string; width: string; opacity: number }>({
+    translate: '0px 0',
+    width: '0px',
+    opacity: 0,
+  });
+
+  useLayoutEffect(() => {
+    const toggle = viewToggleRef.current;
+    if (!toggle) return;
+    const activeBtn = toggle.querySelector('.icon-button.active') as HTMLElement | null;
+    if (!activeBtn) {
+      setViewIndicatorStyle((s) => ({ ...s, opacity: 0 }));
+      return;
+    }
+    const toggleRect = toggle.getBoundingClientRect();
+    const btnRect = activeBtn.getBoundingClientRect();
+    const x = btnRect.left - toggleRect.left;
+    setViewIndicatorStyle({
+      translate: `${x}px 0`,
+      width: `${btnRect.width}px`,
+      opacity: 1,
+    });
+
+    if (viewIsFirstRender.current) {
+      viewIsFirstRender.current = false;
+      return;
+    }
+
+    const el = viewToggleIndicatorRef.current;
+    if (el) {
+      el.classList.remove('view-toggle-indicator--moving');
+      void el.offsetWidth;
+      el.classList.add('view-toggle-indicator--moving');
+    }
+  }, [view]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => setViewSuppressTransition(false));
+  }, []);
 
   useEffect(() => {
     setSearchInput(search);
@@ -203,7 +246,13 @@ export function GamesPage(): JSX.Element {
 
           <div className="toolbar-divider" />
 
-          <div className="view-toggle">
+          <div className="view-toggle" ref={viewToggleRef}>
+            <div
+              ref={viewToggleIndicatorRef}
+              className={`view-toggle-indicator${viewSuppressTransition ? ' view-toggle-indicator--no-transition' : ''}`}
+              style={viewIndicatorStyle}
+              onAnimationEnd={() => viewToggleIndicatorRef.current?.classList.remove('view-toggle-indicator--moving')}
+            />
             <IconButton
               icon={Grid3x3}
               label="Grid view"
