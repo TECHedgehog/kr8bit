@@ -327,6 +327,52 @@ Restyle TopBar to a centered floating pill (max 720px, `border-radius: 999px`, 1
 
 ---
 
+## ADR-023 — Liquid Glass as General Design Feature
+
+**Context:** ADR-022 established the iOS 26 floating glass pill TopBar with a sliding liquid glass lens indicator. The liquid glass aesthetic needed to become a general feature of the program — game cards, search boxes, menus, buttons, tooltips, toasts, modals, and the view-toggle all needed to follow the same visual language. Unraid/Docker targets mean performance matters: `backdrop-filter: blur()` on 50+ game cards in a grid would be too expensive.
+
+**Decision:**
+
+Three-tier glass system driven by CSS custom properties, applied across all UI surfaces:
+
+| Tier | Blur | Tokens | Elements |
+|---|---|---|---|
+| 1 — Liquid Glass | 32px saturate(180%) | `--liquid-glass-*` (existing) | Dropdowns, tooltip, toast, modal |
+| 2 — Glass Surface | 20px saturate(160%) | `--glass-*` (existing) + new `--glass-edge` | Search box, `.card`, `.scan-progress`, view-toggle track, game-card overlay |
+| 3 — Glass Tint | none | new `--glass-tint-bg`, `--glass-tint-hover-bg`, `--glass-tint-edge` | Buttons, icon-buttons, inputs, status-badge, error banner, game-list-row hover, theme-toggle hover, dropdown item hover |
+
+Tier 3 preserves the visual language (translucency + edge highlights + hairline borders) without `backdrop-filter` cost — safe for grid of 50+ game cards.
+
+**Game card overlay (iOS 26 media tile):** Card container becomes transparent (cover art is the surface). The bottom title/status strip gets tier 2 glass (`--glass-blur` + `--glass-bg` + gradient fade + `--glass-edge`), layered behind the existing gradient overlay.
+
+**View-toggle sliding lens:** The segmented grid/list control gets a `.view-toggle-indicator` div mirroring the TopBar's `.topbar-indicator` — same `--lens-*` tokens, `lens-pulse` keyframe, chromatic `::before` gradient, spring easing (`cubic-bezier(0.34, 1.56, 0.64, 1)`), first-render suppression via `requestAnimationFrame`, and `onAnimationEnd` cleanup. Duration 0.4s (shorter than TopBar's 0.6s — smaller travel distance).
+
+**Frozen components unfrozen:** ADR-020's freeze on ScanProgress, PageHeader, and StatusBadge is lifted for glass treatment. ScanProgress gets tier 2 glass. StatusBadge gets tier 3 tint. PageHeader remains layout-only (no surface).
+
+**Tokens added:**
+- `--glass-edge` (dark + light) — tier 2 edge highlights
+- `--glass-tint-bg` (dark + light) — tier 3 translucent fill, no blur
+- `--glass-tint-hover-bg` (dark + light) — tier 3 stronger hover fill
+- `--glass-tint-edge` (dark + light) — tier 3 edge hairline
+
+**Files modified:**
+- `web/src/styles.css` — new tokens + restyled: `button`, `.icon-button`, `input/select/textarea`, `.error`, `.status-badge`, `.library-search`, `.card`, `.scan-progress`, `.search-result`, `.sort-menu-dropdown`, `.sort-menu-item`, `.filter-menu-dropdown`, `.filter-menu-item`, `.tooltip`, `.toast` (+ variants), `.modal`, `.game-card`, `.game-card-overlay`, `.game-list-row`, `.theme-toggle`, `.modal-close`, `.view-toggle` + new `.view-toggle-indicator` (+ `::before`, `--no-transition`, `--moving`)
+- `web/src/pages/GamesPage.tsx` — view-toggle lens indicator: `useLayoutEffect` measurement, `viewIsFirstRender` ref, `viewSuppressTransition` state, `viewToggleRef`/`viewToggleIndicatorRef`, `onAnimationEnd` handler
+- `docs/tweak-reference.md` — new sections: glass tier tokens, tier→element mapping, tweak guide, view-toggle lens knobs
+- `docs/decisions.md` — this ADR
+
+**Consequences:**
+- ADR-020 freeze on ScanProgress/StatusBadge lifted — these now visually change with glass tokens.
+- All glass properties centralized in tokens — theme switching stays single-point.
+- Tier 3 (no blur) on high-count elements (game cards, buttons, rows) keeps GPU cost minimal on Unraid/Docker.
+- Two stacked blur layers on game-card overlay (gradient + backdrop-filter) — acceptable for a single hovered card, monitor on very low-end devices.
+- `lens-pulse` keyframe is now shared between TopBar and view-toggle — changes to the keyframe affect both.
+- View-toggle lens duration (0.4s) intentionally shorter than TopBar (0.6s) — smaller travel distance, same easing.
+- Safari requires `-webkit-backdrop-filter` — included on all tier 1/tier 2 elements.
+- `--glass-bg` / `--glass-blur` (tier 2, from ADR-020) remain for backward compat; `.modal` upgraded from tier 2 to tier 1 (`--liquid-glass-*`).
+
+---
+
 ## Open Issues
 
 Track here before they become closed decisions or roadmap tasks.

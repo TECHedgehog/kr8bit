@@ -260,3 +260,85 @@ Triggered by React adding the class on route change, removed after 600ms:
 - Sets `translate`, `width`, `opacity` via inline style
 - `isMoving` state: `true` on route change, `false` after `setTimeout(600)` — must match CSS `animation-duration`
 - `NAV_ITEMS` array drives link rendering + ref collection
+
+---
+
+## Glass Tier System
+
+Three-tier glass architecture for visual continuity + performance on low-end hardware (Unraid/Docker).
+
+### Tokens
+
+| Token | Dark | Light | Description |
+|---|---|---|---|
+| `--liquid-glass-blur` | `blur(32px) saturate(180%)` | `blur(40px) saturate(200%)` | Heavy blur — floating overlays |
+| `--liquid-glass-bg` | `rgba(18,20,25,0.55)` | `rgba(230,232,240,0.35)` | Semi-transparent fill — tier 1 |
+| `--liquid-glass-edge` | inset white top + dark bottom | stronger white top + inner ring | Glass edge highlights — tier 1 |
+| `--glass-blur` | `blur(20px) saturate(160%)` | same | Medium blur — inline containers |
+| `--glass-bg` | `rgba(18,20,25,0.7)` | `rgba(255,255,255,0.75)` | Semi-transparent fill — tier 2 |
+| `--glass-edge` | inset white top + dark bottom | inset white top | Glass edge highlights — tier 2 |
+| `--glass-tint-bg` | `rgba(255,255,255,0.06)` | `rgba(255,255,255,0.6)` | Translucent tint, **no blur** — tier 3 |
+| `--glass-tint-hover-bg` | `rgba(255,255,255,0.1)` | `rgba(255,255,255,0.8)` | Stronger tint for hover — tier 3 |
+| `--glass-tint-edge` | inset white top hairline | inset white top `0.4` | Subtle edge highlight — tier 3 |
+
+### Tier → Element mapping
+
+| Tier | Blur | Used on |
+|---|---|---|
+| 1 — Liquid Glass | 32px | Dropdowns (`sort-menu`, `filter-menu`), tooltip, toast, modal, TopBar |
+| 2 — Glass Surface | 20px | Search box, `.card`, `.scan-progress`, view-toggle track, game-card overlay |
+| 3 — Glass Tint | none | Buttons, icon-buttons, inputs, status-badge, error banner, game-list-row hover, theme-toggle hover, dropdown item hover |
+
+### Tweak guide
+
+**Want heavier/lighter blur?**
+- Tier 1: adjust `--liquid-glass-blur` (higher = blurrier, more GPU).
+- Tier 2: adjust `--glass-blur`.
+- Tier 3: no blur by design — safest for many elements (50+ game cards).
+
+**Want more/less transparency?**
+- Lower alpha = more see-through. E.g. dark tier 1 `rgba(18,20,25,0.4)` = thinner.
+- Light theme tier 1 is already very thin (`0.35`) — lower risks unreadable text.
+
+**Want stronger/weaker edge highlights?**
+- Tier 1 `--liquid-glass-edge`: increase white alpha (`0.08` → `0.15`) for more shine.
+- Tier 3 `--glass-tint-edge`: currently a single hairline. Add bottom shadow for more depth:
+  ```css
+  --glass-tint-edge: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.15);
+  ```
+
+**Game card overlay strip:**
+- `.game-card-overlay` uses `--glass-blur` (tier 2) + gradient fade. Change gradient alpha (`0.55` dark) for more/less legibility.
+- Remove `backdrop-filter` on `.game-card-overlay` for zero-blur cards (tier 3 tint only).
+
+---
+
+## View-Toggle Sliding Lens
+
+Same lens system as TopBar, miniaturized. Lives in `GamesPage.tsx` + `styles.css` `.view-toggle-indicator`.
+
+### Differences from TopBar lens
+
+| Knob | TopBar | View-Toggle |
+|---|---|---|
+| Duration | `0.6s` | `0.4s` (smaller travel distance) |
+| Padding | `top: 0` | `top: 3px` (3px inset for pill padding) |
+| Track blur | none | `--lens-blur` on `.view-toggle` track |
+| Chromatic `::before` | identical | identical (shared gradient) |
+
+### Tweak guide
+
+**Slower/faster slide?** Change `0.4s` on `.view-toggle-indicator` transition + `.view-toggle-indicator--moving` animation.
+
+**No bounce?** Replace `cubic-bezier(0.34, 1.56, 0.64, 1)` with `ease-out`.
+
+**No chromatic sheen?** Remove `.view-toggle-indicator::before` block.
+
+**Want lens to fill more?** Decrease pill padding: `.view-toggle` `padding: 3px` → `2px` or `1px`, and `.view-toggle-indicator` `top: 3px` → `2px` or `1px`.
+
+### React side (`GamesPage.tsx`)
+
+- `useLayoutEffect` measures active icon-button position on view change
+- `viewIsFirstRender` ref suppresses transition on mount (matches TopBar pattern)
+- `viewSuppressTransition` state removed via `requestAnimationFrame` after first paint
+- `onAnimationEnd` removes `--moving` class (no hardcoded timeout)
