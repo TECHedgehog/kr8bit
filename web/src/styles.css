@@ -94,14 +94,14 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
   --glass-bg: rgba(255, 255, 255, 0.75);
   --glass-blur: blur(20px) saturate(160%);
-  --liquid-glass-blur: blur(32px) saturate(180%);
-  --liquid-glass-bg: rgba(255, 255, 255, 0.6);
-  --liquid-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+  --liquid-glass-blur: blur(40px) saturate(200%);
+  --liquid-glass-bg: rgba(230, 232, 240, 0.35);
+  --liquid-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -1px 0 rgba(0, 0, 0, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   --seg-track-bg: rgba(0, 0, 0, 0.06);
-  --lens-bg: rgba(255, 255, 255, 0.06);
+  --lens-bg: rgba(255, 255, 255, 0.04);
   --lens-blur: blur(10px) saturate(160%);
   --lens-blur-moving: blur(20px) saturate(220%);
-  --lens-edge: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.08), inset 1px 0 0 rgba(255, 100, 100, 0.05), inset -1px 0 0 rgba(100, 150, 255, 0.05);
+  --lens-edge: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.06), inset 1px 0 0 rgba(255, 100, 100, 0.06), inset -1px 0 0 rgba(100, 150, 255, 0.06);
   --pending: #6b7280;
   --flagged: #ca8a04;
   --accepted: #16a34a;
@@ -198,17 +198,14 @@ a {
   gap: var(--space-1);
   align-items: center;
   position: relative;
-  padding: 3px;
-  background: var(--seg-track-bg);
-  border-radius: var(--radius-full);
   margin: 0 auto;
 }
 
 .topbar-indicator {
   position: absolute;
-  top: 3px;
+  top: 0;
   left: 0;
-  height: calc(100% - 6px);
+  height: 100%;
   border-radius: var(--radius-full);
   background: var(--lens-bg);
   backdrop-filter: var(--lens-blur);
@@ -276,11 +273,11 @@ a {
 }
 
 .topbar-link.active {
-  color: #fff;
+  color: var(--accent);
 }
 
 .topbar-link.active svg {
-  color: #fff;
+  color: var(--accent);
 }
 
 .topbar-spacer {
