@@ -1,9 +1,11 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ImageOff } from 'lucide-react';
 import type { Game } from '../api/types';
 import { StatusBadge } from './StatusBadge';
 
 interface GameCardProps {
   game: Game;
-  onOpen: (id: string) => void;
 }
 
 function formatScore(score: number | null): string {
@@ -11,26 +13,33 @@ function formatScore(score: number | null): string {
   return `${Math.round(score)}%`;
 }
 
-export function GameCard({ game, onOpen }: GameCardProps) {
+export function GameCard({ game }: GameCardProps): JSX.Element {
+  const navigate = useNavigate();
   const title = game.title ?? game.entryName;
   const score = formatScore(game.matchScore);
+  const [imgError, setImgError] = useState(false);
+
   return (
-    <button className="game-card" onClick={() => onOpen(game.id)}>
+    <button className="game-card" onClick={() => navigate(`/games/${game.id}`)}>
       <div className="game-card-cover">
-        <img
-          src={`/api/games/${game.id}/artwork/cover`}
-          alt={title}
-          loading="lazy"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.visibility = 'hidden';
-          }}
-        />
-      </div>
-      <div className="game-card-body">
-        <div className="game-card-title" title={title}>{title}</div>
-        <div className="game-card-meta">
-          <StatusBadge status={game.matchStatus} />
-          {score && <span className="game-card-score">{score}</span>}
+        {imgError ? (
+          <div className="game-card-placeholder">
+            <ImageOff size={32} />
+          </div>
+        ) : (
+          <img
+            src={`/api/games/${game.id}/artwork/cover`}
+            alt={title}
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        )}
+        <div className="game-card-overlay">
+          <div className="game-card-overlay-title">{title}</div>
+          <div className="game-card-overlay-meta">
+            <StatusBadge status={game.matchStatus} />
+            {score && <span className="game-card-score">{score}</span>}
+          </div>
         </div>
       </div>
     </button>
