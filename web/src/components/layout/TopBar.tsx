@@ -1,9 +1,66 @@
-import { NavLink } from 'react-router-dom';
-import { Gamepad2, ScanLine, Library, Sun, Moon } from 'lucide-react';
+import { useRef, useState, useLayoutEffect, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { Gamepad2, ScanLine, Library, Sun, Moon, type LucideIcon } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/games', label: 'Library', icon: Library },
+  { to: '/scan', label: 'Scan', icon: ScanLine },
+];
 
 export function TopBar(): JSX.Element {
   const { theme, toggleTheme } = useTheme();
+  const location = useLocation();
+  const navRef = useRef<HTMLElement>(null);
+  const linkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const indicatorRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+  const [suppressTransition, setSuppressTransition] = useState(true);
+  const [indicatorStyle, setIndicatorStyle] = useState<{ translate: string; width: string; opacity: number }>({
+    translate: '0px 0',
+    width: '0px',
+    opacity: 0,
+  });
+
+  useLayoutEffect(() => {
+    const activeIndex = NAV_ITEMS.findIndex((item) => location.pathname.startsWith(item.to));
+    const link = linkRefs.current[activeIndex];
+    const nav = navRef.current;
+    if (!link || !nav || activeIndex === -1) {
+      setIndicatorStyle((s) => ({ ...s, opacity: 0 }));
+      return;
+    }
+    const navRect = nav.getBoundingClientRect();
+    const linkRect = link.getBoundingClientRect();
+    const x = linkRect.left - navRect.left;
+    setIndicatorStyle({
+      translate: `${x}px 0`,
+      width: `${linkRect.width}px`,
+      opacity: 1,
+    });
+
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    const el = indicatorRef.current;
+    if (el) {
+      el.classList.remove('topbar-indicator--moving');
+      void el.offsetWidth;
+      el.classList.add('topbar-indicator--moving');
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => setSuppressTransition(false));
+  }, []);
 
   return (
     <header className="topbar">
@@ -11,15 +68,24 @@ export function TopBar(): JSX.Element {
         <Gamepad2 size={24} />
         <span>kr8bit</span>
       </div>
-      <nav className="topbar-nav">
-        <NavLink to="/games" className={({ isActive }) => `topbar-link${isActive ? ' active' : ''}`}>
-          <Library size={16} />
-          <span>Library</span>
-        </NavLink>
-        <NavLink to="/scan" className={({ isActive }) => `topbar-link${isActive ? ' active' : ''}`}>
-          <ScanLine size={16} />
-          <span>Scan</span>
-        </NavLink>
+      <nav className="topbar-nav" ref={navRef}>
+        <div
+          ref={indicatorRef}
+          className={`topbar-indicator${suppressTransition ? ' topbar-indicator--no-transition' : ''}`}
+          style={indicatorStyle}
+          onAnimationEnd={() => indicatorRef.current?.classList.remove('topbar-indicator--moving')}
+        />
+        {NAV_ITEMS.map((item, i) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            ref={(el) => { linkRefs.current[i] = el; }}
+            className={({ isActive }) => `topbar-link${isActive ? ' active' : ''}`}
+          >
+            <item.icon size={16} />
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
       </nav>
       <div className="topbar-spacer" />
       <div className="topbar-actions">
