@@ -65,3 +65,11 @@ model ProviderMatch {
   @@unique([gameId, providerName])
   @@index([providerName, remoteId])
 }
+
+model SteamAppIndex {
+  appId      Int     @id
+  name       String
+  indexedAt  DateTime @default(now())
+
+  @@index([name])
+}

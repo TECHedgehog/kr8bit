@@ -15,6 +15,8 @@ const schema = z.object({
   IGDB_API_BASE: z.string().url().default('https://api.igdb.com/v4'),
   IGDB_TOKEN_BASE: z.string().url().default('https://id.twitch.tv/oauth2'),
   IGDB_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  STEAM_INDEX_REFRESH_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
+  STEAM_APP_LIST_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -42,6 +44,10 @@ export const config = {
     tokenBase: parsed.data.IGDB_TOKEN_BASE,
     httpTimeoutMs: parsed.data.IGDB_HTTP_TIMEOUT_MS,
     enabled: Boolean(parsed.data.IGDB_CLIENT_ID && parsed.data.IGDB_CLIENT_SECRET),
+  },
+  steamIndex: {
+    refreshIntervalHours: parsed.data.STEAM_INDEX_REFRESH_INTERVAL_HOURS,
+    appListHttpTimeoutMs: parsed.data.STEAM_APP_LIST_HTTP_TIMEOUT_MS,
   },
 } as const;
 
