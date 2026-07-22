@@ -207,6 +207,59 @@ ADR-style log. Each entry: context + decision + consequences. Open issues at the
 
 ---
 
+## ADR-020 — UI Rework: Netflix-like Library with Glassmorphism
+
+**Context:** Initial UI was functional but utilitarian — dark-only, text buttons, no icons, no routing, no light mode. User requested a Netflix/Basement-like experience: uncluttered, minimalist, icon-based actions with tooltips, light/dark mode.
+
+**Decision:** Full frontend visual rework. Tech stack: React 18 + `react-router-dom` (replacing state-based tab nav), `lucide-react` for icons, `@fontsource/onest` for typography. Single `styles.css` rewritten with dual-theme CSS custom properties (`[data-theme="dark"]` / `[data-theme="light"]`), 4px-base spacing scale, typography scale, shadow scale, radius scale.
+
+**Design tokens (dark):**
+- `--bg: #08090c`, `--surface-1: #121419`, `--surface-2: #1a1d24`, `--surface-3: #252932`
+- `--accent: #8288fe` (indigo, Basement-inspired), `--accent-glow: rgba(130,136,254,0.25)`
+- `--glass-bg: rgba(18,20,25,0.7)`, `--glass-blur: blur(20px) saturate(160%)`
+- Shadows: `--shadow-md` includes `inset 0 1px rgba(255,255,255,0.04)` hairline
+- Card hover: `perspective(900px) scale(1.04) rotateX(1.5deg) rotateY(-1.5deg)` + accent glow + inset shine, `cubic-bezier(.16,1,.3,1)` easing
+
+**Design tokens (light):**
+- `--bg: #f6f7f9`, `--surface-1: #ffffff`, `--accent: #6366f1`
+
+**Typography:** Onest (weights 400/500/600/700), `--text-xs` through `--text-3xl` scale, 1.5 line-height body / 1.2 headings.
+
+**Layout:**
+- TopBar: glassmorphic (`backdrop-filter`), sticky, logo + nav links + theme toggle
+- Library page: icon toolbar (sort dropdown, filter dropdown, grid/list toggle, scan link), search bar, query-param URL state for all filters (`?view=&sort=&search=&status=&limit=&offset=`)
+- Game grid: `repeat(auto-fill, minmax(170px, 1fr))`, `gap: 24px 16px` (generous, Basement-style)
+- Game detail: full-width hero backdrop with gradient overlay, icon-only toolbar, metadata in 2-col grid sections
+- Modal: glass panel with blurred backdrop
+
+**Components:**
+- `IconButton` — icon + tooltip + `aria-label`, variants: default/ghost/danger
+- `Tooltip` — CSS-only, positioned above trigger, fade-in on hover
+- `ToastContext` — `useToast({success, error, info})`, errors persist until dismissed, success/info 3s auto-dismiss
+- `ThemeContext` — localStorage > `prefers-color-scheme` > dark default, `matchMedia` listener for system changes
+- `ErrorBoundary` — catches runtime errors, displays message + stack
+- `GameCard` — full-brightness cover, hover overlay with title + status badge fade-in, image error placeholder
+- `GameListRow` — list view: 40px thumb, title, status, size, hover highlight
+
+**Frozen (not modified this pass):**
+- `PageHeader.tsx`, `StatusBadge.tsx` — CSS class names preserved for ScanPage compatibility
+- `ScanPage.tsx`, `ScanProgress.tsx` — layout deferred, will inherit new tokens visually
+- `api/*`, `format.ts` — no changes
+
+**Consequences:**
+- Scan page visually changes from token updates but layout/structure untouched — acknowledged scope boundary.
+- `App.tsx` `Page` type removed (was frontend-internal, not exported).
+- `styles.css` fully rewritten — all existing class names preserved for frozen components.
+- Sort dropdown stores selection in URL but client-side sort logic not yet implemented (backend sort params or client-side sort needed).
+- BrowserRouter works in Docker — Fastify `setNotFoundHandler` already serves `index.html` for non-API GET routes (SPA fallback).
+
+**New dependencies:**
+- `@fontsource/onest` (replaced `@fontsource/inter`)
+- `lucide-react`
+- `react-router-dom`
+
+---
+
 ## Open Issues
 
 Track here before they become closed decisions or roadmap tasks.
@@ -264,6 +317,28 @@ Track here before they become closed decisions or roadmap tasks.
 - Owner: Phase 10.
 
 ### O-10 — No Tests
+
+- vitest configured (`package.json`, `tsconfig.json` excludes `tests`). No test files exist.
+- Owner: Phase 12.
+
+### O-11 — Sort Dropdown Not Wired to Backend
+
+- GamesPage sort menu (`?sort=title-asc|title-desc|newest|oldest|largest|smallest`) updates URL params but the API fetch does not pass sort params to `GET /api/games`. Client-side sorting not implemented either.
+- Fix: either add sort params to the backend `/api/games` endpoint, or sort client-side after fetch.
+- Owner: future UI task.
+
+### O-12 — Scan Page Layout Not Reworked
+
+- ScanPage and ScanProgress use shared CSS class names (`.scan-progress`, `.scan-run`, `.card`, `.page-header`) which now reference new token values — visual appearance changed but layout/structure is frozen.
+- Scan page should get the same treatment as Library + Detail pages: icon buttons, glassmorphism, toolbars, toast integration.
+- Owner: future UI task.
+
+### O-13 — Static Asset Serving in Docker
+
+- Backend `@fastify/static` with `wildcard: false` does not serve files under `/assets/` — returns `index.html` for all non-API GET routes (SPA fallback). The JS/CSS bundles at `/assets/index-*.js` return HTML instead of the actual file.
+- Dev server (`:5173`) works fine; issue only affects production/Docker.
+- Fix: likely need `@fastify/static` `wildcard: true` or configure `decorateReply` + prefix properly, or use a separate route for `/assets/`.
+- Owner: blocking for Docker deployment.
 
 - vitest configured (`package.json`, `tsconfig.json` excludes `tests`). No test files exist.
 - Owner: Phase 12.
