@@ -260,6 +260,73 @@ ADR-style log. Each entry: context + decision + consequences. Open issues at the
 
 ---
 
+## ADR-021 — Semantic Versioning with Single Source of Truth
+
+**Context:** Version `0.1.0` was hardcoded in `health.routes.ts` and duplicated across `package.json` + `web/package.json`. No git tags, no changelog, no release process. Risk of silent desync on every bump.
+
+**Decision:** Semantic Versioning (`MAJOR.MINOR.PATCH`). Pre-1.0 (`0.x.x`): MINOR bump = feature, PATCH bump = fix. No stability guarantees until `1.0`.
+
+Single source of truth: root `package.json` `version` field. One version for the whole monorepo. `web/package.json` version field removed. `health.routes.ts` reads version at runtime via `src/app-version.ts` (`fs.readFileSync` + `import.meta.url` — avoids `TS6059` rootDir conflict from JSON import).
+
+Every release tagged `vX.Y.Z` in git. `CHANGELOG.md` maintained at repo root in Keep-a-Changelog format.
+
+Manual release process (no CI/CD yet):
+1. Bump `version` in root `package.json`
+2. Add new section to `CHANGELOG.md`
+3. Commit `chore(config): bump version to X.Y.Z`
+4. `git tag vX.Y.Z`
+5. Docker build/push — later when CI lands
+
+**Consequences:**
+- One edit site for version — no desync risk.
+- `app-version.ts` works in both dev (`tsx` from `src/`) and prod (`node` from `dist/`) — `../package.json` resolves to repo root or `/app/` respectively.
+- Runtime read adds negligible I/O (single `readFileSync` at module load).
+- Release process is manual until CI/CD is added (future roadmap item).
+
+## ADR-022 — Floating Glass Pill TopBar with Sliding Lens Indicator
+
+**Context:** ADR-020 established the initial glassmorphic TopBar — full-width sticky bar, 56px tall, flush to viewport edges. User requested an iPhone/iOS-26-style floating centered pill with a sliding "liquid glass" lens indicator (not a segmented control fill). Referenced WWDC25 "Meet Liquid Glass" session for design principles: lensing (light bending, not scattering), clear variant (no color filter), materialize (not fade), grow-then-settle motion.
+
+**Decision:**
+
+Restyle TopBar to a centered floating pill (max 720px, `border-radius: 999px`, 12px float gap). Replace the active link fill with a separate `.topbar-indicator` div that slides between links via the CSS `translate` property (React measures active link offset/width via refs + `useLayoutEffect`).
+
+**Liquid glass lens effect:**
+- Clear (non-tinted) background: `rgba(255,255,255,0.03)` dark / `0.06` light
+- `backdrop-filter: blur(10px) saturate(160%)` resting → `blur(20px) saturate(220%)` while moving (heavier distortion mid-slide)
+- Chromatic aberration edges: inset red (left) + blue (right) box-shadow hairlines
+- Rainbow refraction: `::before` pseudo with 5-stop iridescent gradient, `mix-blend-mode: overlay`
+- Glass edges: inset top highlight + bottom shadow hairlines
+
+**Animation:**
+- Slide: CSS `transition` on `translate` + `width` — `0.6s cubic-bezier(0.34, 1.56, 0.64, 1)` (bouncy spring overshoot)
+- Vertical bounce: `@keyframes lens-pulse` using `transform: scaleY()` — grow to 1.4x, slight undershoot to 0.92, settle to 1
+- Animation restart on rapid clicks: direct DOM class toggle (`remove` → `void offsetWidth` → `add`) instead of React state — the standard CSS animation restart trick
+- First-render suppression: `suppressTransition` state + `--no-transition` CSS class prevents the indicator from sliding in on page load/refresh; removed via `requestAnimationFrame` after first paint
+- `onAnimationEnd` handler reverts heavier moving blur to resting state (replaces `setTimeout`)
+
+**Tokens added:**
+- `--topbar-top-gap: 12px`, `--topbar-max-w: 720px`, `--topbar-side-gap: 16px`
+- `--lens-bg`, `--lens-blur`, `--lens-blur-moving`, `--lens-edge` (dark + light)
+- `--seg-track-bg` for the segmented control track behind links
+
+**Files modified:**
+- `web/src/styles.css` — new tokens + restyled `.topbar`, `.topbar-nav`, `.topbar-indicator` + `::before`, `.topbar-indicator--moving`, `@keyframes lens-pulse`, `.topbar-indicator--no-transition`
+- `web/src/components/layout/TopBar.tsx` — ref-based indicator measurement, `useLayoutEffect` for positioning, animation restart via DOM, first-render suppression via `requestAnimationFrame`
+- `docs/tweak-reference.md` — new file documenting all animation/transition knobs
+- `AGENTS.md` — rule 7 added: document tweakable behaviors in `docs/tweak-reference.md`
+
+**Consequences:**
+- TopBar class names preserved — no frozen-component breakage (PageHeader, StatusBadge, ScanPage).
+- Pure CSS animation; no animation library dependency added.
+- `translate` and `transform` are independent CSS properties — slide and bounce run simultaneously without conflict.
+- `backdrop-filter` performance: two stacked blur layers (pill + indicator) — acceptable for a 52px bar, monitor on low-end devices.
+- Safari requires `-webkit-backdrop-filter` prefix — included.
+- Animation timing constant (600ms) must stay in sync between CSS (`animation-duration` + `transition-duration`) and React (currently just the `onAnimationEnd` handler — no hardcoded timeout).
+- All tweakable values documented in `docs/tweak-reference.md` per AGENTS.md rule 7.
+
+---
+
 ## Open Issues
 
 Track here before they become closed decisions or roadmap tasks.
@@ -286,10 +353,9 @@ Track here before they become closed decisions or roadmap tasks.
 - Decision needed: scaffold `web/` now or guard the `COPY web/` until scaffolding lands.
 - Owner: Phase 11, but Dockerfile must not break in the interim — Phase 1 mitigation.
 
-### O-4 — Version Hardcoded in `health.routes.ts`
+### O-4 — Version Hardcoded in `health.routes.ts` (resolved by ADR-021)
 
-- `GET /api/health` returns `version: '0.1.0'` literal. Should read from `package.json` (build-time injection or runtime import).
-- Owner: Phase 1.
+- Closed: `health.routes.ts` now imports version from `src/app-version.ts`, which reads `package.json` at runtime. Single source of truth established. `web/package.json` version field removed.
 
 ### O-5 — `BigInt` Serialization
 
