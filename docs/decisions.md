@@ -466,9 +466,9 @@ User requested Apple TV-style interactions: 3D tilt following pointer position, 
 Implement as a single reusable React hook `useTiltGlow` + CSS custom properties. No animation library added (vanilla, consistent with ADR-022 precedent). The hook computes normalized pointer offset and writes `--tilt-rx`, `--tilt-ry`, `--glow-x`, `--glow-y`, `--glow-on`, `--tilt-active-scale` directly onto the element.
 
 - **Tilt**: `perspective(900px) rotateX(var(--tilt-rx)) rotateY(var(--tilt-ry)) scale(var(--tilt-active-scale))` on `.game-card` and `.topbar`
-- **Specular glow**: `::before` radial-gradient at pointer position, subtle (radius 100px, strength 0.3)
-- **Search bar border glow**: `.library-search.tilt-glow` overrides `::before` with `mask-composite: exclude` to restrict the gradient to a 1px border ring
-- **Reset animation**: JS `requestAnimationFrame` lerp with ease-out cubic on `pointerleave`
+- **Specular glow**: `::before` radial-gradient offset by tilt direction (radius 400px, strength 0.15) so glow is on the tilted edge, not the cursor
+- **Search bar halo glow**: `.library-search.tilt-glow` overrides `::before` with `inset: -4px; z-index: -1` for a soft behind-border halo
+- **Grow/leave animations**: JS `requestAnimationFrame` lerp on both enter (250ms) and leave (400ms)
 - **Safety**: early return when `pointer: coarse` or `prefers-reduced-motion: reduce`
 
 ### Consequences
@@ -486,6 +486,7 @@ Implement as a single reusable React hook `useTiltGlow` + CSS custom properties.
 - `web/src/hooks/useTiltGlow.ts` (new)
 - `web/src/styles.css`
 - `web/src/components/GameCard.tsx`
+- `web/src/components/IconButton.tsx`
 - `web/src/components/layout/TopBar.tsx`
 - `web/src/pages/GamesPage.tsx`
 
