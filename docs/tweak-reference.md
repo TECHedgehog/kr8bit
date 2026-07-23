@@ -20,6 +20,19 @@ The pill shape itself. Uses tier-1 liquid glass tokens:
 | Edge shine | `--liquid-glass-edge` white alpha | `styles.css:68` (dark), `:113` (light) | Higher = stronger rim light on top edge |
 | Top gap | `--topbar-top-gap` | `styles.css:28` | Space between bar and viewport top |
 | Max width | `--topbar-max-w` | `styles.css:30` | Wider = bar stretches further on large screens |
+| Flow offset | `--topbar-flow-offset` | `styles.css:31` | Total vertical space the bar occupies (gap + height + margin). Used to push `.app-content` down so content never hides under the fixed bar |
+
+**Light mode overrides** (scoped, do not affect dark mode or other components):
+
+| Knob | Selector | Location | Effect |
+|---|---|---|---|
+| Bar fill | `[data-theme='light'] .topbar` `background` | `styles.css:199` | `rgba(230,232,240,0.5)` — more opaque than base `0.35` so the pill is clearly visible on light backgrounds |
+| Bar shadow | `[data-theme='light'] .topbar` `box-shadow` | `styles.css:200` | `0 10px 30px rgba(0,0,0,0.16)` — stronger drop shadow for extra depth |
+| Bar border | `[data-theme='light'] .topbar` `border-color` | `styles.css:201` | `rgba(0,0,0,0.08)` — slightly darker rim for definition |
+| Lens fill | `[data-theme='light'] .topbar-indicator` `background` | `styles.css:224` | `rgba(30,32,40,0.08)` — neutral dark glass tint, clearly visible against the light bar |
+
+**Positioning**
+The bar is `position: fixed` (not sticky) so it stays pinned while scrolling. It is centered with `left: 50%` plus a scoped `transform: translateX(-50%)` inside `.topbar.tilt-glow` (`styles.css:1132`). The base `.tilt-glow` rule sets `position: relative`, so the more specific `.topbar.tilt-glow` override is required to keep the bar fixed without breaking the glow pseudo-element.
 
 ### Nav lens indicator (`.topbar-indicator`)
 `styles.css:224`
