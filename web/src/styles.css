@@ -36,6 +36,8 @@
   --tilt-settle-ms: 400;
   --glow-radius: 400px;
   --glow-strength: 0.8;
+  --search-collapsed-w: 120px;
+  --search-expanded-w: 320px;
 }
 
 :root,
@@ -729,8 +731,8 @@ textarea {
 }
 
 .library-search {
-  flex: 1;
-  min-width: 200px;
+  flex: none;
+  width: var(--search-collapsed-w);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -740,12 +742,15 @@ textarea {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-full);
   padding: 0 var(--space-3);
-  box-shadow: var(--glass-edge);
-  transition: border-color 0.15s;
+  transition: width 0.2s ease, border-color 0.15s;
 }
 
 .library-search:focus-within {
   border-color: var(--accent);
+}
+
+.library-search.is-expanded {
+  width: var(--search-expanded-w);
 }
 
 .library-search svg {
@@ -755,8 +760,11 @@ textarea {
 
 .library-search input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
+  border-radius: 0;
+  box-shadow: none;
   padding: var(--space-2) 0;
   font-size: var(--text-sm);
 }
@@ -1144,9 +1152,10 @@ textarea {
 }
 
 .library-search.tilt-glow::before {
-  inset: -4px;
+  inset: 0;
   border-radius: inherit;
   background: radial-gradient(circle var(--glow-radius) at var(--glow-x, -9999px) var(--glow-y, -9999px), var(--glow-color) 0%, transparent 60%);
+  pointer-events: none;
   z-index: -1;
 }
 

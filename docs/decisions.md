@@ -553,3 +553,30 @@ Convert `.app-layout` from `display: flex; flex-direction: column` to plain bloc
 - Light mode bar and lens are noticeably more prominent without touching dark mode or other liquid-glass surfaces.
 - `.app-layout` is no longer a flex container; `.app-content` uses `min-height` to preserve the "fill viewport when short" behavior.
 - The fixed bar relies on `.app-content` padding for layout compensation. Any future page that bypasses `.app-content` would sit under the bar.
+
+---
+
+## ADR-027 — Collapsible Search Bar + Inner Border Removal
+
+### Context
+User reported the search bar showed a perceived "second inner border" (an inset shadow layered on the real 1px border). Additionally, the search bar took excessive toolbar width by default; user wanted a compact left-aligned pill that expands on interaction.
+
+### Decision
+
+**Inner border removal:** Remove `box-shadow: var(--glass-edge)` from `.library-search`. The `--glass-edge` token is an inset two-layer shadow (top highlight + bottom hairline) that visually layered on top of the existing `1px solid var(--border-subtle)` border. Removing it leaves a single clean border while preserving the tier-2 glass background (`--glass-bg`, `--glass-blur`).
+
+**Collapse/expand UX:** Add JS-driven width toggle in `GamesPage.tsx`:
+- Collapsed: fixed width `--search-collapsed-w` (default `120px`), showing icon + "Search" placeholder.
+- Expanded: fixed width `--search-expanded-w` (default `320px`), showing the full input with descriptive placeholder.
+- Expand on input focus; collapse on blur only if the input is empty.
+- If a search param is active in the URL (`?search=...`), the bar initializes expanded.
+
+**Files modified:**
+- `web/src/styles.css` — removed `box-shadow` from `.library-search`; changed `flex: 1`/`min-width: 200px` to `flex: none` + `width: var(--search-collapsed-w)`; added `.library-search.is-expanded` with `width: var(--search-expanded-w)`; added tokens `--search-collapsed-w` and `--search-expanded-w`; added `width` to transition.
+- `web/src/pages/GamesPage.tsx` — added `searchExpanded` state (initialized from URL search param); input `onFocus` expands, `onBlur` collapses when empty; form class toggles `is-expanded`; placeholder swaps between "Search" (collapsed) and "Search title or entry name…" (expanded).
+
+**Consequences:**
+- Toolbar layout shifts as the bar grows/shrinks; `.toolbar-spacer` (`flex: 1`) absorbs the change, keeping filter/sort buttons right-aligned.
+- The `box-shadow` removal affects only the search bar; other tier-2 elements (cards, scan-progress, view-toggle) keep `--glass-edge` where applicable.
+- `useTiltGlow` scale-on-hover still applies; on a small collapsed pill the 1.06× scale is subtle but noticeable.
+- No breaking changes to API or exported types.
