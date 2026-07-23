@@ -2,6 +2,7 @@ import { prisma } from '../../prisma-client.js';
 import { logger } from '../../logger/index.js';
 import { mapPrismaError } from '../../shared/prisma-errors.js';
 import { NotFoundError } from '../../shared/errors.js';
+import { MatchStatus } from '../../shared/enums.js';
 import { encodeArray } from '../../shared/json.js';
 import { toDomain } from './library.mapper.js';
 import type {
@@ -111,5 +112,17 @@ export const libraryRepository = {
 
   async count(): Promise<number> {
     return prisma.game.count();
+  },
+
+  async findEligibleForRefresh(): Promise<Game[]> {
+    const rows = await prisma.game.findMany({
+      where: {
+        matchStatus: { in: [MatchStatus.ACCEPTED, MatchStatus.FLAGGED] },
+        description: null,
+        coverUrl: null,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map(toDomain);
   },
 };

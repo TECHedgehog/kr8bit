@@ -10,7 +10,7 @@ interface GameListRowProps {
 
 export function GameListRow({ game }: GameListRowProps): JSX.Element {
   const navigate = useNavigate();
-  const title = game.title ?? game.entryName;
+  const title = game.displayName;
   const [imgError, setImgError] = useState(false);
 
   return (

@@ -44,11 +44,11 @@ export function MetadataPicker({
     }
   }
 
-  async function assign(remoteId: string) {
+  async function assign(remoteId: string, provider: string) {
     setAssigning(remoteId);
     setError(null);
     try {
-      await api.post(`/api/games/${gameId}/metadata/assign`, { remoteId });
+      await api.post(`/api/games/${gameId}/metadata/assign`, { remoteId, provider });
       onAssigned();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'assign failed');
@@ -103,7 +103,7 @@ export function MetadataPicker({
               <IconButton
                 icon={assigning === r.remoteId ? Check : Check}
                 label={assigning === r.remoteId ? 'Assigning…' : 'Assign'}
-                onClick={() => assign(r.remoteId)}
+                onClick={() => assign(r.remoteId, r.providerName)}
                 disabled={assigning !== null}
                 active={assigning === r.remoteId}
               />

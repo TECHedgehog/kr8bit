@@ -132,7 +132,7 @@ export function GameDetailPage(): JSX.Element {
     );
   }
 
-  const title = game.title ?? game.entryName;
+  const title = game.displayName;
   const hasSteam = game.steamAppId !== null;
   const normalizedQuery = game.title ?? stripArchiveExtension(game.entryName);
 

@@ -4,6 +4,7 @@ import { logger } from './logger/index.js';
 import { config } from './config/index.js';
 import { recoverStaleScanRuns } from './modules/scanner/scanner.recovery.js';
 import { steamIndexService } from './modules/metadata/steam-index/steam-index.service.js';
+import { metadataRefreshJob } from './modules/metadata/metadata-refresh.job.js';
 import './shared/bigint.js';
 
 let app: FastifyInstance | null = null;
@@ -11,6 +12,7 @@ let app: FastifyInstance | null = null;
 async function bootstrap(): Promise<void> {
   await recoverStaleScanRuns();
   await steamIndexService.start();
+  void metadataRefreshJob.start();
   app = await buildServer();
   await app.listen({ port: config.port, host: config.host });
   logger.info(`kr8bit listening on http://${config.host}:${config.port}`);
