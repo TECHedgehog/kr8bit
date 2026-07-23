@@ -229,6 +229,35 @@ A gradient + blur strip at the bottom of the card cover, visible on hover.
 
 ---
 
+## Search Bar
+
+`GamesPage.tsx` toolbar, left of the spacer.
+
+### Container (`.library-search`)
+`styles.css:731`
+
+Two-state width: collapsed (icon + label) and expanded (full input).
+
+| Knob | Token | Location | Effect |
+|---|---|---|---|
+| Collapsed width | `--search-collapsed-w` | `styles.css:39` | Fixed pixel width when idle (default `120px`) |
+| Expanded width | `--search-expanded-w` | `styles.css:40` | Fixed pixel width when focused/clicked (default `320px`) |
+| Expand duration | `width 0.2s` | `styles.css:743` | How fast the bar grows/shrinks. Higher = slower |
+| Expand easing | `ease` | `styles.css:743` | `ease` = gentle acceleration. Swap for `ease-out` or `cubic-bezier(...)` |
+
+### Behavior
+- **Expand trigger:** input receives focus (click or keyboard tab).
+- **Collapse trigger:** input blurs AND the text is empty. If a search is active (text remains), the bar stays expanded so the filter remains visible.
+- On initial load with an active `?search=` param, the bar starts expanded.
+
+### Tweak guide
+- **Want a wider/narrower collapsed pill?** Change `--search-collapsed-w`.
+- **Want a wider/narrower expanded field?** Change `--search-expanded-w`.
+- **Faster/slower animation?** Change `0.2s` in `.library-search` transition.
+- **Want it to collapse even when text is present?** In `GamesPage.tsx`, remove the `if (!searchInput.trim())` guard inside the `onBlur` handler.
+
+---
+
 ## 3D Tilt + Subtle Glow
 
 Pointer-driven 3D tilt + specular light spot that follows the cursor. Applied to `.game-card`, `.topbar`. Search bar gets border-only glow (no tilt).

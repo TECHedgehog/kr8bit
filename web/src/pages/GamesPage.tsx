@@ -48,6 +48,7 @@ export function GamesPage(): JSX.Element {
   const offset = Number(searchParams.get('offset') ?? 0);
 
   const [searchInput, setSearchInput] = useState(search);
+  const [searchExpanded, setSearchExpanded] = useState(search !== '');
   const [data, setData] = useState<GameListResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,13 +187,23 @@ export function GamesPage(): JSX.Element {
         </div>
 
         <div className="library-toolbar">
-          <form ref={searchRef} className="library-search tilt-glow" onSubmit={onSearchSubmit}>
+          <form
+            ref={searchRef}
+            className={`library-search tilt-glow${searchExpanded ? ' is-expanded' : ''}`}
+            onSubmit={onSearchSubmit}
+            onClick={() => {
+              const input = searchRef.current?.querySelector('input');
+              input?.focus();
+            }}
+          >
             <Search size={16} />
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search title or entry name…"
+              onFocus={() => setSearchExpanded(true)}
+              onBlur={() => { if (!searchInput.trim()) setSearchExpanded(false); }}
+              placeholder={searchExpanded ? 'Search title or entry name…' : 'Search'}
             />
           </form>
 
