@@ -524,3 +524,32 @@ Also tighten the link padding (`var(--space-3)` → `var(--space-2)`, 12px → 8
 - Indicator now correctly tracks links during hover (when `.topbar` is scaled) and after font swap.
 - `offsetLeft` is relative to `offsetParent` (`.topbar-nav`). If `.topbar-nav` ever gains padding or border, the arithmetic must be adjusted.
 - `document.fonts.ready` fires once per page lifetime. The `fontReady` effect runs exactly once; navigation transitions are not disturbed.
+
+---
+
+## ADR-026 — TopBar Floating Fix + Light Mode Visibility
+
+### Context
+Two issues reported on the TopBar:
+1. **Bar scrolls away when scrolling down.** The CSS had `position: sticky` on `.topbar` (styles.css:194), but the element also carries the `.tilt-glow` class. The base `.tilt-glow` rule sets `position: relative` (styles.css:1106) and appears later in the cascade, silently overriding `position: sticky` (and later `position: fixed`) so the bar never actually stuck or floated.
+2. **Light mode glass is too subtle.** The selector lens (`--lens-bg: rgba(255,255,255,0.04)`) is nearly invisible on an already-light bar (`--liquid-glass-bg: rgba(230,232,240,0.35)`). The bar itself also felt weak against bright backgrounds.
+
+### Decision
+
+**Floating:** Switch `.topbar` to `position: fixed` and add `position: fixed` to the more-specific `.topbar.tilt-glow` override so the base `.tilt-glow` `position: relative` is defeated. Center the fixed pill with `left: 50%` plus `transform: translateX(-50%)` merged into the existing `.topbar.tilt-glow` transform string. Add `width: 100%` so the fixed element still stretches to its `max-width: 720px` (without this, fixed elements shrink to content width). Compensate for the removed flow space by adding `padding-top: var(--topbar-flow-offset)` to `.app-content` and introducing the `--topbar-flow-offset: 80px` token (12px top gap + 52px height + 16px bottom margin).
+
+Convert `.app-layout` from `display: flex; flex-direction: column` to plain block flow so the fixed bar's containing block is the simple document viewport, not a flex container.
+
+**Light mode visibility:** Add scoped light-only overrides that do NOT touch shared tokens:
+- `.topbar`: `background: rgba(230,232,240,0.5)` (up from 0.35), stronger shadow `0 10px 30px rgba(0,0,0,0.16)`, and border `rgba(0,0,0,0.08)`.
+- `.topbar-indicator`: `background: rgba(30,32,40,0.08)` — a neutral dark glass tint that reads clearly on the light bar while keeping the blur+edge system intact.
+
+### Files modified
+- `web/src/styles.css` — `.topbar` switched to `position: fixed` + `left: 50%` + `width: 100%` + `margin: 0`; `.topbar.tilt-glow` override adds `position: fixed` and `translateX(-50%)`; `.app-layout` flex removed; `.app-content` gets `padding-top` + `min-height`; new `--topbar-flow-offset` token; scoped light-mode `.topbar` and `.topbar-indicator` overrides.
+- `docs/tweak-reference.md` — documented `--topbar-flow-offset`, light-mode override knobs, and the fixed-positioning note.
+
+### Consequences
+- Bar now truly floats and stays pinned at `top: 12px` for the entire scroll.
+- Light mode bar and lens are noticeably more prominent without touching dark mode or other liquid-glass surfaces.
+- `.app-layout` is no longer a flex container; `.app-content` uses `min-height` to preserve the "fill viewport when short" behavior.
+- The fixed bar relies on `.app-content` padding for layout compensation. Any future page that bypasses `.app-content` would sit under the bar.
