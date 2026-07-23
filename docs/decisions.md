@@ -454,3 +454,44 @@ Track here before they become closed decisions or roadmap tasks.
 
 - vitest configured (`package.json`, `tsconfig.json` excludes `tests`). No test files exist.
 - Owner: Phase 12.
+
+---
+
+## ADR-024: Pointer-Driven 3D Tilt and Subtle Glow
+
+### Context
+User requested Apple TV-style interactions: 3D tilt following pointer position, plus a localized glassy light spot that tracks the cursor. Search bar should get a border-only glow (no 3D tilt). Disabled on touch and respects `prefers-reduced-motion`.
+
+### Decision
+Implement as a single reusable React hook `useTiltGlow` + CSS custom properties. No animation library added (vanilla, consistent with ADR-022 precedent). The hook computes normalized pointer offset and writes `--tilt-rx`, `--tilt-ry`, `--glow-x`, `--glow-y`, `--glow-on`, `--tilt-active-scale` directly onto the element.
+
+- **Tilt**: `perspective(900px) rotateX(var(--tilt-rx)) rotateY(var(--tilt-ry)) scale(var(--tilt-active-scale))` on `.game-card` and `.topbar`
+- **Specular glow**: `::before` radial-gradient at pointer position, subtle (radius 100px, strength 0.3)
+- **Search bar border glow**: `.library-search.tilt-glow` overrides `::before` with `mask-composite: exclude` to restrict the gradient to a 1px border ring
+- **Reset animation**: JS `requestAnimationFrame` lerp with ease-out cubic on `pointerleave`
+- **Safety**: early return when `pointer: coarse` or `prefers-reduced-motion: reduce`
+
+### Consequences
+- One hook reused across all target surfaces (GameCard, library-search, TopBar). Adding to a new surface = add class + ref.
+- Touch devices pay zero cost (no listeners, no pseudos visible).
+- No CSS `transition` conflicts because JS drives the animation entirely via RAF.
+- `overflow: hidden` on `.game-card` clips the glow at card edges — acceptable by design.
+- Existing `.game-card:hover` static tilt removed and replaced by pointer-driven tilt (user-approved).
+
+### Tokens added
+- Shared: `--tilt-max`, `--tilt-perspective`, `--tilt-active-scale`, `--tilt-settle-ms`, `--glow-radius`, `--glow-strength`
+- Theme-dependent: `--glow-color` (dark `0.35`, light `0.65`)
+
+### Files modified
+- `web/src/hooks/useTiltGlow.ts` (new)
+- `web/src/styles.css`
+- `web/src/components/GameCard.tsx`
+- `web/src/components/layout/TopBar.tsx`
+- `web/src/pages/GamesPage.tsx`
+
+### Frozen list
+- Existing box-shadow/border-color/z-index hover behavior on `.game-card` preserved.
+- `.game-card-overlay` opacity transition preserved.
+- `.topbar-indicator` lens system untouched.
+- `.view-toggle` lens system untouched.
+- No other hover styles modified.

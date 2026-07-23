@@ -28,6 +28,13 @@
   --topbar-top-gap: 12px;
   --topbar-side-gap: 16px;
   --topbar-max-w: 720px;
+
+  --tilt-max: 10deg;
+  --tilt-perspective: 900px;
+  --tilt-active-scale: 1.06;
+  --tilt-settle-ms: 400;
+  --glow-radius: 400px;
+  --glow-strength: 0.15;
 }
 
 :root,
@@ -73,6 +80,7 @@
   --accepted: #3fb950;
   --manual: #8288fe;
   --rejected: #e5484d;
+  --glow-color: rgba(255, 255, 255, 0.35);
 }
 
 [data-theme='light'] {
@@ -117,6 +125,7 @@
   --accepted: #16a34a;
   --manual: #6366f1;
   --rejected: #dc2626;
+  --glow-color: rgba(255, 255, 255, 0.65);
 }
 
 /* ===== Base ===== */
@@ -942,12 +951,11 @@ textarea {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.3s cubic-bezier(.16,1,.3,1), box-shadow 0.3s cubic-bezier(.16,1,.3,1), border-color 0.2s;
+  transition: box-shadow 0.3s cubic-bezier(.16,1,.3,1), border-color 0.2s;
   box-shadow: var(--glass-tint-edge);
 }
 
 .game-card:hover {
-  transform: perspective(900px) scale(1.04) rotateX(1.5deg) rotateY(-1.5deg);
   box-shadow:
     0 8px 24px rgba(0, 0, 0, 0.5),
     0 0 24px var(--accent-glow),
@@ -1083,6 +1091,44 @@ textarea {
   color: var(--text-subtle);
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* ===== 3D Tilt + Glass Glow ===== */
+
+.tilt-glow {
+  transform: perspective(var(--tilt-perspective)) rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg)) scale(var(--tilt-active-scale, 1));
+  transform-style: preserve-3d;
+  position: relative;
+}
+
+.tilt-glow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle var(--glow-radius) at calc(50% + var(--glow-ox, 0%)) calc(50% + var(--glow-oy, 0%)), var(--glow-color) 0%, transparent 60%);
+  opacity: calc(var(--glow-on, 0) * var(--glow-strength, 0.8));
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  z-index: 2;
+}
+
+/* TopBar: minimal tilt, almost unnoticeable */
+.topbar.tilt-glow {
+  --tilt-max: 1deg;
+}
+
+/* Search bar: grow on hover, soft halo glow around the border */
+.library-search.tilt-glow {
+  transform: scale(var(--tilt-active-scale, 1));
+  --glow-strength: 0.25;
+}
+
+.library-search.tilt-glow::before {
+  inset: -4px;
+  border-radius: inherit;
+  background: radial-gradient(circle var(--glow-radius) at var(--glow-x, -9999px) var(--glow-y, -9999px), var(--glow-color) 0%, transparent 60%);
+  z-index: -1;
 }
 
 /* ===== Pagination ===== */

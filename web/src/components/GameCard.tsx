@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ImageOff } from 'lucide-react';
 import type { Game } from '../api/types';
 import { StatusBadge } from './StatusBadge';
+import { useTiltGlow } from '../hooks/useTiltGlow';
 
 interface GameCardProps {
   game: Game;
@@ -18,9 +19,11 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
   const title = game.title ?? game.entryName;
   const score = formatScore(game.matchScore);
   const [imgError, setImgError] = useState(false);
+  const cardRef = useRef<HTMLButtonElement>(null);
+  useTiltGlow(cardRef);
 
   return (
-    <button className="game-card" onClick={() => navigate(`/games/${game.id}`)}>
+    <button ref={cardRef} className="game-card tilt-glow" onClick={() => navigate(`/games/${game.id}`)}>
       <div className="game-card-cover">
         {imgError ? (
           <div className="game-card-placeholder">
