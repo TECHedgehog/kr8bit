@@ -2,6 +2,7 @@ import type { Game as PrismaGame } from '@prisma/client';
 import type { Game } from './library.types.js';
 import { decodeArray } from '../../shared/json.js';
 import type { EntryType, MatchStatus } from '../../shared/enums.js';
+import { normalizeGameName } from '../scanner/name-normalizer.js';
 
 export function toDomain(row: PrismaGame): Game {
   return {
@@ -12,6 +13,7 @@ export function toDomain(row: PrismaGame): Game {
     sizeBytes: Number(row.sizeBytes),
     steamAppId: row.steamAppId,
     title: row.title,
+    displayName: row.title ?? normalizeGameName(row.entryName).query,
     releaseYear: row.releaseYear,
     description: row.description,
     developers: decodeArray(row.developers),

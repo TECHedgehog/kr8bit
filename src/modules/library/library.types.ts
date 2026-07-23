@@ -8,6 +8,7 @@ export interface Game {
   sizeBytes: number;
   steamAppId: number | null;
   title: string | null;
+  displayName: string;
   releaseYear: number | null;
   description: string | null;
   developers: string[];

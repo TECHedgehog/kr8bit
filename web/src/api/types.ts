@@ -14,6 +14,7 @@ export interface Game {
   sizeBytes: number;
   steamAppId: number | null;
   title: string | null;
+  displayName: string;
   releaseYear: number | null;
   description: string | null;
   developers: string[];
@@ -73,6 +74,7 @@ export interface ScanProgressEvent {
 }
 
 export interface SearchResult {
+  providerName: string;
   remoteId: string;
   title: string;
   releaseYear?: number;

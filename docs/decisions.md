@@ -580,3 +580,41 @@ User reported the search bar showed a perceived "second inner border" (an inset 
 - The `box-shadow` removal affects only the search bar; other tier-2 elements (cards, scan-progress, view-toggle) keep `--glass-edge` where applicable.
 - `useTiltGlow` scale-on-hover still applies; on a small collapsed pill the 1.06× scale is subtle but noticeable.
 - No breaking changes to API or exported types.
+
+---
+
+## ADR-028 — Background Metadata Refresh + displayName Naming Convention
+
+### Context
+Scanner's `processCandidate` applied `decideMatch()` thresholds and stored `steamAppId` + `matchStatus` + `matchScore`, but never set `title` or fetched full metadata (`getGame`). As a result, ACCEPTED games displayed raw filenames instead of provider titles. Manual metadata assignment (`MetadataService.assign`) already fetched full metadata + artwork, but required user intervention. Users expected metadata to be picked up automatically by default, with manual override as an option.
+
+### Decision
+
+**Scan writes `title` from search result.** When `decideMatch()` returns a result (ACCEPTED or FLAGGED), `processCandidate` stores `decision.result.title` alongside `steamAppId`. This gives cards a meaningful name immediately without a round-trip to `getGame`.
+
+**Background metadata refresh job.** A lightweight `MetadataRefreshJob` (mimicking scanner's fire-and-forget `running` flag) queries games where `matchStatus in [ACCEPTED, FLAGGED]` and `description IS NULL` + `coverUrl IS NULL` (heuristic for "not yet fetched"). It calls `MetadataService.refresh(gameId)` per game sequentially, logging per game and continuing on error. Triggered automatically after each scan run and on container boot to process backlogs.
+
+**displayName as single source of truth.** The domain `Game` type gains `displayName: string`, computed in `library.mapper.ts` as `title ?? normalizeGameName(entryName).query`. Frontend components (GameCard, GameListRow, GameDetailPage) bind to `game.displayName` instead of duplicating `title ?? entryName`. Unmatched games show a cleaned filename (repacker tags stripped) instead of raw filenames.
+
+**Manual picker provider passthrough fix.** Frontend `SearchResult` type gains `providerName`; `MetadataPicker` sends `provider` in the assign POST body so non-Steam results assign to the correct provider instead of defaulting to Steam.
+
+### Files modified
+- `src/modules/scanner/scanner.service.ts` — sets `title` from match result; triggers refresh job after scan.
+- `src/modules/metadata/metadata-refresh.job.ts` — new lightweight job service.
+- `src/modules/library/library.repository.ts` — adds `findEligibleForRefresh()`.
+- `src/modules/library/library.types.ts` — adds `displayName` to `Game`.
+- `src/modules/library/library.mapper.ts` — computes `displayName` using `normalizeGameName`.
+- `src/http/controllers/metadata.controller.ts` — adds `refreshAll` + `refreshAllStatus` handlers.
+- `src/http/routes/metadata.routes.ts` — adds `POST /api/metadata/refresh-all`, `GET /api/metadata/refresh-all/status`.
+- `src/main.ts` — starts backlog refresh on boot.
+- `web/src/api/types.ts` — adds `displayName` to `Game`, `providerName` to `SearchResult`.
+- `web/src/components/GameCard.tsx`, `GameListRow.tsx`, `GameDetailPage.tsx` — use `displayName`.
+- `web/src/components/MetadataPicker.tsx` — passes `provider` on assign.
+
+### Consequences
+- Cards show cleaned names immediately after scan; full metadata + artwork populates asynchronously.
+- `displayName` centralizes naming convention; no frontend duplication.
+- `MetadataRefreshJob` is a precursor to the Phase-6 formal Job abstraction (status/progress/cancellation/SSE). Easy to migrate later.
+- Refresh job preserves `matchStatus` (ACCEPTED/FLAGGED unchanged); MANUAL/PENDING/REJECTED games are excluded.
+- Adding required `displayName` and `providerName` to public types is technically breaking, but both are always populated by the backend mapper / search endpoint.
+- Accepting full metadata for FLAGGED games means artwork may be downloaded for uncertain matches; user can unlink if wrong.

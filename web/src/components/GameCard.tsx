@@ -16,7 +16,7 @@ function formatScore(score: number | null): string {
 
 export function GameCard({ game }: GameCardProps): JSX.Element {
   const navigate = useNavigate();
-  const title = game.title ?? game.entryName;
+  const title = game.displayName;
   const score = formatScore(game.matchScore);
   const [imgError, setImgError] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);

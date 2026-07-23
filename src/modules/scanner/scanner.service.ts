@@ -9,6 +9,7 @@ import { normalizeGameName } from './name-normalizer.js';
 import { decideMatch } from './match-policy.js';
 import type { MetadataProvider, SearchResult } from '../../shared/types.js';
 import { steamProvider } from '../metadata/steam/steam.provider.js';
+import { metadataRefreshJob } from '../metadata/metadata-refresh.job.js';
 import { emitProgress } from './scanner.events.js';
 
 export interface ScannerDeps {
@@ -183,6 +184,10 @@ export class ScannerService {
     });
 
     logger.info({ runId, found: candidates.length, added, updated, failed }, 'scan done');
+
+    if (!metadataRefreshJob.isRunning()) {
+      void metadataRefreshJob.start();
+    }
   }
 
   private async processCandidate(candidate: ScanCandidate): Promise<CandidateOutcome> {
@@ -224,6 +229,7 @@ export class ScannerService {
         matchScore: decision.score,
         matchedAt: this.deps.now(),
         steamAppId: decision.result ? Number(decision.result.remoteId) : null,
+        title: decision.result ? decision.result.title : existing.title,
       });
       return 'updated';
     }
@@ -241,6 +247,7 @@ export class ScannerService {
         matchScore: decision.score,
         matchedAt: this.deps.now(),
         steamAppId: Number(decision.result.remoteId),
+        title: decision.result.title,
       });
     }
 
