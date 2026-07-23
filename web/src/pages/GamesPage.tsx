@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useTiltGlow } from '../hooks/useTiltGlow';
 import {
   Search, Grid3x3, List, ArrowDownUp, Filter, ScanLine,
   ArrowDownAZ, ArrowUpAZ, CalendarClock, CalendarDays,
@@ -54,6 +55,8 @@ export function GamesPage(): JSX.Element {
   const [filterOpen, setFilterOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
   const filterRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLFormElement>(null);
+  useTiltGlow(searchRef);
   const viewToggleRef = useRef<HTMLDivElement>(null);
   const viewToggleIndicatorRef = useRef<HTMLDivElement>(null);
   const viewIsFirstRender = useRef(true);
@@ -183,7 +186,7 @@ export function GamesPage(): JSX.Element {
         </div>
 
         <div className="library-toolbar">
-          <form className="library-search" onSubmit={onSearchSubmit}>
+          <form ref={searchRef} className="library-search tilt-glow" onSubmit={onSearchSubmit}>
             <Search size={16} />
             <input
               type="text"
@@ -201,6 +204,7 @@ export function GamesPage(): JSX.Element {
               label="Filter by status"
               active={status !== ''}
               onClick={() => setFilterOpen((v) => !v)}
+              tiltGlow
             />
             {filterOpen && (
               <div className="filter-menu-dropdown">
@@ -223,6 +227,7 @@ export function GamesPage(): JSX.Element {
               icon={ArrowDownUp}
               label={`Sort: ${currentSort.label}`}
               onClick={() => setSortOpen((v) => !v)}
+              tiltGlow
             />
             {sortOpen && (
               <div className="sort-menu-dropdown">
@@ -241,7 +246,7 @@ export function GamesPage(): JSX.Element {
           </div>
 
           <Link to="/scan">
-            <IconButton icon={ScanLine} label="Go to scanner" />
+            <IconButton icon={ScanLine} label="Go to scanner" tiltGlow />
           </Link>
 
           <div className="toolbar-divider" />

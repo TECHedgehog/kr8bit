@@ -342,3 +342,56 @@ Same lens system as TopBar, miniaturized. Lives in `GamesPage.tsx` + `styles.css
 - `viewIsFirstRender` ref suppresses transition on mount (matches TopBar pattern)
 - `viewSuppressTransition` state removed via `requestAnimationFrame` after first paint
 - `onAnimationEnd` removes `--moving` class (no hardcoded timeout)
+
+---
+
+## 3D Tilt + Subtle Glow
+
+Pointer-driven 3D tilt + subtle specular light spot that follows the cursor. Applied to `.game-card`, `.topbar`. Search bar gets a border-only glow (no 3D tilt).
+
+### CSS tokens (shared)
+
+| Token | Value | Purpose |
+|---|---|---|
+| `--tilt-max` | `10deg` | max tilt per axis |
+| `--tilt-perspective` | `900px` | perspective distance |
+| `--tilt-active-scale` | `1.06` | lift scale when pointer inside |
+| `--tilt-settle-ms` | `400` | reset animation duration (ms) |
+| `--glow-radius` | `400px` | specular disc diameter radius |
+| `--glow-strength` | `0.15` | peak specular opacity multiplier |
+
+### CSS tokens (theme-dependent)
+
+| Token | Dark | Light | Purpose |
+|---|---|---|---|
+| `--glow-color` | `rgba(255,255,255,0.35)` | `rgba(255,255,255,0.65)` | specular tint color |
+
+### JS constants (in `useTiltGlow.ts`)
+
+| Constant | Value | Purpose |
+|---|---|---|
+| `SETTLE_EASE` | `1 - (1-p)^3` | ease-out cubic for reset |
+
+### Tweak guide
+
+**More/less tilt?**
+- Increase/decrease `--tilt-max`. E.g. `14deg` = dramatic, `4deg` = subtle.
+
+**Faster/slower reset?**
+- Decrease/increase `--tilt-settle-ms`. E.g. `200` = snappy, `800` = floaty.
+
+**Bigger/smaller glow?**
+- `--glow-radius`: larger = softer, smaller = sharper.
+
+**Stronger/weaker light?**
+- `--glow-strength`: higher = brighter specular spot.
+- `--glow-color` alpha: higher = more opaque tint.
+
+**Search bar border glow only?**
+- `.library-search.tilt-glow` overrides the generic overlay with `mask-composite: exclude` to restrict the gradient to a 1px border. Adjust `padding: 1px` for thicker border glow, or change `--glow-radius` for a wider falloff along the border.
+
+**Disable on a specific element?**
+- Remove `tilt-glow` class from that element's JSX.
+
+**Disable entirely?**
+- Set `--tilt-max: 0deg` and `--glow-strength: 0` in `:root`.

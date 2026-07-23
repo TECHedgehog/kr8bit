@@ -1,5 +1,6 @@
 import { useRef, useState, useLayoutEffect, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useTiltGlow } from '../../hooks/useTiltGlow';
 import { Gamepad2, ScanLine, Library, Sun, Moon, type LucideIcon } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -17,7 +18,11 @@ const NAV_ITEMS: NavItem[] = [
 export function TopBar(): JSX.Element {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const headerRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLElement>(null);
+  const themeRef = useRef<HTMLButtonElement>(null);
+  useTiltGlow(headerRef);
+  useTiltGlow(themeRef);
   const linkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const indicatorRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
@@ -63,7 +68,7 @@ export function TopBar(): JSX.Element {
   }, []);
 
   return (
-    <header className="topbar">
+    <header ref={headerRef} className="topbar tilt-glow">
       <div className="topbar-logo">
         <Gamepad2 size={24} />
         <span>kr8bit</span>
@@ -90,7 +95,8 @@ export function TopBar(): JSX.Element {
       <div className="topbar-spacer" />
       <div className="topbar-actions">
         <button
-          className="theme-toggle"
+          ref={themeRef}
+          className="theme-toggle tilt-glow"
           onClick={toggleTheme}
           aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
