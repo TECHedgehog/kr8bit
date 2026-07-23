@@ -27,6 +27,7 @@ export function TopBar(): JSX.Element {
   const indicatorRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
   const [suppressTransition, setSuppressTransition] = useState(true);
+  const [fontReady, setFontReady] = useState(false);
   const [indicatorStyle, setIndicatorStyle] = useState<{ translate: string; width: string; opacity: number }>({
     translate: '0px 0',
     width: '0px',
@@ -41,12 +42,9 @@ export function TopBar(): JSX.Element {
       setIndicatorStyle((s) => ({ ...s, opacity: 0 }));
       return;
     }
-    const navRect = nav.getBoundingClientRect();
-    const linkRect = link.getBoundingClientRect();
-    const x = linkRect.left - navRect.left;
     setIndicatorStyle({
-      translate: `${x}px 0`,
-      width: `${linkRect.width}px`,
+      translate: `${link.offsetLeft}px 0`,
+      width: `${link.offsetWidth}px`,
       opacity: 1,
     });
 
@@ -66,6 +64,30 @@ export function TopBar(): JSX.Element {
   useEffect(() => {
     requestAnimationFrame(() => setSuppressTransition(false));
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    document.fonts?.ready.then(() => {
+      if (cancelled) return;
+      setFontReady(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!fontReady) return;
+    const activeIndex = NAV_ITEMS.findIndex((item) => location.pathname.startsWith(item.to));
+    const link = linkRefs.current[activeIndex];
+    const nav = navRef.current;
+    if (!link || !nav || activeIndex === -1) return;
+    setSuppressTransition(true);
+    setIndicatorStyle({
+      translate: `${link.offsetLeft}px 0`,
+      width: `${link.offsetWidth}px`,
+      opacity: 1,
+    });
+    requestAnimationFrame(() => setSuppressTransition(false));
+  }, [fontReady]);
 
   return (
     <header ref={headerRef} className="topbar tilt-glow">
