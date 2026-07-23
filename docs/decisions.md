@@ -496,3 +496,31 @@ Implement as a single reusable React hook `useTiltGlow` + CSS custom properties.
 - `.topbar-indicator` lens system untouched.
 - `.view-toggle` lens system untouched.
 - No other hover styles modified.
+
+---
+
+## ADR-025 — TopBar Indicator Measurement Corrections
+
+### Context
+ADR-022 established the sliding lens indicator on the TopBar, using `getBoundingClientRect()` to measure the active link's position and width. Two bugs emerged in practice:
+
+1. **Transform double-scaling:** `.topbar` carries `tilt-glow` (ADR-024), which applies `transform: scale(var(--tilt-active-scale))`. When the user hovers over the topbar to click a nav link, `--tilt-active-scale` ramps up to 1.06×. `getBoundingClientRect()` returns the **rendered** (scaled) box, but the indicator is also a child of the scaled `.topbar`, so it receives the scale a second time. The result is an indicator that is visually oversized and shifted to the right — worse on the rightmost link because the absolute offset is larger.
+2. **Font-load race:** The Onest webfont is loaded via `@fontsource/onest` with `font-display: swap`. The initial `useLayoutEffect` measures with fallback system-font metrics. When the webfont swaps in, text reflows but the indicator is never re-measured. Shorter labels (e.g. "Scan") shift proportionally more than longer ones.
+
+### Decision
+
+Switch the measurement API from `getBoundingClientRect()` to `offsetLeft` / `offsetWidth`. These return **layout box** dimensions, which are immune to ancestor `transform` scale. The topbar's scale now applies equally to both the link and the indicator, keeping them visually aligned.
+
+Add a one-shot `document.fonts.ready` listener that flips a `fontReady` state. A separate `useLayoutEffect [fontReady]` re-measures the indicator **silently** (`suppressTransition = true`, snap to new position, re-enable transitions on next `requestAnimationFrame`) when the font finally settles.
+
+Also tighten the link padding (`var(--space-3)` → `var(--space-2)`, 12px → 8px horizontal) and add `justify-content: center` so the icon+text group sits in the middle of the padded pill, making the full-width indicator feel naturally centered.
+
+### Files modified
+- `web/src/components/layout/TopBar.tsx` — measurement switched to `offsetLeft`/`offsetWidth`; `fontReady` state + `document.fonts.ready` listener + silent re-measurement `useLayoutEffect`; `justify-content: center` on `.topbar-link`
+- `web/src/styles.css` — `.topbar-link` padding reduced; added categorizing banner comments above `.topbar-indicator`, `.topbar-indicator--moving`, `@keyframes lens-pulse`, `.view-toggle-indicator`, `.view-toggle-indicator--moving`, `.tilt-glow`
+- `docs/tweak-reference.md` — updated measurement description
+
+### Consequences
+- Indicator now correctly tracks links during hover (when `.topbar` is scaled) and after font swap.
+- `offsetLeft` is relative to `offsetParent` (`.topbar-nav`). If `.topbar-nav` ever gains padding or border, the arithmetic must be adjusted.
+- `document.fonts.ready` fires once per page lifetime. The `fontReady` effect runs exactly once; navigation transitions are not disturbed.
