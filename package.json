@@ -10,6 +10,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:all": "concurrently -n backend,frontend -c blue,magenta \"tsx watch src/main.ts\" \"npm --prefix web run dev\"",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -20,28 +21,34 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "web:dev": "npm --prefix web run dev",
-    "web:build": "npm --prefix web run build"
+    "web:build": "npm --prefix web run build",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:dev:detach": "docker compose -f docker-compose.dev.yml up -d --build",
+    "docker:test": "docker compose -f docker-compose.dev.yml --profile test run --rm test",
+    "docker:prod:build": "docker build -f docker/Dockerfile -t kr8bit:latest .",
+    "docker:prod:run": "docker compose -f docker-compose.example.yml up"
   },
   "dependencies": {
-    "@prisma/client": "^5.18.0",
-    "fastify": "^4.28.1",
-    "@fastify/static": "^7.0.4",
     "@fastify/cors": "^9.0.1",
-    "undici": "^6.19.8",
+    "@fastify/static": "^7.0.4",
+    "@prisma/client": "^5.18.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^4.28.1",
     "fuse.js": "^7.0.0",
     "pino": "^9.4.0",
-    "dotenv": "^16.4.5",
+    "undici": "^6.19.8",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@typescript-eslint/eslint-plugin": "^8.0.1",
+    "@typescript-eslint/parser": "^8.0.1",
+    "concurrently": "^10.0.4",
+    "eslint": "^9.9.0",
+    "pino-pretty": "^11.2.2",
     "prisma": "^5.18.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4",
-    "vitest": "^2.0.5",
-    "@types/node": "^20.14.15",
-    "eslint": "^9.9.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.1",
-    "@typescript-eslint/parser": "^8.0.1",
-    "pino-pretty": "^11.2.2"
+    "vitest": "^2.0.5"
   }
 }

@@ -1,0 +1,66 @@
+services:
+  kr8bit:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: kr8bit-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "5173:5173"
+    environment:
+      LIBRARY_ROOT: /games
+      CACHE_DIR: /data/cache
+      DB_PATH: /data/kr8bit-dev.db
+      DATABASE_URL: file:/data/kr8bit-dev.db
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      LOG_LEVEL: debug
+      # Provider keys (optional - mount via .env file)
+      # IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
+      # IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
+      # STEAM_API_KEY: ${STEAM_API_KEY:-}
+    volumes:
+      # Mount source for hot-reload (tsx watch)
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      # Avoid mounting node_modules (use image's)
+      - /app/node_modules
+      # Persistent data
+      - kr8bit-dev-data:/data
+      # Games library (adjust path to your local games)
+      - ./tests/fixtures:/games:ro
+    working_dir: /app
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npx tsx watch src/main.ts"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/api/health"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # Optional: separate container for running tests
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    profiles: ["test"]
+    container_name: kr8bit-test
+    environment:
+      LIBRARY_ROOT: /games
+      CACHE_DIR: /tmp/cache
+      DB_PATH: ":memory:"
+      DATABASE_URL: "file::memory:"
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      LOG_LEVEL: warn
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./prisma:/app/prisma
+      - /app/node_modules
+    working_dir: /app
+    command: sh -c "npx prisma generate && npx vitest run"
+
+volumes:
+  kr8bit-dev-data:
