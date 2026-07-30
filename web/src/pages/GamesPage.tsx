@@ -36,6 +36,12 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
 ];
 
 const LIMIT_OPTIONS = [10, 25, 50, 100];
+const GRID_SIZES = [
+  { label: 'Small', value: 110, iconSize: 4 },
+  { label: 'Medium', value: 170, iconSize: 8 },
+  { label: 'Large', value: 240, iconSize: 12 },
+];
+const GRID_SIZE_DEFAULT = 170;
 
 export function GamesPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -46,6 +52,7 @@ export function GamesPage(): JSX.Element {
   const search = searchParams.get('search') ?? '';
   const limit = Number(searchParams.get('limit') ?? 25);
   const offset = Number(searchParams.get('offset') ?? 0);
+  const gridSize = Number(searchParams.get('gridSize') ?? GRID_SIZE_DEFAULT);
 
   const [searchInput, setSearchInput] = useState(search);
   const [searchExpanded, setSearchExpanded] = useState(search !== '');
@@ -60,9 +67,18 @@ export function GamesPage(): JSX.Element {
   useTiltGlow(searchRef);
   const viewToggleRef = useRef<HTMLDivElement>(null);
   const viewToggleIndicatorRef = useRef<HTMLDivElement>(null);
+  const gridSizeToggleRef = useRef<HTMLDivElement>(null);
+  const gridSizeIndicatorRef = useRef<HTMLDivElement>(null);
   const viewIsFirstRender = useRef(true);
+  const gridSizeIsFirstRender = useRef(true);
   const [viewSuppressTransition, setViewSuppressTransition] = useState(true);
+  const [gridSizeSuppressTransition, setGridSizeSuppressTransition] = useState(true);
   const [viewIndicatorStyle, setViewIndicatorStyle] = useState<{ translate: string; width: string; opacity: number }>({
+    translate: '0px 0',
+    width: '0px',
+    opacity: 0,
+  });
+  const [gridSizeIndicatorStyle, setGridSizeIndicatorStyle] = useState<{ translate: string; width: string; opacity: number }>({
     translate: '0px 0',
     width: '0px',
     opacity: 0,
@@ -78,10 +94,11 @@ export function GamesPage(): JSX.Element {
     }
     const toggleRect = toggle.getBoundingClientRect();
     const btnRect = activeBtn.getBoundingClientRect();
-    const x = btnRect.left - toggleRect.left;
+    const x = Math.round(btnRect.left - toggleRect.left);
+    const w = Math.round(btnRect.width);
     setViewIndicatorStyle({
       translate: `${x}px 0`,
-      width: `${btnRect.width}px`,
+      width: `${w}px`,
       opacity: 1,
     });
 
@@ -98,8 +115,42 @@ export function GamesPage(): JSX.Element {
     }
   }, [view]);
 
+  useLayoutEffect(() => {
+    const toggle = gridSizeToggleRef.current;
+    if (!toggle) return;
+    const activeBtn = toggle.querySelector('.size-button.active') as HTMLElement | null;
+    if (!activeBtn) {
+      setGridSizeIndicatorStyle((s) => ({ ...s, opacity: 0 }));
+      return;
+    }
+    const toggleRect = toggle.getBoundingClientRect();
+    const btnRect = activeBtn.getBoundingClientRect();
+    const x = Math.round(btnRect.left - toggleRect.left);
+    const w = Math.round(btnRect.width);
+    setGridSizeIndicatorStyle({
+      translate: `${x}px 0`,
+      width: `${w}px`,
+      opacity: 1,
+    });
+
+    if (gridSizeIsFirstRender.current) {
+      gridSizeIsFirstRender.current = false;
+      return;
+    }
+
+    const el = gridSizeIndicatorRef.current;
+    if (el) {
+      el.classList.remove('view-toggle-indicator--moving');
+      void el.offsetWidth;
+      el.classList.add('view-toggle-indicator--moving');
+    }
+  }, [gridSize]);
+
   useEffect(() => {
-    requestAnimationFrame(() => setViewSuppressTransition(false));
+    requestAnimationFrame(() => {
+      setViewSuppressTransition(false);
+      setGridSizeSuppressTransition(false);
+    });
   }, []);
 
   useEffect(() => {
@@ -170,6 +221,10 @@ export function GamesPage(): JSX.Element {
 
   function onLimitChange(value: number) {
     updateParams({ limit: value, offset: 0 });
+  }
+
+  function onGridSizeChange(value: number) {
+    updateParams({ gridSize: value });
   }
 
   const total = data?.total ?? 0;
@@ -262,6 +317,38 @@ export function GamesPage(): JSX.Element {
 
           <div className="toolbar-divider" />
 
+          {view === 'grid' && (
+            <div className="grid-size-toggle" ref={gridSizeToggleRef}>
+              <div
+                ref={gridSizeIndicatorRef}
+                className={`view-toggle-indicator${gridSizeSuppressTransition ? ' view-toggle-indicator--no-transition' : ''}`}
+                style={gridSizeIndicatorStyle}
+                onAnimationEnd={() => gridSizeIndicatorRef.current?.classList.remove('view-toggle-indicator--moving')}
+              />
+              {GRID_SIZES.map((s) => (
+                <button
+                  key={s.value}
+                  className={`size-button${gridSize === s.value ? ' active' : ''}`}
+                  onClick={() => onGridSizeChange(s.value)}
+                  title={s.label}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16">
+                    <rect
+                      x={(16 - s.iconSize) / 2}
+                      y={(16 - s.iconSize) / 2}
+                      width={s.iconSize}
+                      height={s.iconSize}
+                      rx="1.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.2"
+                    />
+                  </svg>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="view-toggle" ref={viewToggleRef}>
             <div
               ref={viewToggleIndicatorRef}
@@ -295,7 +382,7 @@ export function GamesPage(): JSX.Element {
       )}
 
       {view === 'grid' ? (
-        <div className="game-grid">
+        <div className="game-grid" style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}>
           {items.map((g) => (
             <GameCard key={g.id} game={g} />
           ))}

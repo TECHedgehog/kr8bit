@@ -9,3 +9,4 @@ data
 prisma/migrations/dev.db*
 var/
 .opencode/
+.github/
