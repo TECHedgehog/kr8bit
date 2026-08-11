@@ -9,3 +9,16 @@ data
 prisma/migrations/dev.db*
 var/
 .opencode/
+
+# AI assistant tooling
+.caveman/
+AGENTS.md
+.claude/
+.cursor/
+.cursorrules
+CLAUDE.md
+.aider*
+.github/copilot/
+.codeium/
+.tabnine/
+.continue/
