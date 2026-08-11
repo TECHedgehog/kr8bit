@@ -1053,14 +1053,16 @@ textarea {
 
 .game-card-overlay {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: var(--space-3);
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, transparent 100%);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--glass-edge);
+  bottom: var(--space-2);
+  left: var(--space-2);
+  right: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--lens-bg);
+  backdrop-filter: var(--lens-blur);
+  -webkit-backdrop-filter: var(--lens-blur);
+  box-shadow: var(--lens-edge), var(--shadow-md);
+  pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -1069,25 +1071,31 @@ textarea {
   opacity: 1;
 }
 
+.game-card-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 80, 80, 0.07),
+    rgba(255, 255, 80, 0.03),
+    rgba(80, 255, 120, 0.05),
+    rgba(80, 180, 255, 0.07),
+    rgba(180, 80, 255, 0.04)
+  );
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
 .game-card-overlay-title {
   font-size: var(--text-sm);
   font-weight: 600;
   color: #ffffff;
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.game-card-overlay-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
-}
-
-.game-card-score {
-  font-size: var(--text-xs);
-  color: rgba(255, 255, 255, 0.7);
 }
 
 .game-card-placeholder {

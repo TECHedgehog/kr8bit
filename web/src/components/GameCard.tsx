@@ -2,22 +2,15 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
-import { StatusBadge } from './StatusBadge';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 
 interface GameCardProps {
   game: Game;
 }
 
-function formatScore(score: number | null): string {
-  if (score === null) return '';
-  return `${Math.round(score)}%`;
-}
-
 export function GameCard({ game }: GameCardProps): JSX.Element {
   const navigate = useNavigate();
   const title = game.displayName;
-  const score = formatScore(game.matchScore);
   const [imgError, setImgError] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);
   useTiltGlow(cardRef);
@@ -39,10 +32,6 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
         )}
         <div className="game-card-overlay">
           <div className="game-card-overlay-title">{title}</div>
-          <div className="game-card-overlay-meta">
-            <StatusBadge status={game.matchStatus} />
-            {score && <span className="game-card-score">{score}</span>}
-          </div>
         </div>
       </div>
     </button>
