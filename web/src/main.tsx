@@ -15,15 +15,16 @@ const rootEl = document.getElementById('root');
 if (!rootEl) {
   throw new Error('root element missing');
 }
+
 createRoot(rootEl).render(
   <StrictMode>
     <ThemeProvider>
       <ToastProvider>
-<BrowserRouter>
-        <ErrorBoundary>
-          <App />
-        </ErrorBoundary>
-      </BrowserRouter>
+        <BrowserRouter>
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
+        </BrowserRouter>
       </ToastProvider>
     </ThemeProvider>
   </StrictMode>,

@@ -1,12 +1,15 @@
 import { useRef } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import type { ComponentType } from 'react';
+import type { IconProps } from '@tabler/icons-react';
 import { Tooltip } from './Tooltip';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 
 type Variant = 'default' | 'ghost' | 'danger';
 
+type TablerIcon = ComponentType<IconProps>;
+
 interface IconButtonProps {
-  icon: LucideIcon;
+  icon: TablerIcon;
   label: string;
   onClick?: () => void;
   disabled?: boolean;

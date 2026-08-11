@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ImageOff } from 'lucide-react';
+import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
 import { StatusBadge } from './StatusBadge';
 
@@ -23,7 +23,7 @@ export function GameListRow({ game }: GameListRowProps): JSX.Element {
           className="game-list-row-thumb"
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          <ImageOff size={16} />
+          <IconPhotoOff size={16} />
         </div>
       ) : (
         <img

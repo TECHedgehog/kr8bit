@@ -1,18 +1,26 @@
 import { useRef, useState, useLayoutEffect, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useTiltGlow } from '../../hooks/useTiltGlow';
-import { Gamepad2, ScanLine, Library, Sun, Moon, type LucideIcon } from 'lucide-react';
+import IconDeviceGamepad2 from '@tabler/icons-react/dist/esm/icons/IconDeviceGamepad2.mjs';
+import IconScan from '@tabler/icons-react/dist/esm/icons/IconScan.mjs';
+import IconLibrary from '@tabler/icons-react/dist/esm/icons/IconLibrary.mjs';
+import IconSun from '@tabler/icons-react/dist/esm/icons/IconSun.mjs';
+import IconMoon from '@tabler/icons-react/dist/esm/icons/IconMoon.mjs';
+import type { IconProps } from '@tabler/icons-react';
+import type { ComponentType } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+
+type TablerIcon = ComponentType<IconProps>;
 
 interface NavItem {
   to: string;
   label: string;
-  icon: LucideIcon;
+  icon: TablerIcon;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/games', label: 'Library', icon: Library },
-  { to: '/scan', label: 'Scan', icon: ScanLine },
+  { to: '/games', label: 'Library', icon: IconLibrary },
+  { to: '/scan', label: 'Scan', icon: IconScan },
 ];
 
 export function TopBar(): JSX.Element {
@@ -92,7 +100,7 @@ export function TopBar(): JSX.Element {
   return (
     <header ref={headerRef} className="topbar tilt-glow">
       <div className="topbar-logo">
-        <Gamepad2 size={24} />
+        <IconDeviceGamepad2 size={24} />
         <span>kr8bit</span>
       </div>
       <nav className="topbar-nav" ref={navRef}>
@@ -122,7 +130,7 @@ export function TopBar(): JSX.Element {
           onClick={toggleTheme}
           aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
         </button>
       </div>
     </header>

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, X, Check } from 'lucide-react';
+import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
+import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
+import IconCheck from '@tabler/icons-react/dist/esm/icons/IconCheck.mjs';
 import { api, ApiError } from '../api/client';
 import type { MetadataSearchResponse, SearchResult } from '../api/types';
 import { IconButton } from './IconButton';
@@ -63,7 +65,7 @@ export function MetadataPicker({
         <div className="modal-header">
           <h2>Search metadata</h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
-            <X size={18} />
+            <IconX size={18} />
           </button>
         </div>
         <form
@@ -81,7 +83,7 @@ export function MetadataPicker({
             placeholder="Game title…"
           />
           <IconButton
-            icon={Search}
+            icon={IconSearch}
             label="Search"
             onClick={runSearch}
             disabled={loading || !query.trim()}
@@ -101,7 +103,7 @@ export function MetadataPicker({
                 </div>
               </div>
               <IconButton
-                icon={assigning === r.remoteId ? Check : Check}
+                icon={assigning === r.remoteId ? IconCheck : IconCheck}
                 label={assigning === r.remoteId ? 'Assigning…' : 'Assign'}
                 onClick={() => assign(r.remoteId, r.providerName)}
                 disabled={assigning !== null}

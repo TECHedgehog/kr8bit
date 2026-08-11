@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ImageOff } from 'lucide-react';
+import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
 import { StatusBadge } from './StatusBadge';
 import { useTiltGlow } from '../hooks/useTiltGlow';
@@ -27,7 +27,7 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
       <div className="game-card-cover">
         {imgError ? (
           <div className="game-card-placeholder">
-            <ImageOff size={32} />
+            <IconPhotoOff size={32} />
           </div>
         ) : (
           <img

@@ -1,5 +1,8 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
-import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
+import IconCircleCheck from '@tabler/icons-react/dist/esm/icons/IconCircleCheck.mjs';
+import IconAlertCircle from '@tabler/icons-react/dist/esm/icons/IconAlertCircle.mjs';
+import IconInfoCircle from '@tabler/icons-react/dist/esm/icons/IconInfoCircle.mjs';
+import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -22,9 +25,9 @@ const DEFAULT_DURATION = 3000;
 const ERROR_DURATION = 0;
 
 const TOAST_ICONS: Record<ToastType, ReactNode> = {
-  success: <CheckCircle size={18} />,
-  error: <AlertCircle size={18} />,
-  info: <Info size={18} />,
+  success: <IconCircleCheck size={18} />,
+  error: <IconAlertCircle size={18} />,
+  info: <IconInfoCircle size={18} />,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }): JSX.Element {
@@ -56,7 +59,7 @@ export function ToastProvider({ children }: { children: ReactNode }): JSX.Elemen
             <span className="toast-icon">{TOAST_ICONS[t.type]}</span>
             <span className="toast-content">{t.message}</span>
             <button className="toast-close" onClick={() => dismiss(t.id)} aria-label="Dismiss notification">
-              <X size={14} />
+              <IconX size={14} />
             </button>
           </div>
         ))}

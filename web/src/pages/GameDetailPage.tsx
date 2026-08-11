@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft, Pencil, Search, RefreshCw, Unlink, Trash2, Save, X,
-} from 'lucide-react';
+import IconArrowLeft from '@tabler/icons-react/dist/esm/icons/IconArrowLeft.mjs';
+import IconPencil from '@tabler/icons-react/dist/esm/icons/IconPencil.mjs';
+import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
+import IconRefresh from '@tabler/icons-react/dist/esm/icons/IconRefresh.mjs';
+import IconUnlink from '@tabler/icons-react/dist/esm/icons/IconUnlink.mjs';
+import IconTrash from '@tabler/icons-react/dist/esm/icons/IconTrash.mjs';
+import IconDeviceFloppy from '@tabler/icons-react/dist/esm/icons/IconDeviceFloppy.mjs';
+import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
 import { api, ApiError } from '../api/client';
 import type { Game, GameUpdateInput } from '../api/types';
 import { StatusBadge } from '../components/StatusBadge';
@@ -119,7 +124,7 @@ export function GameDetailPage(): JSX.Element {
     return (
       <div className="page">
         <div className="error">{error}</div>
-        <IconButton icon={ArrowLeft} label="Back to library" onClick={() => navigate('/games')} />
+        <IconButton icon={IconArrowLeft} label="Back to library" onClick={() => navigate('/games')} />
       </div>
     );
   }
@@ -161,29 +166,29 @@ export function GameDetailPage(): JSX.Element {
       </div>
 
       <div className="detail-toolbar">
-        <IconButton icon={ArrowLeft} label="Back to library" onClick={() => navigate('/games')} />
+        <IconButton icon={IconArrowLeft} label="Back to library" onClick={() => navigate('/games')} />
         <div className="toolbar-spacer" />
         <IconButton
-          icon={Search}
+          icon={IconSearch}
           label="Search metadata"
           onClick={() => setPickerOpen(true)}
         />
         {hasSteam && (
-          <IconButton icon={RefreshCw} label="Refresh metadata" onClick={refreshMetadata} />
+          <IconButton           icon={IconRefresh} label="Refresh metadata" onClick={refreshMetadata} />
         )}
         {hasSteam && (
-          <IconButton icon={Unlink} label="Unlink metadata" onClick={unlinkMetadata} variant="danger" />
+          <IconButton           icon={IconUnlink} label="Unlink metadata" onClick={unlinkMetadata} variant="danger" />
         )}
         {!editing ? (
-          <IconButton icon={Pencil} label="Edit details" onClick={startEdit} />
+          <IconButton           icon={IconPencil} label="Edit details" onClick={startEdit} />
         ) : (
           <>
-            <IconButton icon={Save} label="Save changes" onClick={saveEdit} disabled={saving} />
-            <IconButton icon={X} label="Cancel edit" onClick={() => setEditing(false)} disabled={saving} ghost />
+            <IconButton icon={IconDeviceFloppy} label="Save changes" onClick={saveEdit} disabled={saving} />
+            <IconButton icon={IconX} label="Cancel edit" onClick={() => setEditing(false)} disabled={saving} ghost />
           </>
         )}
         <div className="toolbar-divider" />
-        <IconButton icon={Trash2} label="Delete game" onClick={deleteGame} variant="danger" />
+        <IconButton icon={IconTrash} label="Delete game" onClick={deleteGame} variant="danger" />
       </div>
 
       <div className="detail-content">

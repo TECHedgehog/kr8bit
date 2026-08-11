@@ -801,7 +801,7 @@ textarea {
 .view-toggle-indicator {
   position: absolute;
   top: 3px;
-  left: 0;
+  left: -1px;
   height: calc(100% - 6px);
   border-radius: var(--radius-full);
   background: var(--lens-bg);
@@ -857,6 +857,50 @@ textarea {
 }
 
 .view-toggle .icon-button.active {
+  background: transparent;
+}
+
+/* ===== Grid Size Toggle ===== */
+
+.grid-size-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--seg-track-bg);
+  backdrop-filter: var(--lens-blur);
+  -webkit-backdrop-filter: var(--lens-blur);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  position: relative;
+  box-shadow: var(--lens-edge);
+  align-items: center;
+}
+
+.grid-size-toggle .size-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-subtle);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: color 0.2s;
+  position: relative;
+  z-index: 1;
+  box-shadow: none;
+}
+
+.grid-size-toggle .size-button:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+
+.grid-size-toggle .size-button.active {
+  color: var(--accent);
   background: transparent;
 }
 
@@ -964,7 +1008,7 @@ textarea {
 
 .game-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-size, 170px), 1fr));
   gap: var(--space-6) var(--space-4);
 }
 
