@@ -181,31 +181,51 @@ a {
 
 /* ===== TopBar ===== */
 
+.topbar-shell {
+  position: fixed;
+  top: var(--topbar-top-gap);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: var(--topbar-max-w);
+  height: 52px;
+  z-index: 50;
+  border-radius: var(--radius-full);
+}
+
+.topbar-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  background: var(--liquid-glass-bg);
+  backdrop-filter: var(--liquid-glass-blur);
+  -webkit-backdrop-filter: var(--liquid-glass-blur);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--liquid-glass-edge), var(--shadow-lg);
+  z-index: 0;
+  pointer-events: none;
+}
+
+[data-theme='light'] .topbar-bg {
+  background: rgba(230, 232, 240, 0.5);
+  box-shadow: var(--liquid-glass-edge), 0 10px 30px rgba(0, 0, 0, 0.16);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
 .topbar {
   display: flex;
   align-items: center;
   gap: var(--space-4);
   padding: 0 var(--space-4);
-  height: 52px;
+  height: 100%;
   width: 100%;
-  max-width: var(--topbar-max-w);
-  margin: 0;
-  background: var(--liquid-glass-bg);
-  backdrop-filter: var(--liquid-glass-blur);
-  -webkit-backdrop-filter: var(--liquid-glass-blur);
-  border: 1px solid var(--border-subtle);
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: none;
   border-radius: var(--radius-full);
-  box-shadow: var(--liquid-glass-edge), var(--shadow-lg);
-  position: fixed;
-  top: var(--topbar-top-gap);
-  left: 50%;
-  z-index: 50;
-}
-
-[data-theme='light'] .topbar {
-  background: rgba(230, 232, 240, 0.5);
-  box-shadow: var(--liquid-glass-edge), 0 10px 30px rgba(0, 0, 0, 0.16);
-  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 .topbar-logo {
@@ -1318,11 +1338,50 @@ textarea {
   z-index: 2;
 }
 
-/* TopBar: minimal tilt, almost unnoticeable */
-.topbar.tilt-glow {
-  --tilt-max: 1deg;
-  position: fixed;
-  transform: translateX(-50%) perspective(var(--tilt-perspective)) rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg)) scale(var(--tilt-active-scale, 1));
+/* ===== 2D grow + cursor-following glow (JS-driven via useGlowFollow.ts) ===== */
+.glow-follow {
+  transition: transform 0.25s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+.glow-follow:hover {
+  transform: scale(var(--grow-scale, 1.06));
+}
+
+.glow-follow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle var(--glow-radius) at var(--glow-x, -9999px) var(--glow-y, -9999px), var(--glow-color) 0%, transparent 60%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.25s ease;
+}
+
+.glow-follow:hover::before {
+  opacity: var(--glow-strength, 0.8);
+}
+
+.icon-button.glow-follow {
+  --grow-scale: 1.1;
+}
+
+.topbar-shell.glow-follow {
+  --grow-scale: 1.04;
+  --glow-strength: 0.3;
+}
+
+.view-toggle.glow-follow {
+  --grow-scale: 1.04;
+  --glow-radius: 90px;
+  --glow-strength: 0.5;
+}
+
+.grid-size-toggle.glow-follow {
+  --grow-scale: 1.04;
+  --glow-radius: 70px;
+  --glow-strength: 0.5;
 }
 
 /* Search bar: grow on hover, soft halo glow around the border */

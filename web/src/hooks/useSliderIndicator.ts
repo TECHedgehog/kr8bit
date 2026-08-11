@@ -37,13 +37,16 @@ export function useSliderIndicator({
       return;
     }
 
-    const toggleRect = toggle.getBoundingClientRect();
-    const btnRect = activeBtn.getBoundingClientRect();
-    const x = Math.round(btnRect.left - toggleRect.left);
-    const w = Math.round(btnRect.width);
+    let x = 0;
+    let cursor: HTMLElement | null = activeBtn;
+    while (cursor && cursor !== toggle) {
+      x += cursor.offsetLeft;
+      cursor = cursor.offsetParent as HTMLElement | null;
+    }
+    const w = activeBtn.offsetWidth;
 
     setIndicatorStyle({
-      translate: `${x}px 0`,
+      translate: `${Math.round(x)}px 0`,
       width: `${w}px`,
       opacity: 1,
     });

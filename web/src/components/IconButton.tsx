@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import type { ComponentType } from 'react';
 import type { IconProps } from '@tabler/icons-react';
 import { Tooltip } from './Tooltip';
-import { useTiltGlow } from '../hooks/useTiltGlow';
+import { useGlowFollow } from '../hooks/useGlowFollow';
 
 type Variant = 'default' | 'ghost' | 'danger';
 
@@ -18,7 +18,7 @@ interface IconButtonProps {
   ghost?: boolean;
   type?: 'button' | 'submit';
   size?: number;
-  tiltGlow?: boolean;
+  glow?: boolean;
 }
 
 export function IconButton({
@@ -31,10 +31,10 @@ export function IconButton({
   ghost = false,
   type = 'button',
   size = 18,
-  tiltGlow = false,
+  glow = false,
 }: IconButtonProps): JSX.Element {
   const btnRef = useRef<HTMLButtonElement>(null);
-  if (tiltGlow) useTiltGlow(btnRef);
+  useGlowFollow(btnRef, glow);
 
   const resolvedVariant = ghost ? 'ghost' : variant;
   const classes = [
@@ -42,7 +42,7 @@ export function IconButton({
     resolvedVariant === 'ghost' ? 'ghost' : '',
     resolvedVariant === 'danger' ? 'danger' : '',
     active ? 'active' : '',
-    tiltGlow ? 'tilt-glow' : '',
+    glow ? 'glow-follow' : '',
   ].filter(Boolean).join(' ');
 
   return (

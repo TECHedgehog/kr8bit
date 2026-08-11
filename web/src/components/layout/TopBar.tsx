@@ -1,6 +1,5 @@
 import { useRef, useState, useLayoutEffect, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { useTiltGlow } from '../../hooks/useTiltGlow';
 import IconDeviceGamepad2 from '@tabler/icons-react/dist/esm/icons/IconDeviceGamepad2.mjs';
 import IconScan from '@tabler/icons-react/dist/esm/icons/IconScan.mjs';
 import IconLibrary from '@tabler/icons-react/dist/esm/icons/IconLibrary.mjs';
@@ -9,6 +8,7 @@ import IconMoon from '@tabler/icons-react/dist/esm/icons/IconMoon.mjs';
 import type { IconProps } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useGlowFollow } from '../../hooks/useGlowFollow';
 
 type TablerIcon = ComponentType<IconProps>;
 
@@ -26,12 +26,10 @@ const NAV_ITEMS: NavItem[] = [
 export function TopBar(): JSX.Element {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  const headerRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLElement>(null);
-  const themeRef = useRef<HTMLButtonElement>(null);
-  useTiltGlow(headerRef);
-  useTiltGlow(themeRef);
+  const shellRef = useRef<HTMLElement>(null);
   const linkRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  useGlowFollow(shellRef);
   const indicatorRef = useRef<HTMLDivElement>(null);
   const isFirstRender = useRef(true);
   const [suppressTransition, setSuppressTransition] = useState(true);
@@ -98,40 +96,42 @@ export function TopBar(): JSX.Element {
   }, [fontReady]);
 
   return (
-    <header ref={headerRef} className="topbar tilt-glow">
-      <div className="topbar-logo">
-        <IconDeviceGamepad2 size={24} />
-        <span>kr8bit</span>
-      </div>
-      <nav className="topbar-nav" ref={navRef}>
-        <div
-          ref={indicatorRef}
-          className={`topbar-indicator${suppressTransition ? ' topbar-indicator--no-transition' : ''}`}
-          style={indicatorStyle}
-          onAnimationEnd={() => indicatorRef.current?.classList.remove('topbar-indicator--moving')}
-        />
-        {NAV_ITEMS.map((item, i) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            ref={(el) => { linkRefs.current[i] = el; }}
-            className={({ isActive }) => `topbar-link${isActive ? ' active' : ''}`}
+    <header ref={shellRef} className="topbar-shell glow-follow">
+      <div className="topbar-bg" aria-hidden="true" />
+      <div className="topbar">
+        <div className="topbar-logo">
+          <IconDeviceGamepad2 size={24} />
+          <span>kr8bit</span>
+        </div>
+        <nav className="topbar-nav" ref={navRef}>
+          <div
+            ref={indicatorRef}
+            className={`topbar-indicator${suppressTransition ? ' topbar-indicator--no-transition' : ''}`}
+            style={indicatorStyle}
+            onAnimationEnd={() => indicatorRef.current?.classList.remove('topbar-indicator--moving')}
+          />
+          {NAV_ITEMS.map((item, i) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              ref={(el) => { linkRefs.current[i] = el; }}
+              className={({ isActive }) => `topbar-link${isActive ? ' active' : ''}`}
+            >
+              <item.icon size={16} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="topbar-spacer" />
+        <div className="topbar-actions">
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
           >
-            <item.icon size={16} />
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
-      <div className="topbar-spacer" />
-      <div className="topbar-actions">
-        <button
-          ref={themeRef}
-          className="theme-toggle tilt-glow"
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-        >
-          {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-        </button>
+            {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
+          </button>
+        </div>
       </div>
     </header>
   );
