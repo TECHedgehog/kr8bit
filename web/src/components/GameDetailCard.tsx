@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
 import { api, ApiError } from '../api/client';
 import type { Game } from '../api/types';
+import { useMarquee } from '../hooks/useMarquee';
 import { StatusBadge } from './StatusBadge';
 import { formatBytes, formatDateTime, joinStringList } from '../format';
 
@@ -16,6 +17,7 @@ export function GameDetailCard(): JSX.Element {
   const [heroError, setHeroError] = useState(false);
   const [coverError, setCoverError] = useState(false);
   const cancelledRef = useRef(false);
+  const { viewportRef, textRef } = useMarquee(game?.displayName ?? '');
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -104,8 +106,10 @@ export function GameDetailCard(): JSX.Element {
 
             <div className="game-detail-body">
               <div className="game-detail-title-row">
-                <div>
-                  <div className="game-detail-title">{game.displayName}</div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div ref={viewportRef} className="game-detail-title marquee-viewport">
+                    <span ref={textRef} className="marquee-text">{game.displayName}</span>
+                  </div>
                   <div className="game-detail-subtitle">
                     <StatusBadge status={game.matchStatus} />
                     {game.releaseYear && <span>{game.releaseYear}</span>}

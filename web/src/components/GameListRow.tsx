@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
+import { useMarquee } from '../hooks/useMarquee';
 import { StatusBadge } from './StatusBadge';
 
 interface GameListRowProps {
@@ -13,6 +14,7 @@ export function GameListRow({ game }: GameListRowProps): JSX.Element {
   const [searchParams] = useSearchParams();
   const title = game.displayName;
   const [imgError, setImgError] = useState(false);
+  const { viewportRef, textRef } = useMarquee(title);
 
   function onClick() {
     const next = new URLSearchParams(searchParams);
@@ -41,7 +43,9 @@ export function GameListRow({ game }: GameListRowProps): JSX.Element {
         />
       )}
       <div className="game-list-row-info">
-        <div className="game-list-row-title">{title}</div>
+        <div ref={viewportRef} className="game-list-row-title marquee-viewport">
+          <span ref={textRef} className="marquee-text">{title}</span>
+        </div>
         <div className="game-list-row-meta">
           <StatusBadge status={game.matchStatus} />
           {game.releaseYear && <span>{game.releaseYear}</span>}

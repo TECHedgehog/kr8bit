@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
 import { useTiltGlow } from '../hooks/useTiltGlow';
+import { useMarquee } from '../hooks/useMarquee';
 
 interface GameCardProps {
   game: Game;
@@ -15,6 +16,7 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
   const [imgError, setImgError] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);
   useTiltGlow(cardRef);
+  const { viewportRef, textRef } = useMarquee(title);
 
   function onClick() {
     const next = new URLSearchParams(searchParams);
@@ -37,7 +39,9 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
           />
         )}
         <div className="game-card-overlay">
-          <div className="game-card-overlay-title">{title}</div>
+          <div ref={viewportRef} className="game-card-overlay-title marquee-viewport">
+            <span ref={textRef} className="marquee-text">{title}</span>
+          </div>
         </div>
       </div>
     </button>

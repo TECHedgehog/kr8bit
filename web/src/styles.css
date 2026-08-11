@@ -1103,6 +1103,107 @@ textarea {
   font-size: var(--text-sm);
 }
 
+/* Marquee scroll for overflowing titles */
+
+@property --fade-l {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+@property --fade-r {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+@keyframes marquee-scroll {
+  0%    { transform: translateX(0); }
+  15%   { transform: translateX(0); }
+  60%   { transform: translateX(calc(var(--marquee-distance) * -1)); }
+  75%   { transform: translateX(calc(var(--marquee-distance) * -1)); }
+  90%   { transform: translateX(0); }
+  100%  { transform: translateX(0); }
+}
+
+/* Mask alpha: per-edge fade mapped to text rest positions.
+   Left fade ON anytime text is away from begin-position (translateX 0);
+   OFF only at begin-position rest.
+   Right fade ON anytime text is away from end-position (translateX -distance);
+   OFF only at end-position rest.
+   5% ramps soften transitions between phases. */
+@keyframes marquee-mask-alpha {
+  0%    { --fade-l: 1; --fade-r: 0; }
+  15%   { --fade-l: 1; --fade-r: 0; }
+  20%   { --fade-l: 0; --fade-r: 0; }
+  60%   { --fade-l: 0; --fade-r: 0; }
+  65%   { --fade-l: 0; --fade-r: 1; }
+  75%   { --fade-l: 0; --fade-r: 1; }
+  80%   { --fade-l: 0; --fade-r: 0; }
+  90%   { --fade-l: 0; --fade-r: 0; }
+  95%   { --fade-l: 1; --fade-r: 0; }
+  100%  { --fade-l: 1; --fade-r: 0; }
+}
+
+.marquee-viewport {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+.marquee-text {
+  display: inline-block;
+}
+
+.marquee-active {
+  text-align: left;
+}
+
+/* Animated alpha mask: text edges fade only during scroll phases. */
+.marquee-active.marquee-viewport {
+  mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, var(--fade-l, 1)) 0,
+    #000 12px,
+    #000 calc(100% - 12px),
+    rgba(0, 0, 0, var(--fade-r, 1)) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    rgba(0, 0, 0, var(--fade-l, 1)) 0,
+    #000 12px,
+    #000 calc(100% - 12px),
+    rgba(0, 0, 0, var(--fade-r, 1)) 100%
+  );
+}
+
+/* Hover-gated: animations off by default for cards and list rows */
+.game-card .marquee-active .marquee-text,
+.game-list-row .marquee-active .marquee-text,
+.game-card .marquee-active.marquee-viewport,
+.game-list-row .marquee-active.marquee-viewport {
+  animation: none;
+}
+
+.game-card:hover .marquee-active .marquee-text,
+.game-list-row:hover .marquee-active .marquee-text {
+  animation: marquee-scroll var(--marquee-duration) ease-in-out infinite;
+}
+
+.game-card:hover .marquee-active.marquee-viewport,
+.game-list-row:hover .marquee-active.marquee-viewport {
+  animation: marquee-mask-alpha var(--marquee-duration) ease-in-out infinite;
+}
+
+/* Detail title runs continuously (no hover gate) */
+.game-detail-title.marquee-active .marquee-text {
+  animation: marquee-scroll var(--marquee-duration) ease-in-out infinite;
+}
+
+.game-detail-title.marquee-active.marquee-viewport {
+  animation: marquee-mask-alpha var(--marquee-duration) ease-in-out infinite;
+}
+
 /* ===== Game List ===== */
 
 .game-list {
