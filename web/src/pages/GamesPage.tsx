@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useSliderIndicator } from '../hooks/useSliderIndicator';
 import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
@@ -353,6 +353,8 @@ export function GamesPage(): JSX.Element {
           </select>
         </div>
       )}
+
+      <Outlet />
     </div>
   );
 }

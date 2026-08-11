@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
 import { StatusBadge } from './StatusBadge';
@@ -10,13 +10,19 @@ interface GameListRowProps {
 
 export function GameListRow({ game }: GameListRowProps): JSX.Element {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const title = game.displayName;
   const [imgError, setImgError] = useState(false);
+
+  function onClick() {
+    const next = new URLSearchParams(searchParams);
+    navigate({ pathname: `/games/${game.id}`, search: next.toString() });
+  }
 
   return (
     <button
       className="game-list-row"
-      onClick={() => navigate(`/games/${game.id}`)}
+      onClick={onClick}
     >
       {imgError ? (
         <div
