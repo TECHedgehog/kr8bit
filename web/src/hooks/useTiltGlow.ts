@@ -15,9 +15,13 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
     const maxTilt = parseFloat(style.getPropertyValue('--tilt-max')) || 8;
     const settleMs = parseFloat(style.getPropertyValue('--tilt-settle-ms')) || 400;
     const activeScale = parseFloat(style.getPropertyValue('--tilt-active-scale')) || 1.04;
+    const pillShadowMax = parseFloat(style.getPropertyValue('--pill-shadow-max')) || 10;
 
     el.style.setProperty('--tilt-active-scale', '1');
     el.style.setProperty('--glow-on', '0');
+    el.style.setProperty('--pill-shadow-ox', '0px');
+    el.style.setProperty('--pill-shadow-oy', '0px');
+    el.style.setProperty('--pill-shadow-elong', '0');
 
     let trackRaf = 0;
     let growRaf = 0;
@@ -46,6 +50,14 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
       el.style.setProperty('--glow-y', `${py.toFixed(1)}px`);
       el.style.setProperty('--glow-ox', `${glowOx.toFixed(1)}%`);
       el.style.setProperty('--glow-oy', `${glowOy.toFixed(1)}%`);
+
+      const pillShadowOx = (ry / maxTilt) * pillShadowMax;
+      const pillShadowOy = (rx / maxTilt) * pillShadowMax;
+      const pillShadowElong = (Math.abs(rx) + Math.abs(ry)) / (2 * maxTilt) * 0.25;
+
+      el.style.setProperty('--pill-shadow-ox', `${pillShadowOx.toFixed(1)}px`);
+      el.style.setProperty('--pill-shadow-oy', `${pillShadowOy.toFixed(1)}px`);
+      el.style.setProperty('--pill-shadow-elong', `${pillShadowElong.toFixed(3)}`);
     };
 
     const startGrow = () => {
@@ -92,6 +104,9 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
       const startRy = parseFloat(el.style.getPropertyValue('--tilt-ry')) || 0;
       const startScale = parseFloat(el.style.getPropertyValue('--tilt-active-scale')) || activeScale;
       const startGlow = parseFloat(el.style.getPropertyValue('--glow-on')) || 1;
+      const startShadowOx = parseFloat(el.style.getPropertyValue('--pill-shadow-ox')) || 0;
+      const startShadowOy = parseFloat(el.style.getPropertyValue('--pill-shadow-oy')) || 0;
+      const startShadowElong = parseFloat(el.style.getPropertyValue('--pill-shadow-elong')) || 0;
       const startTime = performance.now();
 
       const tick = (now: number) => {
@@ -102,11 +117,17 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
         const ry = startRy * (1 - ease);
         const scale = 1 + (startScale - 1) * (1 - ease);
         const glow = startGlow * (1 - ease);
+        const shadowOx = startShadowOx * (1 - ease);
+        const shadowOy = startShadowOy * (1 - ease);
+        const shadowElong = startShadowElong * (1 - ease);
 
         el.style.setProperty('--tilt-rx', `${rx.toFixed(2)}deg`);
         el.style.setProperty('--tilt-ry', `${ry.toFixed(2)}deg`);
         el.style.setProperty('--tilt-active-scale', `${scale.toFixed(3)}`);
         el.style.setProperty('--glow-on', `${glow.toFixed(2)}`);
+        el.style.setProperty('--pill-shadow-ox', `${shadowOx.toFixed(1)}px`);
+        el.style.setProperty('--pill-shadow-oy', `${shadowOy.toFixed(1)}px`);
+        el.style.setProperty('--pill-shadow-elong', `${shadowElong.toFixed(3)}`);
 
         if (p < 1) {
           settleRaf = requestAnimationFrame(tick);
@@ -116,6 +137,9 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
           el.style.setProperty('--glow-y', '-9999px');
           el.style.setProperty('--glow-ox', '0%');
           el.style.setProperty('--glow-oy', '0%');
+          el.style.setProperty('--pill-shadow-ox', '0px');
+          el.style.setProperty('--pill-shadow-oy', '0px');
+          el.style.setProperty('--pill-shadow-elong', '0');
           el.style.willChange = '';
         }
       };
@@ -162,6 +186,9 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
       el.style.setProperty('--glow-oy', '');
       el.style.setProperty('--tilt-active-scale', '');
       el.style.setProperty('--glow-on', '');
+      el.style.setProperty('--pill-shadow-ox', '');
+      el.style.setProperty('--pill-shadow-oy', '');
+      el.style.setProperty('--pill-shadow-elong', '');
       el.style.willChange = '';
     };
   }, [ref]);

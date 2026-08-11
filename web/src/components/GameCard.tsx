@@ -24,24 +24,27 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
   }
 
   return (
-    <button ref={cardRef} className="game-card tilt-glow" onClick={onClick}>
-      <div className="game-card-cover">
-        {imgError ? (
-          <div className="game-card-placeholder">
-            <IconPhotoOff size={32} />
-          </div>
-        ) : (
-          <img
-            src={`/api/games/${game.id}/artwork/cover`}
-            alt={title}
-            loading="lazy"
-            onError={() => setImgError(true)}
-          />
-        )}
-        <div className="game-card-overlay">
-          <div ref={viewportRef} className="game-card-overlay-title marquee-viewport">
-            <span ref={textRef} className="marquee-text">{title}</span>
-          </div>
+    <button ref={cardRef} className="game-card" onClick={onClick}>
+      <div className="game-card-tilt tilt-glow">
+        <div className="game-card-cover">
+          {imgError ? (
+            <div className="game-card-placeholder">
+              <IconPhotoOff size={32} />
+            </div>
+          ) : (
+            <img
+              src={`/api/games/${game.id}/artwork/cover`}
+              alt={title}
+              loading="lazy"
+              onError={() => setImgError(true)}
+            />
+          )}
+        </div>
+        <div className="game-card-overlay-shadow" aria-hidden="true" />
+      </div>
+      <div className="game-card-overlay">
+        <div ref={viewportRef} className="game-card-overlay-title marquee-viewport">
+          <span ref={textRef} className="marquee-text">{title}</span>
         </div>
       </div>
     </button>
