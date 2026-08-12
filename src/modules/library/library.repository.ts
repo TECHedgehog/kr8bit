@@ -88,9 +88,11 @@ export const libraryRepository = {
       if (input.developers !== undefined) data.developers = encodeArray(input.developers);
       if (input.publishers !== undefined) data.publishers = encodeArray(input.publishers);
       if (input.genres !== undefined) data.genres = encodeArray(input.genres);
-      if (input.coverUrl !== undefined) data.coverUrl = input.coverUrl;
-      if (input.headerUrl !== undefined) data.headerUrl = input.headerUrl;
-      if (input.matchStatus !== undefined) data.matchStatus = input.matchStatus;
+    if (input.coverUrl !== undefined) data.coverUrl = input.coverUrl;
+    if (input.headerUrl !== undefined) data.headerUrl = input.headerUrl;
+    if (input.heroUrl !== undefined) data.heroUrl = input.heroUrl;
+    if (input.logoUrl !== undefined) data.logoUrl = input.logoUrl;
+    if (input.matchStatus !== undefined) data.matchStatus = input.matchStatus;
       if (input.matchScore !== undefined) data.matchScore = input.matchScore;
       if (input.matchedAt !== undefined) data.matchedAt = input.matchedAt;
 
@@ -118,8 +120,10 @@ export const libraryRepository = {
     const rows = await prisma.game.findMany({
       where: {
         matchStatus: { in: [MatchStatus.ACCEPTED, MatchStatus.FLAGGED] },
-        description: null,
-        coverUrl: null,
+        OR: [
+          { description: null, coverUrl: null },
+          { steamAppId: { not: null }, heroUrl: null },
+        ],
       },
       orderBy: { createdAt: 'asc' },
     });

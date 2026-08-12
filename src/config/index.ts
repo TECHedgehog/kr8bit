@@ -18,6 +18,9 @@ const schema = z.object({
   STEAM_INDEX_REFRESH_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
   STEAM_APP_LIST_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
   STEAM_API_KEY: z.string().optional(),
+  STEAMGRIDDB_API_KEY: z.string().optional(),
+  STEAMGRIDDB_API_BASE: z.string().url().default('https://www.steamgriddb.com/api/v2'),
+  STEAMGRIDDB_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -46,11 +49,17 @@ export const config = {
     httpTimeoutMs: parsed.data.IGDB_HTTP_TIMEOUT_MS,
     enabled: Boolean(parsed.data.IGDB_CLIENT_ID && parsed.data.IGDB_CLIENT_SECRET),
   },
-  steamIndex: {
+    steamIndex: {
     refreshIntervalHours: parsed.data.STEAM_INDEX_REFRESH_INTERVAL_HOURS,
     appListHttpTimeoutMs: parsed.data.STEAM_APP_LIST_HTTP_TIMEOUT_MS,
     apiKey: parsed.data.STEAM_API_KEY ?? null,
     enabled: Boolean(parsed.data.STEAM_API_KEY),
+  },
+  steamgriddb: {
+    apiKey: parsed.data.STEAMGRIDDB_API_KEY ?? null,
+    apiBase: parsed.data.STEAMGRIDDB_API_BASE,
+    httpTimeoutMs: parsed.data.STEAMGRIDDB_HTTP_TIMEOUT_MS,
+    enabled: Boolean(parsed.data.STEAMGRIDDB_API_KEY),
   },
 } as const;
 

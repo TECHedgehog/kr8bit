@@ -36,7 +36,7 @@ export function GameListRow({ game }: GameListRowProps): JSX.Element {
       ) : (
         <img
           className="game-list-row-thumb"
-          src={`/api/games/${game.id}/artwork/cover`}
+          src={`/api/games/${game.id}/artwork/cover?v=${game.updatedAt}`}
           alt={title}
           loading="lazy"
           onError={() => setImgError(true)}

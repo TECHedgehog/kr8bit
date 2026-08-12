@@ -33,7 +33,7 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
             </div>
           ) : (
             <img
-              src={`/api/games/${game.id}/artwork/cover`}
+              src={`/api/games/${game.id}/artwork/cover?v=${game.updatedAt}`}
               alt={title}
               loading="lazy"
               onError={() => setImgError(true)}

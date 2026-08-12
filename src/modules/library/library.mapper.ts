@@ -21,6 +21,8 @@ export function toDomain(row: PrismaGame): Game {
     genres: decodeArray(row.genres),
     coverUrl: row.coverUrl,
     headerUrl: row.headerUrl,
+    heroUrl: row.heroUrl,
+    logoUrl: row.logoUrl,
     matchStatus: row.matchStatus as MatchStatus,
     matchScore: row.matchScore,
     matchedAt: row.matchedAt,

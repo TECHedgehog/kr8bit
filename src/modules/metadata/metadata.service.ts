@@ -8,6 +8,8 @@ import { providerMatchRepository } from '../metadata/provider-match.repository.j
 import type { ProviderRegistry } from '../metadata/provider-registry.js';
 import { providerRegistry as defaultRegistry } from '../metadata/provider-registry.js';
 import { artworkService, type ArtworkService, type ArtworkKind } from '../artwork/artwork.service.js';
+import { steamGridDbHttpClient } from '../artwork/steamgriddb/steamgriddb.http.js';
+import type { SteamGridDbImageQuery } from '../artwork/steamgriddb/steamgriddb.http.types.js';
 import { normalizeGameName } from '../scanner/name-normalizer.js';
 
 export { STEAM_PROVIDER_NAME };
@@ -81,13 +83,14 @@ export class MetadataService {
 
     let headerCached: string | null = null;
     let coverCached: string | null = null;
-
+    let sgdb = { gridUrl: null as string | null, heroUrl: null as string | null, logoUrl: null as string | null };
     if (isSteam) {
       const appId = Number(metadata.remoteId);
       headerCached = await this.deps.artwork.downloadToCache(appId, 'header', metadata.headerUrl);
       coverCached = await this.deps.artwork.downloadToCache(appId, 'cover', metadata.coverUrl);
+      sgdb = await this.enrichWithSteamGridDb(appId);
       logger.info(
-        { gameId: game.id, remoteId, appId, headerCached, coverCached },
+        { gameId: game.id, remoteId, appId, headerCached, coverCached, sgdb },
         'metadata assigned (steam)',
       );
     } else {
@@ -108,9 +111,7 @@ export class MetadataService {
         'metadata assigned (generic)',
       );
     }
-
     const steamAppIdForUpdate = isSteam ? Number(metadata.remoteId) : null;
-
     const updated = await libraryRepository.update(game.id, {
       steamAppId: steamAppIdForUpdate,
       title: metadata.title,
@@ -119,8 +120,10 @@ export class MetadataService {
       developers: metadata.developers,
       publishers: metadata.publishers,
       genres: metadata.genres,
-      coverUrl: metadata.coverUrl ?? null,
+      coverUrl: sgdb.gridUrl ?? metadata.coverUrl ?? null,
       headerUrl: metadata.headerUrl ?? null,
+      heroUrl: sgdb.heroUrl,
+      logoUrl: sgdb.logoUrl,
       matchStatus: MatchStatus.MANUAL,
       matchScore: 100,
       matchedAt: now,
@@ -177,6 +180,8 @@ export class MetadataService {
       genres: [],
       coverUrl: null,
       headerUrl: null,
+      heroUrl: null,
+      logoUrl: null,
       matchStatus: MatchStatus.PENDING,
       matchScore: null,
       matchedAt: null,
@@ -188,7 +193,7 @@ export class MetadataService {
   }
 
   artworkKind(input: string): ArtworkKind | null {
-    if (input === 'header' || input === 'cover') return input;
+    if (input === 'header' || input === 'cover' || input === 'hero' || input === 'logo') return input;
     return null;
   }
 
@@ -223,10 +228,12 @@ export class MetadataService {
     if (!metadata) return null;
 
     const isSteam = provider.name === STEAM_PROVIDER_NAME;
+    let sgdb = { gridUrl: null as string | null, heroUrl: null as string | null, logoUrl: null as string | null };
     if (isSteam) {
       const appId = Number(metadata.remoteId);
       await this.deps.artwork.downloadToCache(appId, 'header', metadata.headerUrl);
       await this.deps.artwork.downloadToCache(appId, 'cover', metadata.coverUrl);
+      sgdb = await this.enrichWithSteamGridDb(appId);
     } else {
       await this.deps.artwork.downloadToCacheGeneric(
         provider.name,
@@ -241,7 +248,6 @@ export class MetadataService {
         metadata.coverUrl,
       );
     }
-
     return libraryRepository.update(game.id, {
       title: metadata.title,
       releaseYear: metadata.releaseYear ?? null,
@@ -249,8 +255,10 @@ export class MetadataService {
       developers: metadata.developers,
       publishers: metadata.publishers,
       genres: metadata.genres,
-      coverUrl: metadata.coverUrl ?? null,
+      coverUrl: sgdb.gridUrl ?? metadata.coverUrl ?? null,
       headerUrl: metadata.headerUrl ?? null,
+      heroUrl: sgdb.heroUrl,
+      logoUrl: sgdb.logoUrl,
       matchedAt: this.deps.now(),
     });
   }
@@ -264,7 +272,7 @@ export class MetadataService {
 
     await this.deps.artwork.downloadToCache(game.steamAppId, 'header', metadata.headerUrl);
     await this.deps.artwork.downloadToCache(game.steamAppId, 'cover', metadata.coverUrl);
-
+    const sgdb = await this.enrichWithSteamGridDb(game.steamAppId);
     return libraryRepository.update(game.id, {
       title: metadata.title,
       releaseYear: metadata.releaseYear ?? null,
@@ -272,11 +280,43 @@ export class MetadataService {
       developers: metadata.developers,
       publishers: metadata.publishers,
       genres: metadata.genres,
-      coverUrl: metadata.coverUrl ?? null,
+      coverUrl: sgdb.gridUrl ?? metadata.coverUrl ?? null,
       headerUrl: metadata.headerUrl ?? null,
+      heroUrl: sgdb.heroUrl,
+      logoUrl: sgdb.logoUrl,
       matchedAt: this.deps.now(),
     });
   }
+  private async enrichWithSteamGridDb(
+    steamAppId: number,
+  ): Promise<{ gridUrl: string | null; heroUrl: string | null; logoUrl: string | null }> {
+    if (!steamGridDbHttpClient) return { gridUrl: null, heroUrl: null, logoUrl: null };
+    const baseQuery: SteamGridDbImageQuery = {
+      types: ['static'],
+      nsfw: 'false',
+      humor: 'false',
+    };
+    const [grids, heroes, logos] = await Promise.all([
+      steamGridDbHttpClient.getGridsBySteamAppId(steamAppId, {
+        ...baseQuery,
+        styles: ['alternate', 'blurred'],
+      }),
+      steamGridDbHttpClient.getHeroesBySteamAppId(steamAppId, {
+        ...baseQuery,
+        styles: ['alternate', 'blurred'],
+      }),
+      steamGridDbHttpClient.getLogosBySteamAppId(steamAppId, {
+        ...baseQuery,
+        styles: ['official', 'white', 'black', 'transparent'],
+      }),
+    ]);
+    const gridUrl = grids[0]?.url ?? null;
+    const heroUrl = heroes[0]?.url ?? null;
+    const logoUrl = logos[0]?.url ?? null;
+    if (gridUrl) await this.deps.artwork.downloadToCache(steamAppId, 'cover', gridUrl);
+    if (heroUrl) await this.deps.artwork.downloadToCache(steamAppId, 'hero', heroUrl);
+    if (logoUrl) await this.deps.artwork.downloadToCache(steamAppId, 'logo', logoUrl);
+    return { gridUrl, heroUrl, logoUrl };
+  }
 }
-
 export const metadataService = new MetadataService();

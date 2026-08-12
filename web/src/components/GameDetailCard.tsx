@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
+import IconRefresh from '@tabler/icons-react/dist/esm/icons/IconRefresh.mjs';
 import { api, ApiError } from '../api/client';
 import type { Game } from '../api/types';
 import { useMarquee } from '../hooks/useMarquee';
+import { useToast } from '../context/ToastContext';
 import { StatusBadge } from './StatusBadge';
 import { formatBytes, formatDateTime, joinStringList } from '../format';
 
@@ -18,6 +20,31 @@ export function GameDetailCard(): JSX.Element {
   const [coverError, setCoverError] = useState(false);
   const cancelledRef = useRef(false);
   const { viewportRef, textRef } = useMarquee(game?.displayName ?? '');
+  const toast = useToast();
+  const [refreshing, setRefreshing] = useState(false);
+  async function handleRefresh() {
+    if (!id) return;
+    setRefreshing(true);
+    try {
+      const updated = await api.post<Game>(`/api/games/${id}/metadata/refresh`);
+      if (!cancelledRef.current) {
+        if (updated) {
+          setGame(updated);
+          setHeroError(false);
+          setCoverError(false);
+          toast.success('metadata refreshed');
+        } else {
+          toast.error('no metadata to refresh');
+        }
+      }
+    } catch (err) {
+      if (!cancelledRef.current) {
+        toast.error(err instanceof ApiError ? err.message : 'refresh failed');
+      }
+    } finally {
+      if (!cancelledRef.current) setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -96,7 +123,7 @@ export function GameDetailCard(): JSX.Element {
                 <div className="detail-hero-placeholder" />
               ) : (
                 <img
-                  src={`/api/games/${game.id}/artwork/header`}
+                  src={`/api/games/${game.id}/artwork/header?v=${game.updatedAt}`}
                   alt={game.displayName}
                   onError={() => setHeroError(true)}
                 />
@@ -215,7 +242,7 @@ export function GameDetailCard(): JSX.Element {
                 <section className="detail-section">
                   <div className="detail-section-title">Cover Art</div>
                   <img
-                    src={`/api/games/${game.id}/artwork/cover`}
+                    src={`/api/games/${game.id}/artwork/cover?v=${game.updatedAt}`}
                     alt={`${game.displayName} cover`}
                     onError={() => setCoverError(true)}
                     style={{
@@ -234,7 +261,17 @@ export function GameDetailCard(): JSX.Element {
                 </div>
               </section>
 
-              <div className="game-detail-actions" />
+              <div className="game-detail-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                >
+                  <IconRefresh size={16} />
+                  {refreshing ? 'Refreshing…' : 'Refresh Metadata'}
+                </button>
+              </div>
             </div>
           </>
         )}

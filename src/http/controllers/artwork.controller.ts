@@ -25,7 +25,11 @@ export const artworkController = {
         reply.header('Cache-Control', 'public, max-age=86400');
         return reply.send(cached.bytes);
       }
-      const remoteUrl = kindValue === 'header' ? game.headerUrl : game.coverUrl;
+      const remoteUrl =
+        kindValue === 'header' ? game.headerUrl :
+        kindValue === 'cover' ? game.coverUrl :
+        kindValue === 'hero' ? game.heroUrl :
+        kindValue === 'logo' ? game.logoUrl : undefined;
       if (!remoteUrl) {
         throw new NotFoundError('Artwork', `${id}/${kind}`);
       }
@@ -45,10 +49,14 @@ export const artworkController = {
       return reply.send(cached.bytes);
     }
 
-    const remoteUrl = kindValue === 'header' ? game.headerUrl : game.coverUrl;
-    if (!remoteUrl) {
-      throw new NotFoundError('Artwork', `${id}/${kind}`);
-    }
-    reply.redirect(302, remoteUrl);
-  },
+    const remoteUrl =
+      kindValue === 'header' ? game.headerUrl :
+      kindValue === 'cover' ? game.coverUrl :
+      kindValue === 'hero' ? game.heroUrl :
+      kindValue === 'logo' ? game.logoUrl : undefined;
+  if (!remoteUrl) {
+    throw new NotFoundError('Artwork', `${id}/${kind}`);
+  }
+  reply.redirect(302, remoteUrl);
+},
 };

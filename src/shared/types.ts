@@ -17,6 +17,8 @@ export interface GameMetadata {
   genres: string[];
   coverUrl?: string;
   headerUrl?: string;
+  heroUrl?: string;
+  logoUrl?: string;
 }
 
 export interface MetadataProvider {

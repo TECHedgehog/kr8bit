@@ -16,6 +16,8 @@ export interface Game {
   genres: string[];
   coverUrl: string | null;
   headerUrl: string | null;
+  heroUrl: string | null;
+  logoUrl: string | null;
   matchStatus: MatchStatus;
   matchScore: number | null;
   matchedAt: Date | null;
@@ -41,6 +43,8 @@ export interface GameUpdateInput {
   genres?: string[];
   coverUrl?: string | null;
   headerUrl?: string | null;
+  heroUrl?: string | null;
+  logoUrl?: string | null;
   matchStatus?: MatchStatus;
   matchScore?: number | null;
   matchedAt?: Date | null;

@@ -4,7 +4,7 @@ import { request } from 'undici';
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
 
-export type ArtworkKind = 'header' | 'cover';
+export type ArtworkKind = 'header' | 'cover' | 'hero' | 'logo';
 
 const IMAGE_PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47];
 const IMAGE_JPEG_MAGIC = [0xff, 0xd8, 0xff];
