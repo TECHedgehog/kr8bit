@@ -18,7 +18,7 @@ describe('decideMatch', () => {
     expect(d.result).toBeNull();
   });
 
-  it('returns ACCEPTED when top score >= 90', () => {
+  it('returns ACCEPTED when top score >= 85', () => {
     const results: SearchResult[] = [{ remoteId: '1', title: 'A', score: 95 }];
     const d = decideMatch(results);
     expect(d.status).toBe(MatchStatus.ACCEPTED);
@@ -41,8 +41,12 @@ describe('decideMatch', () => {
     expect(d.result).not.toBeNull();
   });
 
-  it('uses exactly 90 as accepted boundary', () => {
-    expect(decideMatch([{ remoteId: '1', title: 'A', score: 90 }]).status).toBe(MatchStatus.ACCEPTED);
+  it('uses exactly 85 as accepted boundary', () => {
+    expect(decideMatch([{ remoteId: '1', title: 'A', score: 85 }]).status).toBe(MatchStatus.ACCEPTED);
+  });
+
+  it('flags exactly 84', () => {
+    expect(decideMatch([{ remoteId: '1', title: 'A', score: 84 }]).status).toBe(MatchStatus.FLAGGED);
   });
 
   it('uses exactly 70 as flagged boundary', () => {

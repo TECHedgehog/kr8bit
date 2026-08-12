@@ -16,6 +16,15 @@ const TAG_PATTERNS: RegExp[] = [
   /\(elamigos[^)]*\)/gi,
   /\(dodi[^)]*\)/gi,
   /\(onlinefix[^)]*\)/gi,
+  /\[dodi[^\]]*\]/gi,
+  /\[codex[^\]]*\]/gi,
+  /\[elamigos[^\]]*\]/gi,
+  /\[tforce[^\]]*\]/gi,
+  /\[repack[^\]]*\]/gi,
+  /\[onlinefix[^\]]*\]/gi,
+  /\[gog[^\]]*\]/gi,
+  /\[steamless[^\]]*\]/gi,
+  /\[iso\]/gi,
 ];
 
 const NOISE_PATTERNS: RegExp[] = [
@@ -26,6 +35,17 @@ const NOISE_PATTERNS: RegExp[] = [
   /\bOSt\b/gi,
   /\bSoundtrack\b/gi,
   /\bStrategy\s+Guide\b/gi,
+];
+
+const EDITION_PATTERNS: RegExp[] = [
+  /\bRemaster(?:ed)?\b/gi,
+  /\bGame of the Year\b/gi,
+  /\bGOTY\b/gi,
+  /\bDirectors? Cut\b/gi,
+  /\bDirector['\s]?s Cut\b/gi,
+  /\b(Definitive|Enhanced|Complete|Ultimate|Standard|Collectors?|Collector['\s]?s|Limited|Special|Classic|Anniversary|Legendary|Gold|Platinum|Premium|Deluxe|Redux|Rebirth|Remix|Remake) Edition\b/gi,
+  /\bHD\b/gi,
+  /\bUHD\b/gi,
 ];
 
 const YEAR_PATTERN = /\b(19\d{2}|20\d{2})\b/g;
@@ -55,6 +75,14 @@ function stripNoise(input: string): string {
   return out;
 }
 
+function stripEditions(input: string): string {
+  let out = input;
+  for (const pattern of EDITION_PATTERNS) {
+    out = out.replace(pattern, ' ');
+  }
+  return out;
+}
+
 function extractYear(input: string): { cleaned: string; year?: number } {
   const matches = input.match(YEAR_PATTERN);
   if (!matches) return { cleaned: input };
@@ -74,6 +102,7 @@ export function normalizeGameName(rawName: string): NormalizedName {
 
   name = stripTags(name);
   name = stripNoise(name);
+  name = stripEditions(name);
   name = name.replace(VERSION_PATTERN, ' ');
   name = name.replace(BUILD_PATTERN, ' ');
   const yearResult = extractYear(name);

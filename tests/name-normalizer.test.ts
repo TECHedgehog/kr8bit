@@ -71,8 +71,8 @@ describe('normalizeGameName', () => {
   });
 
   it('preserves colons and apostrophes', () => {
-    expect(normalizeGameName("Devil May Cry 5: Special Edition").query).toBe(
-      "Devil May Cry 5: Special Edition",
+    expect(normalizeGameName("The Legend of Zelda: Breath of the Wild").query).toBe(
+      "The Legend of Zelda: Breath of the Wild",
     );
     expect(normalizeGameName("Assassin's Creed Odyssey").query).toBe(
       "Assassin's Creed Odyssey",
@@ -82,5 +82,25 @@ describe('normalizeGameName', () => {
   it('preserves unicode (japanese, accents)', () => {
     expect(normalizeGameName('NieR Automata 日本語').query).toContain('NieR Automata');
     expect(normalizeGameName('Español Juego 2020').query).toBe('Español Juego');
+  });
+
+  it('strips bracket-form repack tags', () => {
+    expect(normalizeGameName('Baldurs Gate 3 [DODI Repack].7z').query).toBe('Baldurs Gate 3');
+    expect(normalizeGameName('Game [CODEX].7z').query).toBe('Game');
+    expect(normalizeGameName('Game [ElAmigos Repack]').query).toBe('Game');
+  });
+
+  it('strips edition and variant suffixes', () => {
+    expect(normalizeGameName('Skyrim Special Edition.7z').query).toBe('Skyrim');
+    expect(normalizeGameName('Skyrim Remastered.7z').query).toBe('Skyrim');
+    expect(normalizeGameName('Mass Effect Legendary Edition.7z').query).toBe('Mass Effect');
+    expect(normalizeGameName('Witcher 3 GOTY.7z').query).toBe('Witcher 3');
+    expect(normalizeGameName('Deus Ex Mankind Divided Directors Cut.7z').query).toBe('Deus Ex Mankind Divided');
+  });
+
+  it('does not over-strip sequel numbers or apostrophes', () => {
+    expect(normalizeGameName('Quake 3').query).toBe('Quake 3');
+    expect(normalizeGameName("Tony Hawk's Pro Skater 1+2").query).toBe("Tony Hawk's Pro Skater 1 2");
+    expect(normalizeGameName('Golden Axe').query).toBe('Golden Axe');
   });
 });

@@ -1,7 +1,7 @@
 import { MatchStatus } from '../../shared/enums.js';
 import type { SearchResult } from '../../shared/types.js';
 
-export const ACCEPT_THRESHOLD = 90;
+export const ACCEPT_THRESHOLD = 85;
 export const FLAG_THRESHOLD = 70;
 
 export interface MatchDecision {

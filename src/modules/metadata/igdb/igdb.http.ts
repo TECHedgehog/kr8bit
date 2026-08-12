@@ -53,7 +53,7 @@ export class IgdbTokenManager implements IgdbTokenProvider {
       return this.cached.token;
     }
     const { clientId, clientSecret } = this.credentials;
-    const url = `${this.tokenBase}/oauth2/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=client_credentials`;
+    const url = `${this.tokenBase}/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=client_credentials`;
     const res = await request(url, {
       method: 'POST',
       headersTimeout: this.timeoutMs,
