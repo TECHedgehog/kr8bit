@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { metadataService } from '../../modules/metadata/metadata.service.js';
 import { metadataRefreshJob } from '../../modules/metadata/metadata-refresh.job.js';
+import { retryMatchJob } from '../../modules/metadata/retry-match.job.js';
 import { steamIndexService } from '../../modules/metadata/steam-index/steam-index.service.js';
 import { config } from '../../config/index.js';
 import { ConflictError, ValidationError } from '../../shared/errors.js';
@@ -46,6 +47,18 @@ export const metadataController = {
 
   async refreshAllStatus(_req: FastifyRequest, _reply: FastifyReply) {
     return { running: metadataRefreshJob.isRunning(), state: metadataRefreshJob.state() };
+  },
+
+  async retryMatches(_req: FastifyRequest, _reply: FastifyReply) {
+    if (retryMatchJob.isRunning()) {
+      return { running: true, state: retryMatchJob.state() };
+    }
+    void retryMatchJob.start();
+    return { running: true, started: true };
+  },
+
+  async retryMatchesStatus(_req: FastifyRequest, _reply: FastifyReply) {
+    return { running: retryMatchJob.isRunning(), state: retryMatchJob.state() };
   },
 
   async refreshIndex(_req: FastifyRequest, reply: FastifyReply) {

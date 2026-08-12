@@ -19,3 +19,5 @@ export const ScanStatus = {
   FAILED: 'FAILED',
 } as const;
 export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];
+
+export const STEAM_PROVIDER_NAME = 'steam';

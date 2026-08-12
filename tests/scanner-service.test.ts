@@ -85,12 +85,12 @@ describe('ScannerService.start', () => {
 
     const provider = mockQueryProvider((query) => {
       if (query.toLowerCase().includes('skyrim')) {
-        return [{ remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 }];
+        return [{ providerName: 'steam', remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 }];
       }
       return [];
     });
     const service = new ScannerService({
-      provider,
+      providers: [provider],
       reader: makeReader(),
       now: () => new Date('2024-06-01T00:00:00Z'),
       libraryRoot: tmpDir,
@@ -121,10 +121,10 @@ describe('ScannerService.start', () => {
   it('skips ACCEPTED games on re-scan', async () => {
     await fs.writeFile(join(tmpDir, 'Skyrim.7z'), 'data');
     const provider = mockProvider([
-      { remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 },
+      { providerName: 'steam', remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 },
     ]);
     const deps = {
-      provider,
+      providers: [provider],
       reader: makeReader(),
       now: () => new Date('2024-06-01T00:00:00Z'),
       libraryRoot: tmpDir,
@@ -155,15 +155,15 @@ describe('ScannerService.start', () => {
       search: vi.fn(async (): Promise<SearchResult[]> => {
         callCount += 1;
         return callCount === 1
-          ? [{ remoteId: '7', title: 'Skyrim', score: 75 }]
-          : [{ remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 }];
+          ? [{ providerName: 'steam', remoteId: '7', title: 'Skyrim', score: 75 }]
+          : [{ providerName: 'steam', remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 }];
       }),
       getGame: vi.fn(),
       getImages: vi.fn(),
     } as unknown as MetadataProvider;
 
     const deps = {
-      provider,
+      providers: [provider],
       reader: makeReader(),
       now: () => new Date('2024-06-01T00:00:00Z'),
       libraryRoot: tmpDir,
@@ -188,13 +188,13 @@ describe('ScannerService.start', () => {
 
     const provider: MetadataProvider = {
       name: 'mock',
-      search: vi.fn(async (): Promise<SearchResult[]> => [{ remoteId: '7', title: 'Skyrim', score: 75 }]),
+      search: vi.fn(async (): Promise<SearchResult[]> => [{ providerName: 'steam', remoteId: '7', title: 'Skyrim', score: 75 }]),
       getGame: vi.fn(),
       getImages: vi.fn(),
     } as unknown as MetadataProvider;
 
     const service = new ScannerService({
-      provider,
+      providers: [provider],
       reader: makeReader(),
       now: () => new Date('2024-06-01T00:00:00Z'),
       libraryRoot: tmpDir,
@@ -217,7 +217,7 @@ describe('ScannerService.start', () => {
   it('records scan run with stats', async () => {
     await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
     const service = new ScannerService({
-      provider: mockProvider([{ remoteId: '1', title: 'Game', score: 95 }]),
+      providers: [mockProvider([{ providerName: 'steam', remoteId: '1', title: 'Game', score: 95 }])],
       reader: makeReader(),
       now: () => new Date('2024-06-01T00:00:00Z'),
       libraryRoot: tmpDir,
@@ -238,7 +238,7 @@ describe('ScannerService.start', () => {
   it('prevents concurrent runs', async () => {
     await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
     const service = new ScannerService({
-      provider: mockProvider([{ remoteId: '1', title: 'Game', score: 95 }]),
+      providers: [mockProvider([{ providerName: 'steam', remoteId: '1', title: 'Game', score: 95 }])],
       reader: makeReader(),
       now: () => new Date('2024-06-01T00:00:00Z'),
       libraryRoot: tmpDir,
@@ -254,7 +254,7 @@ describe('ScannerService.start', () => {
     await fs.writeFile(join(tmpDir, 'Some Game', 'setup.exe'), 'binary');
 
     const service = new ScannerService({
-      provider: mockProvider([{ remoteId: '42', title: 'Some Game', score: 92 }]),
+      providers: [mockProvider([{ providerName: 'steam', remoteId: '42', title: 'Some Game', score: 92 }])],
       reader: makeReader(),
       now: () => new Date('2024-06-01T00:00:00Z'),
       libraryRoot: tmpDir,
@@ -266,5 +266,41 @@ describe('ScannerService.start', () => {
     const game = await libraryRepository.findByEntryPath(join(tmpDir, 'Some Game'));
     expect(game?.entryType).toBe('DIRECTORY');
     expect(game?.matchStatus).toBe(MatchStatus.ACCEPTED);
+  });
+
+  it('falls back to next provider when first returns weak score', async () => {
+    await fs.writeFile(join(tmpDir, 'Fallen London.7z'), 'data');
+
+    const weakProvider: MetadataProvider = {
+      name: 'steam',
+      search: vi.fn(async (): Promise<SearchResult[]> => [
+        { providerName: 'steam', remoteId: '1', title: 'Random', score: 38 },
+      ]),
+      getGame: vi.fn(),
+      getImages: vi.fn(),
+    } as unknown as MetadataProvider;
+
+    const goodProvider: MetadataProvider = {
+      name: 'igdb',
+      search: vi.fn(async (): Promise<SearchResult[]> => [
+        { providerName: 'igdb', remoteId: '2', title: 'Fallen London', score: 95 },
+      ]),
+      getGame: vi.fn(),
+      getImages: vi.fn(),
+    } as unknown as MetadataProvider;
+
+    const service = new ScannerService({
+      providers: [weakProvider, goodProvider],
+      reader: makeReader(),
+      now: () => new Date('2024-06-01T00:00:00Z'),
+      libraryRoot: tmpDir,
+    });
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+    const game = await libraryRepository.findByEntryPath(join(tmpDir, 'Fallen London.7z'));
+    expect(game?.matchStatus).toBe(MatchStatus.ACCEPTED);
+    expect(game?.title).toBe('Fallen London');
+    expect(goodProvider.search).toHaveBeenCalled();
   });
 });

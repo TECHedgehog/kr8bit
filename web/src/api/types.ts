@@ -93,3 +93,21 @@ export interface ApiErrorEnvelope {
   error: string;
   message: string;
 }
+
+export interface JobState {
+  running: boolean;
+  processed: number;
+  failed: number;
+}
+
+export interface RefreshJobResponse {
+  running: boolean;
+  state?: JobState;
+  started?: boolean;
+}
+
+export interface RetryMatchResponse {
+  running: boolean;
+  state?: JobState;
+  started?: boolean;
+}

@@ -1,5 +1,5 @@
 import { logger } from '../../logger/index.js';
-import { MatchStatus } from '../../shared/enums.js';
+import { MatchStatus, STEAM_PROVIDER_NAME } from '../../shared/enums.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { libraryRepository } from '../library/library.repository.js';
 import type { Game } from '../library/library.types.js';
@@ -10,7 +10,7 @@ import { providerRegistry as defaultRegistry } from '../metadata/provider-regist
 import { artworkService, type ArtworkService, type ArtworkKind } from '../artwork/artwork.service.js';
 import { normalizeGameName } from '../scanner/name-normalizer.js';
 
-export const STEAM_PROVIDER_NAME = 'steam';
+export { STEAM_PROVIDER_NAME };
 
 export interface MetadataDeps {
   providers: ProviderRegistry;

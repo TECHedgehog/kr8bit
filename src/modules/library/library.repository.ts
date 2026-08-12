@@ -125,4 +125,14 @@ export const libraryRepository = {
     });
     return rows.map(toDomain);
   },
+
+  async findPendingGames(): Promise<Game[]> {
+    const rows = await prisma.game.findMany({
+      where: {
+        matchStatus: { in: [MatchStatus.PENDING, MatchStatus.FLAGGED, MatchStatus.REJECTED] },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map(toDomain);
+  },
 };

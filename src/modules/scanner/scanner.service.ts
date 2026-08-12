@@ -6,21 +6,22 @@ import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
 import { scanLibraryRoot, type DirectoryReader, type ScanCandidate } from './folder-scanner.js';
 import { normalizeGameName } from './name-normalizer.js';
-import { decideMatch } from './match-policy.js';
+import { decideMatch, FLAG_THRESHOLD } from './match-policy.js';
+import { applyMatchResult } from './match-apply.js';
 import type { MetadataProvider, SearchResult } from '../../shared/types.js';
-import { steamProvider } from '../metadata/steam/steam.provider.js';
+import { providerRegistry } from '../metadata/provider-registry.js';
 import { metadataRefreshJob } from '../metadata/metadata-refresh.job.js';
 import { emitProgress } from './scanner.events.js';
 
 export interface ScannerDeps {
-  provider: MetadataProvider;
+  providers: MetadataProvider[];
   reader: DirectoryReader;
   now: () => Date;
   libraryRoot: string;
 }
 
 export const defaultDeps: ScannerDeps = {
-  provider: steamProvider,
+  providers: providerRegistry.order(),
   reader: {
     async readdir(path) {
       const { promises: fs } = await import('node:fs');
@@ -206,31 +207,42 @@ export class ScannerService {
     const normalized = normalizeGameName(candidate.entryName);
 
     let results: SearchResult[] = [];
-    try {
-      results = await this.deps.provider.search(normalized.query);
-    } catch (err) {
-      logger.warn({ err: (err as Error).message, query: normalized.query }, 'scan: provider search failed');
-      results = [];
+    for (const provider of this.deps.providers) {
+      try {
+        results = await provider.search(normalized.query);
+      } catch (err) {
+        logger.warn(
+          { err: (err as Error).message, provider: provider.name, query: normalized.query },
+          'scan: provider search failed',
+        );
+        continue;
+      }
+      if (results.length > 0 && (results[0]?.score ?? 0) >= FLAG_THRESHOLD) {
+        break;
+      }
     }
 
     const decision = decideMatch(results);
 
     if (existing) {
-      const hadMatch = existing.steamAppId !== null;
+      const hadMatch = existing.steamAppId !== null || existing.title !== null;
       if (!decision.result && hadMatch) {
         logger.debug(
-          { entry: candidate.entryPath, existing: existing.steamAppId },
+          { entry: candidate.entryPath, existingId: existing.id },
           'scan: preserving existing match on empty result',
         );
         return 'skipped';
       }
-      await libraryRepository.update(existing.id, {
-        matchStatus: decision.status,
-        matchScore: decision.score,
-        matchedAt: this.deps.now(),
-        steamAppId: decision.result ? Number(decision.result.remoteId) : null,
-        title: decision.result ? decision.result.title : existing.title,
-      });
+      if (decision.result) {
+        const applied = await applyMatchResult(existing.id, decision, this.deps.now());
+        if (!applied) {
+          await libraryRepository.update(existing.id, {
+            matchStatus: decision.status,
+            matchScore: decision.score,
+            matchedAt: this.deps.now(),
+          });
+        }
+      }
       return 'updated';
     }
 
@@ -242,14 +254,7 @@ export class ScannerService {
       matchStatus: decision.status,
     });
 
-    if (decision.result) {
-      await libraryRepository.update(created.id, {
-        matchScore: decision.score,
-        matchedAt: this.deps.now(),
-        steamAppId: Number(decision.result.remoteId),
-        title: decision.result.title,
-      });
-    }
+    await applyMatchResult(created.id, decision, this.deps.now());
 
     return 'added';
   }
