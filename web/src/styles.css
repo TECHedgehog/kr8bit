@@ -1029,7 +1029,7 @@ textarea {
 
 .game-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-size, 170px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-size, 160px), 1fr));
   gap: var(--space-6) var(--space-4);
 }
 
@@ -1057,7 +1057,7 @@ textarea {
 
 .game-card-cover {
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
   background: var(--surface-3);
   display: flex;
   align-items: center;
@@ -1280,7 +1280,7 @@ textarea {
 
 .game-list-row-thumb {
   width: 40px;
-  height: 54px;
+  height: 60px;
   border-radius: var(--radius-sm);
   object-fit: cover;
   background: var(--surface-3);

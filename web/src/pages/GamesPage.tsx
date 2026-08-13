@@ -49,11 +49,11 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
 const LIMIT_OPTIONS = [10, 25, 50, 100];
 
 const GRID_SIZES = [
-  { label: 'Small', value: 150, iconSize: 10 },
-  { label: 'Medium', value: 170, iconSize: 12 },
-  { label: 'Large', value: 200, iconSize: 15 },
+  { label: 'Small', value: 130, iconSize: 10 },
+  { label: 'Medium', value: 160, iconSize: 12 },
+  { label: 'Large', value: 190, iconSize: 15 },
 ];
-const GRID_SIZE_DEFAULT = 170;
+const GRID_SIZE_DEFAULT = 160;
 
 export function GamesPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
