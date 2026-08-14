@@ -3,8 +3,10 @@ import os from 'node:os';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { buildServer } from '../src/http/server.js';
+import { config } from '../src/config/index.js';
 import { prisma } from '../src/prisma-client.js';
 import { libraryRepository } from '../src/modules/library/library.repository.js';
+import { scannerService } from '../src/modules/scanner/scanner.service.js';
 import { MatchStatus } from '../src/shared/enums.js';
 import type { FastifyInstance } from 'fastify';
 
@@ -89,6 +91,17 @@ describe('PUT /api/settings', () => {
     });
     expect(res.statusCode).toBe(400);
   });
+
+  it('returns validation error envelope for non-string value', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/settings',
+      payload: { a: 1 },
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json();
+    expect(body.code).toBe('VALIDATION_ERROR');
+  });
 });
 
 describe('GET /api/games', () => {
@@ -118,6 +131,23 @@ describe('GET /api/games', () => {
   it('rejects invalid status filter', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/games?status=NOPE' });
     expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects invalid limit', async () => {
+    const zero = await app.inject({ method: 'GET', url: '/api/games?limit=0' });
+    expect(zero.statusCode).toBe(400);
+  });
+
+  it('rejects invalid offset', async () => {
+    const negative = await app.inject({ method: 'GET', url: '/api/games?offset=-1' });
+    expect(negative.statusCode).toBe(400);
+  });
+
+  it('caps limit at 200', async () => {
+    await createGame({ entryName: 'A.7z' });
+    const res = await app.inject({ method: 'GET', url: '/api/games?limit=999' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items).toHaveLength(1);
   });
 });
 
@@ -167,10 +197,30 @@ describe('Scanner endpoints', () => {
     expect(body.isRunning).toBe(false);
   });
 
-  it('rejects run while scanner service is busy', async () => {
-    // Skipping actual run to avoid disk I/O; rely on service regression tests.
+  it('returns 202 when scan starts', async () => {
+    const startSpy = vi.spyOn(scannerService, 'start').mockResolvedValue({
+      id: 'run-1',
+      status: 'RUNNING',
+      rootPath: '/games',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      errors: [],
+    } as unknown as Awaited<ReturnType<typeof scannerService.start>>);
+
     const res = await app.inject({ method: 'POST', url: '/api/scanner/run' });
-    expect([200, 202, 500]).toContain(res.statusCode);
+
+    expect(res.statusCode).toBe(202);
+    expect(res.json().id).toBe('run-1');
+    startSpy.mockRestore();
+  });
+
+  it('rejects run when scanner is already running', async () => {
+    vi.spyOn(scannerService, 'isRunning').mockReturnValueOnce(true);
+
+    const res = await app.inject({ method: 'POST', url: '/api/scanner/run' });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('SCAN_RUNNING');
   });
 });
 
@@ -248,6 +298,8 @@ describe('Artwork endpoint', () => {
       headerUrl: 'https://steamcdn.test/header.jpg',
       matchStatus: MatchStatus.ACCEPTED,
     });
+    // Ensure no stale cache file from a previous run influences this test.
+    await fs.rm(join(config.cacheDir, 'artwork', '620'), { recursive: true, force: true });
 
     const res = await app.inject({ method: 'GET', url: `/api/games/${id}/artwork/header` });
     expect(res.statusCode).toBe(302);
@@ -263,5 +315,50 @@ describe('error envelope shape', () => {
     expect(body.statusCode).toBe(404);
     expect(body.code).toBe('NOT_FOUND');
     expect(body.error).toBe('NotFoundError');
+  });
+});
+
+describe('Database endpoints', () => {
+  beforeEach(() => {
+    vi.spyOn(scannerService, 'isRunning').mockReturnValue(false);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('POST /api/database/reset requires confirmation', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/database/reset', payload: {} });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('VALIDATION_ERROR');
+  });
+
+  it('POST /api/database/reset returns counts after wipe', async () => {
+    await createGame({ entryName: 'A.7z' });
+    await prisma.setting.create({ data: { key: 'x', value: 'y' } });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/database/reset',
+      payload: { confirm: 'RESET' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.games).toBe(1);
+    expect(body.settings).toBe(1);
+  });
+
+  it('POST /api/database/reset returns 409 when scan running', async () => {
+    vi.mocked(scannerService.isRunning).mockReturnValue(true);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/database/reset',
+      payload: { confirm: 'RESET' },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('SCAN_RUNNING');
   });
 });

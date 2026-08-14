@@ -2,8 +2,6 @@ export const STEAM_API_BASE = 'https://api.steampowered.com';
 export const STEAM_STORE_BASE = 'https://store.steampowered.com';
 export const STEAM_CDN_BASE = 'https://cdn.cloudflare.steamstatic.com/steam/apps';
 
-export const STEAM_HTTP_TIMEOUT_MS = 15000;
-
 export interface SteamAppListEntry {
   appid: number;
   name: string;

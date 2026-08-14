@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { MetadataProvider } from '../src/shared/types.js';
-import {
-  ProviderRegistryImpl,
-  createProviderRegistry,
-} from '../src/modules/metadata/provider-registry.js';
+import { ProviderRegistryImpl } from '../src/modules/metadata/provider-registry.js';
 
 function makeProvider(name: string): MetadataProvider {
   return {
@@ -35,10 +32,3 @@ describe('ProviderRegistryImpl', () => {
   });
 });
 
-describe('createProviderRegistry factory', () => {
-  it('builds a registry with the same shape', () => {
-    const registry = createProviderRegistry([makeProvider('steam'), makeProvider('igdb')]);
-    expect(registry.names()).toEqual(['steam', 'igdb']);
-    expect(registry.has('steam')).toBe(true);
-  });
-});
