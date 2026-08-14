@@ -44,7 +44,6 @@ function mockProvider(results: SearchResult[]): MetadataProvider {
     name: 'mock',
     search: fn,
     getGame: vi.fn(),
-    getImages: vi.fn(),
   } as unknown as MetadataProvider;
 }
 
@@ -53,7 +52,6 @@ function mockQueryProvider(fn: (query: string) => SearchResult[]): MetadataProvi
     name: 'mock',
     search: vi.fn(async (q: string) => fn(q)),
     getGame: vi.fn(),
-    getImages: vi.fn(),
   } as unknown as MetadataProvider;
 }
 
@@ -65,6 +63,22 @@ function makeReader() {
     async stat(path: string) {
       return fs.stat(path);
     },
+  };
+}
+
+function makeDeps(overrides: {
+  providers?: MetadataProvider[];
+  now?: () => Date;
+  metadataRefresh?: { refresh: ReturnType<typeof vi.fn> };
+  jobs?: { retryMatch: { isRunning: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn> } };
+} = {}) {
+  return {
+    providers: overrides.providers ?? [mockProvider([{ providerName: 'steam', remoteId: '1', title: 'Game', score: 95 }])],
+    reader: makeReader(),
+    now: overrides.now ?? (() => new Date('2024-06-01T00:00:00Z')),
+    libraryRoot: tmpDir,
+    metadataRefresh: overrides.metadataRefresh ?? { refresh: vi.fn().mockResolvedValue(null) },
+    jobs: overrides.jobs,
   };
 }
 
@@ -89,12 +103,7 @@ describe('ScannerService.start', () => {
       }
       return [];
     });
-    const service = new ScannerService({
-      providers: [provider],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    });
+    const service = new ScannerService(makeDeps({ providers: [provider] }));
 
     const run = await service.start();
     const stats = await waitForScanComplete(run.id);
@@ -123,13 +132,7 @@ describe('ScannerService.start', () => {
     const provider = mockProvider([
       { providerName: 'steam', remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 },
     ]);
-    const deps = {
-      providers: [provider],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    };
-    const service = new ScannerService(deps);
+    const service = new ScannerService(makeDeps({ providers: [provider] }));
 
     const run1 = await service.start();
     const stats1 = await waitForScanComplete(run1.id);
@@ -159,16 +162,9 @@ describe('ScannerService.start', () => {
           : [{ providerName: 'steam', remoteId: '72850', title: 'The Elder Scrolls V: Skyrim', score: 95 }];
       }),
       getGame: vi.fn(),
-      getImages: vi.fn(),
     } as unknown as MetadataProvider;
 
-    const deps = {
-      providers: [provider],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    };
-    const service = new ScannerService(deps);
+    const service = new ScannerService(makeDeps({ providers: [provider] }));
 
     const run1 = await service.start();
     await waitForScanComplete(run1.id);
@@ -190,15 +186,9 @@ describe('ScannerService.start', () => {
       name: 'mock',
       search: vi.fn(async (): Promise<SearchResult[]> => [{ providerName: 'steam', remoteId: '7', title: 'Skyrim', score: 75 }]),
       getGame: vi.fn(),
-      getImages: vi.fn(),
     } as unknown as MetadataProvider;
 
-    const service = new ScannerService({
-      providers: [provider],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    });
+    const service = new ScannerService(makeDeps({ providers: [provider] }));
 
     const run1 = await service.start();
     await waitForScanComplete(run1.id);
@@ -216,12 +206,7 @@ describe('ScannerService.start', () => {
 
   it('records scan run with stats', async () => {
     await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
-    const service = new ScannerService({
-      providers: [mockProvider([{ providerName: 'steam', remoteId: '1', title: 'Game', score: 95 }])],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    });
+    const service = new ScannerService(makeDeps());
 
     const run = await service.start();
     await waitForScanComplete(run.id);
@@ -237,12 +222,7 @@ describe('ScannerService.start', () => {
 
   it('prevents concurrent runs', async () => {
     await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
-    const service = new ScannerService({
-      providers: [mockProvider([{ providerName: 'steam', remoteId: '1', title: 'Game', score: 95 }])],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    });
+    const service = new ScannerService(makeDeps());
 
     const run1 = await service.start();
     await expect(service.start()).rejects.toThrow('scan already running');
@@ -253,12 +233,7 @@ describe('ScannerService.start', () => {
     await fs.mkdir(join(tmpDir, 'Some Game'));
     await fs.writeFile(join(tmpDir, 'Some Game', 'setup.exe'), 'binary');
 
-    const service = new ScannerService({
-      providers: [mockProvider([{ providerName: 'steam', remoteId: '42', title: 'Some Game', score: 92 }])],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    });
+    const service = new ScannerService(makeDeps());
 
     const run = await service.start();
     const stats = await waitForScanComplete(run.id);
@@ -277,7 +252,6 @@ describe('ScannerService.start', () => {
         { providerName: 'steam', remoteId: '1', title: 'Random', score: 38 },
       ]),
       getGame: vi.fn(),
-      getImages: vi.fn(),
     } as unknown as MetadataProvider;
 
     const goodProvider: MetadataProvider = {
@@ -286,21 +260,80 @@ describe('ScannerService.start', () => {
         { providerName: 'igdb', remoteId: '2', title: 'Fallen London', score: 95 },
       ]),
       getGame: vi.fn(),
-      getImages: vi.fn(),
     } as unknown as MetadataProvider;
 
-    const service = new ScannerService({
-      providers: [weakProvider, goodProvider],
-      reader: makeReader(),
-      now: () => new Date('2024-06-01T00:00:00Z'),
-      libraryRoot: tmpDir,
-    });
+    const service = new ScannerService(makeDeps({ providers: [weakProvider, goodProvider] }));
 
     const run = await service.start();
     await waitForScanComplete(run.id);
     const game = await libraryRepository.findByEntryPath(join(tmpDir, 'Fallen London.7z'));
     expect(game?.matchStatus).toBe(MatchStatus.ACCEPTED);
     expect(game?.title).toBe('Fallen London');
+    expect(weakProvider.search).toHaveBeenCalled();
     expect(goodProvider.search).toHaveBeenCalled();
+  });
+
+  it('queries all providers even when first returns high score', async () => {
+    await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
+
+    const firstProvider: MetadataProvider = {
+      name: 'steam',
+      search: vi.fn(async (): Promise<SearchResult[]> => [
+        { providerName: 'steam', remoteId: '1', title: 'Game', score: 95 },
+      ]),
+      getGame: vi.fn(),
+    } as unknown as MetadataProvider;
+
+    const secondProvider: MetadataProvider = {
+      name: 'igdb',
+      search: vi.fn(async (): Promise<SearchResult[]> => [
+        { providerName: 'igdb', remoteId: '2', title: 'Better Game', score: 99 },
+      ]),
+      getGame: vi.fn(),
+    } as unknown as MetadataProvider;
+
+    const service = new ScannerService(makeDeps({ providers: [firstProvider, secondProvider] }));
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+    const game = await libraryRepository.findByEntryPath(join(tmpDir, 'Game.7z'));
+    expect(game?.matchStatus).toBe(MatchStatus.ACCEPTED);
+    expect(game?.title).toBe('Better Game');
+    expect(firstProvider.search).toHaveBeenCalled();
+    expect(secondProvider.search).toHaveBeenCalled();
+  });
+
+  it('triggers retry-match job after scan but not metadata refresh job', async () => {
+    await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
+    const retryJob = { isRunning: vi.fn(() => false), start: vi.fn().mockResolvedValue(undefined) };
+    const service = new ScannerService(makeDeps({ jobs: { retryMatch: retryJob } }));
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+
+    expect(retryJob.start).toHaveBeenCalled();
+  });
+
+  it('eagerly refreshes metadata for ACCEPTED matches during scan', async () => {
+    await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
+    const refresh = vi.fn().mockResolvedValue({ id: 'game-1' });
+    const service = new ScannerService(makeDeps({ metadataRefresh: { refresh } }));
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it('does not eagerly refresh for non-ACCEPTED matches', async () => {
+    await fs.writeFile(join(tmpDir, 'Junk.7z'), 'data');
+    const refresh = vi.fn().mockResolvedValue(null);
+    const provider = mockQueryProvider(() => []);
+    const service = new ScannerService(makeDeps({ providers: [provider], metadataRefresh: { refresh } }));
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

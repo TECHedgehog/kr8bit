@@ -1,10 +1,17 @@
 import { prisma } from '../../prisma-client.js';
 import { logger } from '../../logger/index.js';
+import { config } from '../../config/index.js';
 import { mapPrismaError } from '../../shared/prisma-errors.js';
 import { NotFoundError } from '../../shared/errors.js';
 import { MatchStatus } from '../../shared/enums.js';
 import { encodeArray } from '../../shared/json.js';
 import { toDomain } from './library.mapper.js';
+import {
+  findOrphanedProviderMatches as findOrphanedProviderMatchesDb,
+  cleanOrphanedProviderMatches as cleanOrphanedProviderMatchesDb,
+  findStaleSteamAppIds as findStaleSteamAppIdsDb,
+  cleanStaleSteamAppIds as cleanStaleSteamAppIdsDb,
+} from '../database/orphan-cleanup.js';
 import type {
   Game,
   GameCreateInput,
@@ -12,6 +19,9 @@ import type {
   GameListFilter,
   GameListResult,
 } from './library.types.js';
+
+export const REFRESH_BATCH_SIZE = 500;
+export const PENDING_BATCH_SIZE = 500;
 
 export const libraryRepository = {
   async create(input: GameCreateInput): Promise<Game> {
@@ -117,15 +127,21 @@ export const libraryRepository = {
   },
 
   async findEligibleForRefresh(): Promise<Game[]> {
+    const minAgeMs = config.metadata.refreshMinAgeMs;
+    const cutoff = new Date(Date.now() - minAgeMs);
     const rows = await prisma.game.findMany({
       where: {
-        matchStatus: { in: [MatchStatus.ACCEPTED, MatchStatus.FLAGGED] },
+        matchStatus: { in: [MatchStatus.ACCEPTED, MatchStatus.FLAGGED, MatchStatus.MANUAL] },
+        matchedAt: { lt: cutoff },
         OR: [
-          { description: null, coverUrl: null },
+          { description: null },
+          { coverUrl: null },
+          { headerUrl: null },
           { steamAppId: { not: null }, heroUrl: null },
         ],
       },
       orderBy: { createdAt: 'asc' },
+      take: REFRESH_BATCH_SIZE,
     });
     return rows.map(toDomain);
   },
@@ -136,7 +152,26 @@ export const libraryRepository = {
         matchStatus: { in: [MatchStatus.PENDING, MatchStatus.FLAGGED, MatchStatus.REJECTED] },
       },
       orderBy: { createdAt: 'asc' },
+      take: PENDING_BATCH_SIZE,
     });
     return rows.map(toDomain);
+  },
+
+  async findOrphanedProviderMatches(): Promise<string[]> {
+    return findOrphanedProviderMatchesDb();
+  },
+
+  async cleanOrphanedProviderMatches(): Promise<number> {
+    return cleanOrphanedProviderMatchesDb();
+  },
+
+  async findStaleSteamAppIds(): Promise<
+    { id: string; entryName: string; steamAppId: number }[]
+  > {
+    return findStaleSteamAppIdsDb();
+  },
+
+  async cleanStaleSteamAppIds(): Promise<number> {
+    return cleanStaleSteamAppIdsDb();
   },
 };
