@@ -21,6 +21,22 @@ const schema = z.object({
   STEAMGRIDDB_API_KEY: z.string().optional(),
   STEAMGRIDDB_API_BASE: z.string().url().default('https://www.steamgriddb.com/api/v2'),
   STEAMGRIDDB_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  ARTWORK_HTTP_HEADER_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  ARTWORK_HTTP_BODY_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  ARTWORK_CACHE_TTL_MS: z.coerce.number().int().positive().default(2_592_000_000),
+  STEAM_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+  SCAN_MAX_DEPTH: z.coerce.number().int().positive().default(1),
+  SCAN_EXTENSIONS: z.string().min(1).default('.7z'),
+  SCAN_INSTALLER_NAMES: z.string().min(1).default('setup.exe'),
+  MATCH_ACCEPT_THRESHOLD: z.coerce.number().int().min(0).max(100).default(85),
+  MATCH_FLAG_THRESHOLD: z.coerce.number().int().min(0).max(100).default(70),
+  HTTP_RETRY_COUNT: z.coerce.number().int().min(0).max(10).default(3),
+  HTTP_RETRY_BASE_MS: z.coerce.number().int().positive().default(1000),
+  METADATA_REFRESH_DELAY_MS: z.coerce.number().int().positive().default(500),
+  METADATA_RETRY_DELAY_MS: z.coerce.number().int().positive().default(500),
+  METADATA_REFRESH_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(3),
+  METADATA_RETRY_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(3),
+  METADATA_REFRESH_MIN_AGE_MS: z.coerce.number().int().positive().default(604_800_000),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -60,6 +76,34 @@ export const config = {
     apiBase: parsed.data.STEAMGRIDDB_API_BASE,
     httpTimeoutMs: parsed.data.STEAMGRIDDB_HTTP_TIMEOUT_MS,
     enabled: Boolean(parsed.data.STEAMGRIDDB_API_KEY),
+  },
+  artwork: {
+    headerTimeoutMs: parsed.data.ARTWORK_HTTP_HEADER_TIMEOUT_MS,
+    bodyTimeoutMs: parsed.data.ARTWORK_HTTP_BODY_TIMEOUT_MS,
+    cacheTtlMs: parsed.data.ARTWORK_CACHE_TTL_MS,
+  },
+  steam: {
+    httpTimeoutMs: parsed.data.STEAM_HTTP_TIMEOUT_MS,
+  },
+  scan: {
+    maxDepth: parsed.data.SCAN_MAX_DEPTH,
+    extensions: parsed.data.SCAN_EXTENSIONS.split(',').map((s) => s.trim().toLowerCase()),
+    installerNames: parsed.data.SCAN_INSTALLER_NAMES.split(',').map((s) => s.trim().toLowerCase()),
+  },
+  match: {
+    acceptThreshold: parsed.data.MATCH_ACCEPT_THRESHOLD,
+    flagThreshold: parsed.data.MATCH_FLAG_THRESHOLD,
+  },
+  httpRetry: {
+    count: parsed.data.HTTP_RETRY_COUNT,
+    baseDelayMs: parsed.data.HTTP_RETRY_BASE_MS,
+  },
+  metadata: {
+    refreshDelayMs: parsed.data.METADATA_REFRESH_DELAY_MS,
+    retryDelayMs: parsed.data.METADATA_RETRY_DELAY_MS,
+    refreshConcurrency: parsed.data.METADATA_REFRESH_CONCURRENCY,
+    retryConcurrency: parsed.data.METADATA_RETRY_CONCURRENCY,
+    refreshMinAgeMs: parsed.data.METADATA_REFRESH_MIN_AGE_MS,
   },
 } as const;
 
