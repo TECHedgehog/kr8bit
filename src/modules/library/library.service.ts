@@ -80,4 +80,12 @@ export const libraryService = {
   async delete(id: string): Promise<void> {
     return libraryRepository.delete(id);
   },
+
+  async cleanOrphans(): Promise<{ orphanedProviderMatches: number; staleSteamAppIds: number }> {
+    const [orphanedProviderMatches, staleSteamAppIds] = await Promise.all([
+      libraryRepository.cleanOrphanedProviderMatches(),
+      libraryRepository.cleanStaleSteamAppIds(),
+    ]);
+    return { orphanedProviderMatches, staleSteamAppIds };
+  },
 };

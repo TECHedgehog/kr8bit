@@ -2,7 +2,7 @@ import type { Game as PrismaGame } from '@prisma/client';
 import type { Game } from './library.types.js';
 import { decodeArray } from '../../shared/json.js';
 import type { EntryType, MatchStatus } from '../../shared/enums.js';
-import { normalizeGameName } from '../scanner/name-normalizer.js';
+import { normalizeGameName } from '../../shared/normalize.js';
 
 export function toDomain(row: PrismaGame): Game {
   return {

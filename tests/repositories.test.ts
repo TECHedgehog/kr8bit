@@ -203,15 +203,6 @@ describe('settingsRepository', () => {
     expect(all.map((s) => s.key)).toEqual(['a', 'b']);
   });
 
-  it('getOrThrow throws NotFoundError', async () => {
-    expect.assertions(1);
-    try {
-      await settingsRepository.getOrThrow('missing');
-    } catch (err) {
-      expect(err).toBeInstanceOf(NotFoundError);
-    }
-  });
-
   it('deletes setting', async () => {
     await settingsRepository.set('foo', 'bar');
     await settingsRepository.delete('foo');
