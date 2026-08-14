@@ -33,12 +33,19 @@ describe('decideMatch', () => {
     expect(d.score).toBe(80);
   });
 
-  it('returns PENDING when score < 70', () => {
+  it('returns REJECTED when 0 < score < 70', () => {
     const results: SearchResult[] = [{ remoteId: '2', title: 'C', score: 50 }];
     const d = decideMatch(results);
-    expect(d.status).toBe(MatchStatus.PENDING);
+    expect(d.status).toBe(MatchStatus.REJECTED);
     expect(d.score).toBe(50);
     expect(d.result).not.toBeNull();
+  });
+
+  it('returns PENDING for score 0 with results', () => {
+    const results: SearchResult[] = [{ remoteId: '2', title: 'C', score: 0 }];
+    const d = decideMatch(results);
+    expect(d.status).toBe(MatchStatus.PENDING);
+    expect(d.score).toBe(0);
   });
 
   it('uses exactly 85 as accepted boundary', () => {
@@ -57,5 +64,17 @@ describe('decideMatch', () => {
     const d = decideMatch([{ remoteId: '1', title: 'A' }]);
     expect(d.score).toBe(0);
     expect(d.status).toBe(MatchStatus.PENDING);
+  });
+
+  it('sorts merged results from multiple providers', () => {
+    const results: SearchResult[] = [
+      { providerName: 'igdb', remoteId: '1', title: 'A', score: 45 },
+      { providerName: 'steam', remoteId: '2', title: 'B', score: 92 },
+      { providerName: 'igdb', remoteId: '3', title: 'C', score: 78 },
+    ];
+    const d = decideMatch(results);
+    expect(d.status).toBe(MatchStatus.ACCEPTED);
+    expect(d.score).toBe(92);
+    expect(d.result?.providerName).toBe('steam');
   });
 });

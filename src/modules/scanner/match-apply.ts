@@ -1,4 +1,4 @@
-import { STEAM_PROVIDER_NAME } from '../../shared/enums.js';
+import { MatchStatus, STEAM_PROVIDER_NAME } from '../../shared/enums.js';
 import { libraryRepository } from '../library/library.repository.js';
 import { providerMatchRepository } from '../metadata/provider-match.repository.js';
 import type { MatchDecision } from './match-policy.js';
@@ -8,7 +8,7 @@ export async function applyMatchResult(
   decision: MatchDecision,
   now: Date,
 ): Promise<boolean> {
-  if (!decision.result) {
+  if (!decision.result || decision.status === MatchStatus.REJECTED) {
     return false;
   }
 
