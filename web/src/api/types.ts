@@ -27,6 +27,10 @@ export interface Game {
   matchedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  tags?: string[];
+  ageRating?: string | null;
+  metacriticScore?: number | null;
+  releaseDate?: string | null;
 }
 
 export interface GameListResult {

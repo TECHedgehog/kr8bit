@@ -17,11 +17,11 @@ export function GameDetailCard(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [heroError, setHeroError] = useState(false);
-  const [coverError, setCoverError] = useState(false);
   const cancelledRef = useRef(false);
   const { viewportRef, textRef } = useMarquee(game?.displayName ?? '');
   const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
+
   async function handleRefresh() {
     if (!id) return;
     setRefreshing(true);
@@ -31,7 +31,6 @@ export function GameDetailCard(): JSX.Element {
         if (updated) {
           setGame(updated);
           setHeroError(false);
-          setCoverError(false);
           toast.success('metadata refreshed');
         } else {
           toast.error('no metadata to refresh');
@@ -129,6 +128,7 @@ export function GameDetailCard(): JSX.Element {
                 />
               )}
               <div className="game-detail-hero-overlay" />
+              <div className="game-detail-hero-blur" />
             </div>
 
             <div className="game-detail-body">
@@ -146,120 +146,107 @@ export function GameDetailCard(): JSX.Element {
               </div>
 
               <section className="detail-section">
-                <div className="detail-section-title">Information</div>
-                <div className="detail-meta">
-                  <div className="detail-row">
-                    <span className="detail-label">Title</span>
-                    <span className="detail-value">{game.title ?? '—'}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Release Year</span>
-                    <span className="detail-value">
-                      {game.releaseYear !== null ? String(game.releaseYear) : '—'}
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Status</span>
-                    <span className="detail-value">
-                      <StatusBadge status={game.matchStatus} />
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Match Score</span>
-                    <span className="detail-value">
-                      {game.matchScore !== null ? `${Math.round(game.matchScore)}%` : '—'}
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Steam App ID</span>
-                    <span className="detail-value">
-                      {game.steamAppId !== null ? String(game.steamAppId) : '—'}
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Developers</span>
-                    <span className="detail-value">
-                      {joinStringList(game.developers) || '—'}
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Publishers</span>
-                    <span className="detail-value">
-                      {joinStringList(game.publishers) || '—'}
-                    </span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Genres</span>
-                    <span className="detail-value">
-                      {joinStringList(game.genres) || '—'}
-                    </span>
-                  </div>
-                </div>
-              </section>
-
-              {game.description && (
-                <section className="detail-section">
-                  <div className="detail-section-title">Description</div>
-                  <div className="detail-description-text">{game.description}</div>
-                </section>
-              )}
-
-              <section className="detail-section">
-                <div className="detail-section-title">File Details</div>
-                <div className="detail-meta">
-                  <div className="detail-row">
-                    <span className="detail-label">Entry Path</span>
-                    <span className="detail-value mono">{game.entryPath}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Entry Name</span>
-                    <span className="detail-value mono">{game.entryName}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Entry Type</span>
-                    <span className="detail-value mono">{game.entryType}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Size</span>
-                    <span className="detail-value mono">{formatBytes(game.sizeBytes)}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Matched At</span>
-                    <span className="detail-value mono">{formatDateTime(game.matchedAt)}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Created At</span>
-                    <span className="detail-value mono">{formatDateTime(game.createdAt)}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span className="detail-label">Updated At</span>
-                    <span className="detail-value mono">{formatDateTime(game.updatedAt)}</span>
-                  </div>
-                </div>
-              </section>
-
-              {!coverError && (
-                <section className="detail-section">
-                  <div className="detail-section-title">Cover Art</div>
-                  <img
-                    src={`/api/games/${game.id}/artwork/cover?v=${game.updatedAt}`}
-                    alt={`${game.displayName} cover`}
-                    onError={() => setCoverError(true)}
-                    style={{
-                      maxWidth: '300px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border)',
-                    }}
-                  />
-                </section>
-              )}
-
-              <section className="detail-section">
                 <div className="detail-section-title">Screenshots</div>
                 <div className="game-detail-screenshots-placeholder">
                   <span>Coming soon</span>
                 </div>
               </section>
+
+              <div className="game-detail-columns">
+                <div className="game-detail-col-left">
+                  {game.description && (
+                    <section className="detail-section">
+                      <div className="detail-section-title">Description</div>
+                      <div className="detail-description-text">{game.description}</div>
+                    </section>
+                  )}
+                </div>
+
+                <div className="game-detail-col-right">
+                  <section className="detail-section">
+                    <div className="detail-meta">
+                      <div className="detail-row">
+                        <span className="detail-label">Release Date</span>
+                        <span className="detail-value">
+                          {game.releaseDate ?? (game.releaseYear !== null ? String(game.releaseYear) : '—')}
+                        </span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Developers</span>
+                        <span className="detail-value">
+                          {joinStringList(game.developers) || '—'}
+                        </span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Publishers</span>
+                        <span className="detail-value">
+                          {joinStringList(game.publishers) || '—'}
+                        </span>
+                      </div>
+                      {game.genres.length > 0 && (
+                        <div className="detail-row">
+                          <span className="detail-label">Genres</span>
+                          <div className="detail-badges">
+                            {game.genres.map((g) => (
+                              <span key={g} className="detail-pill">{g}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(game.tags && game.tags.length > 0) && (
+                        <div className="detail-row">
+                          <span className="detail-label">Tags</span>
+                          <div className="detail-badges">
+                            {game.tags.map((t) => (
+                              <span key={t} className="detail-pill detail-pill--tag">{t}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {(!game.tags || game.tags.length === 0) && (
+                        <div className="detail-row">
+                          <span className="detail-label">Tags</span>
+                          <span className="detail-value detail-value--placeholder">—</span>
+                        </div>
+                      )}
+                      {game.ageRating && (
+                        <div className="detail-row">
+                          <span className="detail-label">Age Rating</span>
+                          <span className="detail-pill detail-pill--age">{game.ageRating}</span>
+                        </div>
+                      )}
+                      {!game.ageRating && (
+                        <div className="detail-row">
+                          <span className="detail-label">Age Rating</span>
+                          <span className="detail-value detail-value--placeholder">—</span>
+                        </div>
+                      )}
+                      <div className="detail-row">
+                        <span className="detail-label">Metacritic</span>
+                        <span className="detail-value">
+                          {game.metacriticScore !== null && game.metacriticScore !== undefined
+                            ? `${game.metacriticScore}/100`
+                            : <span className="detail-value--placeholder">—</span>}
+                        </span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Size</span>
+                        <span className="detail-value mono">{formatBytes(game.sizeBytes)}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Path</span>
+                        <span className="detail-value mono">{game.entryPath}</span>
+                      </div>
+                      {game.matchedAt && (
+                        <div className="detail-row">
+                          <span className="detail-label">Matched</span>
+                          <span className="detail-value mono">{formatDateTime(game.matchedAt)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              </div>
 
               <div className="game-detail-actions">
                 <button
