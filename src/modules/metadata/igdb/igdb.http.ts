@@ -2,6 +2,11 @@ import { request } from 'undici';
 import { logger } from '../../../logger/index.js';
 import { config } from '../../../config/index.js';
 import type { IgdbGame, IgdbTokenResponse } from './igdb.http.types.js';
+import {
+  withRetry,
+  RetryableHttpError,
+  isRetryableStatus,
+} from '../../../shared/http-retry.js';
 
 export interface IgdbCredentials {
   clientId: string;
@@ -10,6 +15,7 @@ export interface IgdbCredentials {
 
 export interface IgdbTokenProvider {
   getAccessToken(): Promise<string>;
+  invalidate(): void;
 }
 
 export interface IgdbHttpClient {
@@ -48,32 +54,44 @@ export class IgdbTokenManager implements IgdbTokenProvider {
     private readonly timeoutMs: number,
   ) {}
 
+  invalidate(): void {
+    this.cached = null;
+  }
+
   async getAccessToken(): Promise<string> {
     if (this.cached && Date.now() < this.cached.expiresAt - TOKEN_REFRESH_MARGIN_MS) {
       return this.cached.token;
     }
-    const { clientId, clientSecret } = this.credentials;
-    const url = `${this.tokenBase}/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=client_credentials`;
-    const res = await request(url, {
-      method: 'POST',
-      headersTimeout: this.timeoutMs,
-      bodyTimeout: this.timeoutMs,
-      headers: { 'Accept': 'application/json', 'User-Agent': 'kr8bit/0.1' },
-    });
-    if (res.statusCode >= 400) {
-      const text = await res.body.text();
-      logger.warn(
-        { statusCode: res.statusCode, text: text.slice(0, 200) },
-        'igdb token request failed',
-      );
-      throw new Error(`igdb token http ${res.statusCode}`);
-    }
-    const body = (await res.body.json()) as IgdbTokenResponse;
-    this.cached = {
-      token: body.access_token,
-      expiresAt: Date.now() + body.expires_in * 1000,
-    };
-    return this.cached.token;
+    return withRetry(
+      async () => {
+        const { clientId, clientSecret } = this.credentials;
+        const url = `${this.tokenBase}/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=client_credentials`;
+        const res = await request(url, {
+          method: 'POST',
+          headersTimeout: this.timeoutMs,
+          bodyTimeout: this.timeoutMs,
+          headers: { 'Accept': 'application/json', 'User-Agent': 'kr8bit/0.1' },
+        });
+        if (isRetryableStatus(res.statusCode)) {
+          throw new RetryableHttpError(`igdb token http ${res.statusCode}`);
+        }
+        if (res.statusCode >= 400) {
+          const text = await res.body.text();
+          logger.warn(
+            { statusCode: res.statusCode, text: text.slice(0, 200) },
+            'igdb token request failed',
+          );
+          throw new Error(`igdb token http ${res.statusCode}`);
+        }
+        const body = (await res.body.json()) as IgdbTokenResponse;
+        this.cached = {
+          token: body.access_token,
+          expiresAt: Date.now() + body.expires_in * 1000,
+        };
+        return this.cached.token;
+      },
+      { retries: config.httpRetry.count, baseDelayMs: config.httpRetry.baseDelayMs },
+    );
   }
 }
 
@@ -97,6 +115,25 @@ export class IgdbHttpClientImpl implements IgdbHttpClient {
   }
 
   private async postGames(queryBody: string): Promise<IgdbGame[]> {
+    return withRetry(
+      () => this.makeRequestWithTokenRefresh(queryBody),
+      { retries: config.httpRetry.count, baseDelayMs: config.httpRetry.baseDelayMs },
+    );
+  }
+
+  private async makeRequestWithTokenRefresh(queryBody: string): Promise<IgdbGame[]> {
+    try {
+      return await this.makeGamesRequest(queryBody);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('401')) {
+        this.token.invalidate();
+        return this.makeGamesRequest(queryBody);
+      }
+      throw err;
+    }
+  }
+
+  private async makeGamesRequest(queryBody: string): Promise<IgdbGame[]> {
     const token = await this.token.getAccessToken();
     const res = await request(`${this.apiBase}/games`, {
       method: 'POST',
@@ -111,6 +148,9 @@ export class IgdbHttpClientImpl implements IgdbHttpClient {
       },
       body: queryBody,
     });
+    if (isRetryableStatus(res.statusCode)) {
+      throw new RetryableHttpError(`igdb http ${res.statusCode}`);
+    }
     if (res.statusCode >= 400) {
       const text = await res.body.text();
       logger.warn(
@@ -123,8 +163,12 @@ export class IgdbHttpClientImpl implements IgdbHttpClient {
   }
 }
 
-function escapeIgdbQuery(query: string): string {
-  return query.replace(/"/g, '\\"');
+export function escapeIgdbQuery(query: string): string {
+  return query
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/;/g, '\\;')
+    .replace(/\n/g, '\\n');
 }
 
 export function createIgdbHttpClient(

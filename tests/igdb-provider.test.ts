@@ -1,8 +1,18 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { request } from 'undici';
 import { prisma } from '../src/prisma-client.js';
 import { IgdbProvider } from '../src/modules/metadata/igdb/igdb.provider.js';
+import { IgdbTokenManager, IgdbHttpClientImpl, escapeIgdbQuery } from '../src/modules/metadata/igdb/igdb.http.js';
 import type { IgdbGame } from '../src/modules/metadata/igdb/igdb.http.types.js';
 import type { IgdbHttpClient } from '../src/modules/metadata/igdb/igdb.http.js';
+
+vi.mock('undici', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('undici')>();
+  return {
+    ...actual,
+    request: vi.fn(),
+  };
+});
 
 function makeGame(opts: Partial<IgdbGame> & { id: number; name: string }): IgdbGame {
   return {
@@ -184,7 +194,7 @@ describe('IgdbProvider.getGame', () => {
 describe('IgdbTokenManager URL construction', () => {
   it('builds token URL without duplicate /oauth2 path', async () => {
     const credentials = { clientId: 'test_id', clientSecret: 'test_secret' };
-    const tokenManager = new (await import('../src/modules/metadata/igdb/igdb.http.js')).IgdbTokenManager(
+    const _tokenManager = new (await import('../src/modules/metadata/igdb/igdb.http.js')).IgdbTokenManager(
       credentials,
       'https://id.twitch.tv/oauth2',
       5000,
@@ -201,5 +211,173 @@ describe('IgdbProvider interface', () => {
   it('exposes a stable name', () => {
     const provider = new IgdbProvider(makeMockClient());
     expect(provider.name).toBe('igdb');
+  });
+});
+
+function makeResponse(statusCode: number, body: unknown) {
+  return {
+    statusCode,
+    body: {
+      text: vi.fn().mockResolvedValue(JSON.stringify(body)),
+      json: vi.fn().mockResolvedValue(body),
+    },
+  };
+}
+
+describe('IgdbTokenManager', () => {
+  const credentials = { clientId: 'test_id', clientSecret: 'test_secret' };
+  const tokenBase = 'https://id.twitch.tv/oauth2';
+  const timeoutMs = 5000;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('fetches and caches token', async () => {
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(200, { access_token: 'token1', expires_in: 3600 }));
+    const manager = new IgdbTokenManager(credentials, tokenBase, timeoutMs);
+
+    expect(await manager.getAccessToken()).toBe('token1');
+    expect(request).toHaveBeenCalledTimes(1);
+
+    expect(await manager.getAccessToken()).toBe('token1');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('invalidate forces new HTTP call', async () => {
+    vi.mocked(request)
+      .mockResolvedValueOnce(makeResponse(200, { access_token: 'token1', expires_in: 3600 }))
+      .mockResolvedValueOnce(makeResponse(200, { access_token: 'token2', expires_in: 3600 }));
+    const manager = new IgdbTokenManager(credentials, tokenBase, timeoutMs);
+
+    await manager.getAccessToken();
+    await manager.getAccessToken();
+    manager.invalidate();
+
+    expect(await manager.getAccessToken()).toBe('token2');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries on 429 and succeeds', async () => {
+    vi.mocked(request)
+      .mockResolvedValueOnce(makeResponse(429, {}))
+      .mockResolvedValueOnce(makeResponse(200, { access_token: 'token1', expires_in: 3600 }));
+    const manager = new IgdbTokenManager(credentials, tokenBase, timeoutMs);
+
+    const promise = manager.getAccessToken();
+    await vi.advanceTimersByTimeAsync(5000);
+    const token = await promise;
+
+    expect(token).toBe('token1');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws on non-retryable 4xx', async () => {
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(400, { error: 'invalid' }));
+    const manager = new IgdbTokenManager(credentials, tokenBase, timeoutMs);
+
+    await expect(manager.getAccessToken()).rejects.toThrow('igdb token http 400');
+  });
+});
+
+describe('IgdbHttpClientImpl', () => {
+  const credentials = { clientId: 'test_id', clientSecret: 'test_secret' };
+  const apiBase = 'https://api.igdb.com/v4';
+  const timeoutMs = 5000;
+  const token = {
+    getAccessToken: vi.fn(),
+    invalidate: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+    token.getAccessToken.mockResolvedValue('token1');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('searches games', async () => {
+    const game = makeGame({ id: 1, name: 'Game' });
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(200, [game]));
+    const client = new IgdbHttpClientImpl(credentials, token, apiBase, timeoutMs);
+
+    const result = await client.searchGames('Game');
+
+    expect(result).toEqual([game]);
+    expect(token.getAccessToken).toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith(
+      `${apiBase}/games`,
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Client-ID': credentials.clientId,
+          Authorization: 'Bearer token1',
+        }),
+        body: expect.stringContaining('search "Game"'),
+      }),
+    );
+  });
+
+  it('refreshes token and retries on 401', async () => {
+    const game = makeGame({ id: 1, name: 'Game' });
+    vi.mocked(request)
+      .mockResolvedValueOnce(makeResponse(401, {}))
+      .mockResolvedValueOnce(makeResponse(200, [game]));
+    const client = new IgdbHttpClientImpl(credentials, token, apiBase, timeoutMs);
+
+    const result = await client.searchGames('Game');
+
+    expect(result).toEqual([game]);
+    expect(token.invalidate).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries on 429 and succeeds', async () => {
+    const game = makeGame({ id: 1, name: 'Game' });
+    vi.mocked(request)
+      .mockResolvedValueOnce(makeResponse(429, {}))
+      .mockResolvedValueOnce(makeResponse(200, [game]));
+    const client = new IgdbHttpClientImpl(credentials, token, apiBase, timeoutMs);
+
+    const promise = client.searchGames('Game');
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await promise;
+
+    expect(result).toEqual([game]);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('escapeIgdbQuery', () => {
+  it('escapes backslashes', () => {
+    expect(escapeIgdbQuery('a\\b')).toBe('a\\\\b');
+  });
+
+  it('escapes double quotes', () => {
+    expect(escapeIgdbQuery('a"b')).toBe('a\\"b');
+  });
+
+  it('escapes semicolons', () => {
+    expect(escapeIgdbQuery('a;b')).toBe('a\\;b');
+  });
+
+  it('escapes newlines', () => {
+    expect(escapeIgdbQuery('a\nb')).toBe('a\\nb');
+  });
+
+  it('leaves normal text unchanged', () => {
+    expect(escapeIgdbQuery('Skyrim Special Edition')).toBe('Skyrim Special Edition');
+  });
+
+  it('handles multiple special characters', () => {
+    expect(escapeIgdbQuery('a\\b"c;d\ne')).toBe('a\\\\b\\"c\\;d\\ne');
   });
 });
