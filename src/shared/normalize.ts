@@ -25,6 +25,45 @@ const TAG_PATTERNS: RegExp[] = [
   /\[gog[^\]]*\]/gi,
   /\[steamless[^\]]*\]/gi,
   /\[iso\]/gi,
+  /\(skidrow\)/gi,
+  /\[skidrow\]/gi,
+  /\(reloaded\)/gi,
+  /\[reloaded\]/gi,
+  /\(plaza\)/gi,
+  /\[plaza\]/gi,
+  /\(hoodlum\)/gi,
+  /\[hoodlum\]/gi,
+  /\(empress\)/gi,
+  /\[empress\]/gi,
+  /\(goldberg\)/gi,
+  /\[goldberg\]/gi,
+  /\(rune\)/gi,
+  /\[rune\]/gi,
+  /\(darksiders\)/gi,
+  /\[darksiders\]/gi,
+  /\(tinyiso\)/gi,
+  /\[tinyiso\]/gi,
+  /\(prophet\)/gi,
+  /\[prophet\]/gi,
+  /\(HD\)/gi,
+  /\[HD\]/gi,
+  /\(UHD\)/gi,
+  /\[UHD\]/gi,
+];
+
+const REGION_PATTERNS: RegExp[] = [
+  /\((?:US|EU|JP|PAL|NA|AS|AU|UK|Global|Worldwide)\)/gi,
+  /\[(?:US|EU|JP|PAL|NA|AS|AU|UK|Global|Worldwide)\]/gi,
+];
+
+const DISC_PATTERNS: RegExp[] = [
+  /\(Disc\s*\d+(?:\s+of\s+\d+)?\)/gi,
+  /\[Disc\s*\d+(?:\s+of\s+\d+)?\]/gi,
+];
+
+const DEV_STAGE_PATTERNS: RegExp[] = [
+  /\((?:Alpha|Beta|Early Access|Preview|Demo|Prototype)\b[^)]*\)/gi,
+  /\[(?:Alpha|Beta|Early Access|Preview|Demo|Prototype)\b[^\]]*\]/gi,
 ];
 
 const NOISE_PATTERNS: RegExp[] = [
@@ -44,14 +83,14 @@ const EDITION_PATTERNS: RegExp[] = [
   /\bDirectors? Cut\b/gi,
   /\bDirector['\s]?s Cut\b/gi,
   /\b(Definitive|Enhanced|Complete|Ultimate|Standard|Collectors?|Collector['\s]?s|Limited|Special|Classic|Anniversary|Legendary|Gold|Platinum|Premium|Deluxe|Redux|Rebirth|Remix|Remake) Edition\b/gi,
-  /\bHD\b/gi,
-  /\bUHD\b/gi,
+  /\bHD\s+Edition\b/gi,
+  /\bUHD\s+Edition\b/gi,
 ];
 
-const YEAR_PATTERN = /\b(19\d{2}|20\d{2})\b/g;
+const YEAR_IN_DELIMITERS = /[\(\[]\s*(19\d{2}|20\d{2})\s*[\)\]]/g;
 const VERSION_PATTERN = /\bv\d+(\.\d+)*\b/gi;
 const BUILD_PATTERN = /\bbuild\s*\d+/gi;
-const ISO_DISCORD_PATTERN = /[._]/g;
+const SEPARATOR_PATTERN = /[._]/g;
 const MULTI_WHITESPACE = /\s+/g;
 
 export interface NormalizedName {
@@ -62,6 +101,30 @@ export interface NormalizedName {
 function stripTags(input: string): string {
   let out = input;
   for (const pattern of TAG_PATTERNS) {
+    out = out.replace(pattern, ' ');
+  }
+  return out;
+}
+
+function stripRegion(input: string): string {
+  let out = input;
+  for (const pattern of REGION_PATTERNS) {
+    out = out.replace(pattern, ' ');
+  }
+  return out;
+}
+
+function stripDisc(input: string): string {
+  let out = input;
+  for (const pattern of DISC_PATTERNS) {
+    out = out.replace(pattern, ' ');
+  }
+  return out;
+}
+
+function stripDevStage(input: string): string {
+  let out = input;
+  for (const pattern of DEV_STAGE_PATTERNS) {
     out = out.replace(pattern, ' ');
   }
   return out;
@@ -84,14 +147,14 @@ function stripEditions(input: string): string {
 }
 
 function extractYear(input: string): { cleaned: string; year?: number } {
-  const matches = input.match(YEAR_PATTERN);
-  if (!matches) return { cleaned: input };
+  const matches = [...input.matchAll(YEAR_IN_DELIMITERS)];
+  if (matches.length === 0) return { cleaned: input };
   const candidates = matches
-    .map(Number)
+    .map((m) => Number(m[1]))
     .filter((y) => y >= 1980 && y <= new Date().getFullYear() + 1);
   if (candidates.length === 0) return { cleaned: input };
-  const year = candidates.sort((a, b) => a - b)[candidates.length - 1];
-  const cleaned = input.replace(String(year), ' ');
+  const year = Math.max(...candidates);
+  const cleaned = input.replace(YEAR_IN_DELIMITERS, ' ');
   return { cleaned, year };
 }
 
@@ -101,6 +164,9 @@ export function normalizeGameName(rawName: string): NormalizedName {
   name = name.replace(ARCHIVE_EXTENSION_PATTERN, '');
 
   name = stripTags(name);
+  name = stripRegion(name);
+  name = stripDisc(name);
+  name = stripDevStage(name);
   name = stripNoise(name);
   name = stripEditions(name);
   name = name.replace(VERSION_PATTERN, ' ');
@@ -108,11 +174,11 @@ export function normalizeGameName(rawName: string): NormalizedName {
   const yearResult = extractYear(name);
   name = yearResult.cleaned;
 
-  name = name.replace(ISO_DISCORD_PATTERN, ' ');
+  name = name.replace(SEPARATOR_PATTERN, ' ');
   name = name.replace(/[^\p{L}\p{N}\s\-'":!&]/gu, ' ');
   name = name.replace(MULTI_WHITESPACE, ' ').trim();
 
-  if (!name) name = rawName.replace(ISO_DISCORD_PATTERN, ' ').trim();
+  if (!name) name = rawName.replace(SEPARATOR_PATTERN, ' ').trim();
 
   return {
     query: name,

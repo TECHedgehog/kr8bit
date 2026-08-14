@@ -19,7 +19,7 @@ async function write(path: string, contents = 'x'): Promise<void> {
   await fs.writeFile(path, contents);
 }
 
-function entryByName(cands: Awaited<ReturnType<typeof scanLibraryRoot>>, name: string) {
+function _entryByName(cands: Awaited<ReturnType<typeof scanLibraryRoot>>, name: string) {
   return cands.find((c) => c.entryName === name);
 }
 
@@ -84,5 +84,55 @@ describe('folder-scanner', () => {
     await expect(scanLibraryRoot(join(tmpDir, 'does-not-exist'))).rejects.toThrow(
       /cannot read library root/,
     );
+  });
+
+  it('recurses into subdirectories when maxDepth > 1', async () => {
+    await fs.mkdir(join(tmpDir, 'Publisher'), { recursive: true });
+    await write(join(tmpDir, 'Publisher', 'Nested.7z'));
+
+    const result = await scanLibraryRoot(tmpDir, undefined, { maxDepth: 2 });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].entryName).toBe('Nested.7z');
+    expect(result[0].entryType).toBe('ARCHIVE');
+  });
+
+  it('does not recurse when maxDepth is 1', async () => {
+    await fs.mkdir(join(tmpDir, 'Publisher'), { recursive: true });
+    await write(join(tmpDir, 'Publisher', 'Nested.7z'));
+
+    const result = await scanLibraryRoot(tmpDir, undefined, { maxDepth: 1 });
+
+    expect(result).toHaveLength(0);
+  });
+
+  it('accepts configurable archive extensions', async () => {
+    await write(join(tmpDir, 'a.zip'));
+    await write(join(tmpDir, 'b.7z'));
+
+    const result = await scanLibraryRoot(tmpDir, undefined, { extensions: ['.zip'] });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].entryName).toBe('a.zip');
+  });
+
+  it('accepts configurable installer names', async () => {
+    await fs.mkdir(join(tmpDir, 'InstallDir'));
+    await write(join(tmpDir, 'InstallDir', 'install.exe'));
+
+    const result = await scanLibraryRoot(tmpDir, undefined, { installerNames: ['install.exe'] });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].entryType).toBe('DIRECTORY');
+    expect(result[0].entryName).toBe('InstallDir');
+  });
+
+  it('skips configured skip directories', async () => {
+    await fs.mkdir(join(tmpDir, '.git'));
+    await write(join(tmpDir, '.git', 'setup.exe'));
+
+    const result = await scanLibraryRoot(tmpDir, undefined, { maxDepth: 2 });
+
+    expect(result).toHaveLength(0);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeGameName } from '../src/modules/scanner/name-normalizer.js';
+import { normalizeGameName } from '../src/shared/normalize.js';
 
 describe('normalizeGameName', () => {
   it('strips .7z extension', () => {
@@ -28,16 +28,34 @@ describe('normalizeGameName', () => {
     expect(normalizeGameName('Game (MULTI8).7z').query).toBe('Game');
   });
 
-  it('extracts year and removes from query', () => {
+  it('keeps bare years, no detection', () => {
     const r = normalizeGameName('Elden Ring 2022');
-    expect(r.query).toBe('Elden Ring');
+    expect(r.query).toBe('Elden Ring 2022');
+    expect(r.yearDetected).toBeUndefined();
+  });
+
+  it('keeps bare years from archive names', () => {
+    const r = normalizeGameName('Skyrim 2011.7z');
+    expect(r.query).toBe('Skyrim 2011');
+    expect(r.yearDetected).toBeUndefined();
+  });
+
+  it('detects year inside parentheses', () => {
+    const r = normalizeGameName('Game (2022)');
+    expect(r.query).toBe('Game');
     expect(r.yearDetected).toBe(2022);
   });
 
-  it('extracts year from .7z name', () => {
-    const r = normalizeGameName('Skyrim 2011.7z');
-    expect(r.query).toBe('Skyrim');
+  it('detects year inside brackets', () => {
+    const r = normalizeGameName('Game [2011]');
+    expect(r.query).toBe('Game');
     expect(r.yearDetected).toBe(2011);
+  });
+
+  it('uses max year when multiple delimited years exist', () => {
+    const r = normalizeGameName('Game (2001) [2010]');
+    expect(r.query).toBe('Game');
+    expect(r.yearDetected).toBe(2010);
   });
 
   it('removes version numbers', () => {
@@ -49,6 +67,31 @@ describe('normalizeGameName', () => {
     expect(normalizeGameName('Game (CODEX)').query).toBe('Game');
     expect(normalizeGameName('Game (ElAmigos)').query).toBe('Game');
     expect(normalizeGameName('Game (DODI Repack)').query).toBe('Game');
+  });
+
+  it('strips region tags', () => {
+    expect(normalizeGameName('Game (US)').query).toBe('Game');
+    expect(normalizeGameName('Game (EU)').query).toBe('Game');
+    expect(normalizeGameName('Game (JP)').query).toBe('Game');
+    expect(normalizeGameName('Game [Global]').query).toBe('Game');
+  });
+
+  it('strips disc tags', () => {
+    expect(normalizeGameName('Game (Disc 1)').query).toBe('Game');
+    expect(normalizeGameName('Game (Disc 2 of 3)').query).toBe('Game');
+    expect(normalizeGameName('Game [Disc 1]').query).toBe('Game');
+  });
+
+  it('strips development stage tags', () => {
+    expect(normalizeGameName('Game (Beta)').query).toBe('Game');
+    expect(normalizeGameName('Game (Early Access)').query).toBe('Game');
+    expect(normalizeGameName('Game [Alpha]').query).toBe('Game');
+  });
+
+  it('strips additional scene group tags', () => {
+    expect(normalizeGameName('Game (SKIDROW)').query).toBe('Game');
+    expect(normalizeGameName('Game (RELOADED)').query).toBe('Game');
+    expect(normalizeGameName('Game [PLAZA]').query).toBe('Game');
   });
 
   it('replaces dots and underscores with spaces', () => {
@@ -81,7 +124,7 @@ describe('normalizeGameName', () => {
 
   it('preserves unicode (japanese, accents)', () => {
     expect(normalizeGameName('NieR Automata 日本語').query).toContain('NieR Automata');
-    expect(normalizeGameName('Español Juego 2020').query).toBe('Español Juego');
+    expect(normalizeGameName('Español Juego 2020').query).toBe('Español Juego 2020');
   });
 
   it('strips bracket-form repack tags', () => {
@@ -96,6 +139,20 @@ describe('normalizeGameName', () => {
     expect(normalizeGameName('Mass Effect Legendary Edition.7z').query).toBe('Mass Effect');
     expect(normalizeGameName('Witcher 3 GOTY.7z').query).toBe('Witcher 3');
     expect(normalizeGameName('Deus Ex Mankind Divided Directors Cut.7z').query).toBe('Deus Ex Mankind Divided');
+  });
+
+  it('does not strip bare HD from title', () => {
+    expect(normalizeGameName('BioShock HD').query).toBe('BioShock HD');
+  });
+
+  it('strips HD inside brackets', () => {
+    expect(normalizeGameName('Game (HD)').query).toBe('Game');
+    expect(normalizeGameName('Game [UHD]').query).toBe('Game');
+  });
+
+  it('strips HD Edition suffix', () => {
+    expect(normalizeGameName('Game HD Edition').query).toBe('Game');
+    expect(normalizeGameName('Game UHD Edition').query).toBe('Game');
   });
 
   it('does not over-strip sequel numbers or apostrophes', () => {
