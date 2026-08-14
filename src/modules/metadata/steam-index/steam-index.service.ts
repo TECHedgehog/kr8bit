@@ -95,6 +95,10 @@ export class SteamIndexService implements SteamIndexSearcher {
     return this.refreshing;
   }
 
+  async rebuildIndex(): Promise<void> {
+    await this.rebuildFuse();
+  }
+
   async searchByName(query: string): Promise<SteamIndexSearchResult[]> {
     if (!this.fuse) return [];
     const normalized = query.trim();
