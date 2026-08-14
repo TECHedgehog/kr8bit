@@ -2,15 +2,17 @@ import { request } from 'undici';
 import { logger } from '../../../logger/index.js';
 import { config } from '../../../config/index.js';
 import type {
-  SteamGridDbGame,
-  SteamGridDbGameResponse,
   SteamGridDbImage,
   SteamGridDbImageQuery,
   SteamGridDbImageResponse,
 } from './steamgriddb.http.types.js';
+import {
+  withRetry,
+  RetryableHttpError,
+  isRetryableStatus,
+} from '../../../shared/http-retry.js';
 
 export interface SteamGridDbHttpClient {
-  getGameBySteamAppId(steamAppId: number): Promise<SteamGridDbGame | null>;
   getGridsBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
   getHeroesBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
   getLogosBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
@@ -23,10 +25,6 @@ export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
     private readonly timeoutMs: number,
   ) {}
 
-  async getGameBySteamAppId(steamAppId: number): Promise<SteamGridDbGame | null> {
-    return this.fetchGame(`/games/steam/${steamAppId}`);
-  }
-
   async getGridsBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
     return this.fetchImages(`/grids/steam/${steamAppId}`, query);
   }
@@ -37,33 +35,6 @@ export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
 
   async getLogosBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
     return this.fetchImages(`/logos/steam/${steamAppId}`, query);
-  }
-
-  private async fetchGame(path: string): Promise<SteamGridDbGame | null> {
-    const res = await request(`${this.apiBase}${path}`, {
-      method: 'GET',
-      headersTimeout: this.timeoutMs,
-      bodyTimeout: this.timeoutMs,
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Accept': 'application/json',
-        'User-Agent': 'kr8bit/0.1',
-      },
-    });
-    if (res.statusCode >= 400) {
-      const text = await res.body.text();
-      logger.warn(
-        { statusCode: res.statusCode, text: text.slice(0, 200), path },
-        'steamgriddb game request failed',
-      );
-      return null;
-    }
-    const body = (await res.body.json()) as SteamGridDbGameResponse;
-    if (!body.success) {
-      logger.warn({ path, errors: body.errors }, 'steamgriddb game request unsuccessful');
-      return null;
-    }
-    return body.data;
   }
 
   private async fetchImages(path: string, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
@@ -79,30 +50,47 @@ export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
       if (query.oneoftag !== undefined) url.searchParams.set('oneoftag', query.oneoftag);
       if (query.page !== undefined) url.searchParams.set('page', String(query.page));
     }
-    const res = await request(url.toString(), {
-      method: 'GET',
-      headersTimeout: this.timeoutMs,
-      bodyTimeout: this.timeoutMs,
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Accept': 'application/json',
-        'User-Agent': 'kr8bit/0.1',
-      },
-    });
-    if (res.statusCode >= 400) {
-      const text = await res.body.text();
-      logger.warn(
-        { statusCode: res.statusCode, text: text.slice(0, 200), path },
-        'steamgriddb images request failed',
+
+    try {
+      return await withRetry(
+        async () => {
+          const res = await request(url.toString(), {
+            method: 'GET',
+            headersTimeout: this.timeoutMs,
+            bodyTimeout: this.timeoutMs,
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Accept': 'application/json',
+              'User-Agent': 'kr8bit/0.1',
+            },
+          });
+          if (isRetryableStatus(res.statusCode)) {
+            throw new RetryableHttpError(`steamgriddb http ${res.statusCode} for ${path}`);
+          }
+          if (res.statusCode >= 400) {
+            const text = await res.body.text();
+            logger.warn(
+              { statusCode: res.statusCode, text: text.slice(0, 200), path },
+              'steamgriddb images request failed',
+            );
+            return [];
+          }
+          const body = (await res.body.json()) as SteamGridDbImageResponse;
+          if (!body.success) {
+            logger.warn({ path, errors: body.errors }, 'steamgriddb images request unsuccessful');
+            return [];
+          }
+          return body.data;
+        },
+        {
+          retries: config.httpRetry.count,
+          baseDelayMs: config.httpRetry.baseDelayMs,
+          retryOn: (err) => err instanceof RetryableHttpError,
+        },
       );
+    } catch {
       return [];
     }
-    const body = (await res.body.json()) as SteamGridDbImageResponse;
-    if (!body.success) {
-      logger.warn({ path, errors: body.errors }, 'steamgriddb images request unsuccessful');
-      return [];
-    }
-    return body.data;
   }
 }
 
