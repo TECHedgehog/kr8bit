@@ -97,6 +97,7 @@ export const providerMatchRepository = {
     const rows = await prisma.providerMatch.findMany({
       where: { gameId },
       orderBy: { matchedAt: 'desc' },
+      take: 100,
     });
     return rows.map(toDomain);
   },

@@ -18,25 +18,13 @@ export interface SteamGridDbImage {
   height: number;
   upvotes: number;
   downvotes: number;
-}
-
-export interface SteamGridDbGame {
-  id: number;
-  name: string;
-  types: string[];
-  verified: boolean;
-  release_date: number;
+  humor?: boolean;
+  nsfw?: boolean;
 }
 
 export interface SteamGridDbImageResponse {
   success: boolean;
   data: SteamGridDbImage[];
-  errors?: string[];
-}
-
-export interface SteamGridDbGameResponse {
-  success: boolean;
-  data: SteamGridDbGame;
   errors?: string[];
 }
 

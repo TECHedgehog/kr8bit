@@ -114,7 +114,8 @@ export class SteamProvider implements MetadataProvider {
       publishers: data.publishers ?? [],
       genres: (data.genres ?? []).map((g) => g.description),
       coverUrl: `${STEAM_CDN_BASE}/${data.steam_appid}/library_600x900.jpg`,
-      headerUrl: data.header_image ?? `${STEAM_CDN_BASE}/${data.steam_appid}/header.jpg`,
+      headerUrl: data.header_image ?? undefined,
+      heroUrl: `${STEAM_CDN_BASE}/${data.steam_appid}/library_hero.jpg`,
     };
   }
 

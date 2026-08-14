@@ -50,7 +50,3 @@ function buildDefaultRegistry(): ProviderRegistry {
 }
 
 export const providerRegistry: ProviderRegistry = buildDefaultRegistry();
-
-export function createProviderRegistry(providers: MetadataProvider[]): ProviderRegistry {
-  return new ProviderRegistryImpl(providers);
-}

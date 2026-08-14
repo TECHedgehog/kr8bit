@@ -23,7 +23,6 @@ let tmpArtwork: string;
 function mockArtwork(): ArtworkService {
   return {
     cachePath: vi.fn((appId: number, kind: string) => join(tmpArtwork, String(appId), kind)),
-    streamPath: vi.fn((appId: number, kind: string) => join(tmpArtwork, String(appId), kind)),
     downloadToCache: vi.fn(async () => '/fake/cache/path'),
     exists: vi.fn(async () => false),
     readWithContentType: vi.fn(async () => null),
@@ -342,7 +341,7 @@ describe('MetadataService.assign (igdb)', () => {
     expect(assigned.fetchedArtwork).toEqual({ header: true, cover: true });
 
     expect(artwork.downloadToCache).not.toHaveBeenCalled();
-    expect(artwork.downloadToCacheGeneric).toHaveBeenCalledTimes(2);
+    expect(artwork.downloadToCacheGeneric).toHaveBeenCalledTimes(3);
     expect(artwork.downloadToCacheGeneric).toHaveBeenCalledWith(
       'igdb',
       '1234',
@@ -355,12 +354,51 @@ describe('MetadataService.assign (igdb)', () => {
       'cover',
       'https://x/igdb-cover.jpg',
     );
+    expect(artwork.downloadToCacheGeneric).toHaveBeenCalledWith(
+      'igdb',
+      '1234',
+      'hero',
+      undefined,
+    );
 
     const primary = await providerMatchRepository.findPrimaryByGame(gameId);
     expect(primary?.providerName).toBe('igdb');
     expect(primary?.remoteId).toBe('1234');
     expect(primary?.isPrimary).toBe(true);
     expect(primary?.matchedAt).toEqual(new Date('2024-07-01T00:00:00Z'));
+  });
+
+  it('downloads and stores hero artwork for generic providers', async () => {
+    const gameId = await createGame({ steamAppId: null });
+    const igdb = mockProvider('igdb', [], {
+      '1234': {
+        remoteId: '1234',
+        title: 'Portal 2',
+        releaseYear: 2011,
+        developers: ['Valve'],
+        publishers: ['Valve'],
+        genres: ['Puzzle'],
+        coverUrl: 'https://x/igdb-cover.jpg',
+        headerUrl: 'https://x/igdb-art.jpg',
+        heroUrl: 'https://x/igdb-hero.jpg',
+      },
+    });
+    const artwork = mockArtwork();
+    const service = new MetadataService({
+      providers: mockRegistry([mockProvider('steam', [], {}), igdb]),
+      artwork,
+      now: () => new Date('2024-07-01T00:00:00Z'),
+    });
+
+    const assigned = await service.assign(gameId, 'igdb', '1234');
+
+    expect(assigned.game.heroUrl).toBe('https://x/igdb-hero.jpg');
+    expect(artwork.downloadToCacheGeneric).toHaveBeenCalledWith(
+      'igdb',
+      '1234',
+      'hero',
+      'https://x/igdb-hero.jpg',
+    );
   });
 });
 
@@ -409,7 +447,7 @@ describe('MetadataService.refresh', () => {
     expect(game!.matchedAt).toEqual(new Date('2024-07-10T00:00:00Z'));
     expect(igdb.getGame).toHaveBeenCalledWith('1234');
     expect(steam.getGame).not.toHaveBeenCalled();
-    expect(artwork.downloadToCacheGeneric).toHaveBeenCalledTimes(2);
+    expect(artwork.downloadToCacheGeneric).toHaveBeenCalledTimes(3);
     expect(artwork.downloadToCache).not.toHaveBeenCalled();
   });
 
