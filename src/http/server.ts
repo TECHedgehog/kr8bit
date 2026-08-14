@@ -10,6 +10,7 @@ import { settingsRoutes } from './routes/settings.routes.js';
 import { scannerRoutes } from './routes/scanner.routes.js';
 import { libraryRoutes } from './routes/library.routes.js';
 import { metadataRoutes } from './routes/metadata.routes.js';
+import { databaseRoutes } from './routes/database.routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +50,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(scannerRoutes);
   await app.register(libraryRoutes);
   await app.register(metadataRoutes);
+  await app.register(databaseRoutes);
 
   const webDist = findWebDist();
   if (webDist) {
