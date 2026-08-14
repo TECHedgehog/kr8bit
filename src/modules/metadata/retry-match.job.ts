@@ -1,8 +1,9 @@
 import { logger } from '../../logger/index.js';
+import { config } from '../../config/index.js';
 import { libraryRepository } from '../library/library.repository.js';
 import { providerRegistry } from './provider-registry.js';
-import { normalizeGameName } from '../scanner/name-normalizer.js';
-import { decideMatch, FLAG_THRESHOLD } from '../scanner/match-policy.js';
+import { normalizeGameName } from '../../shared/normalize.js';
+import { decideMatch } from '../scanner/match-policy.js';
 import { applyMatchResult } from '../scanner/match-apply.js';
 import { metadataRefreshJob } from './metadata-refresh.job.js';
 import type { SearchResult } from '../../shared/types.js';
@@ -11,12 +12,32 @@ export interface RetryMatchJobState {
   running: boolean;
   processed: number;
   failed: number;
+  succeeded: string[];
+  failedIds: string[];
 }
 
-class RetryMatchJob {
+export interface RetryMatchJobDeps {
+  now: () => Date;
+  delayMs: number;
+  concurrency: number;
+  sleep: (ms: number) => Promise<void>;
+}
+
+export const defaultRetryMatchJobDeps: RetryMatchJobDeps = {
+  now: () => new Date(),
+  delayMs: config.metadata.retryDelayMs,
+  concurrency: config.metadata.retryConcurrency,
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+export class RetryMatchJob {
   private running = false;
   private processed = 0;
   private failed = 0;
+  private succeededIds: string[] = [];
+  private failedIdsList: string[] = [];
+
+  constructor(private readonly deps: RetryMatchJobDeps = defaultRetryMatchJobDeps) {}
 
   isRunning(): boolean {
     return this.running;
@@ -27,6 +48,8 @@ class RetryMatchJob {
       running: this.running,
       processed: this.processed,
       failed: this.failed,
+      succeeded: this.succeededIds,
+      failedIds: this.failedIdsList,
     };
   }
 
@@ -39,6 +62,8 @@ class RetryMatchJob {
     this.running = true;
     this.processed = 0;
     this.failed = 0;
+    this.succeededIds = [];
+    this.failedIdsList = [];
 
     try {
       const games = await libraryRepository.findPendingGames();
@@ -47,48 +72,77 @@ class RetryMatchJob {
         return;
       }
 
-      logger.info({ count: games.length }, 'retry-match started');
+      logger.info({ count: games.length, concurrency: this.deps.concurrency }, 'retry-match started');
 
       const providers = providerRegistry.order();
 
-      for (const game of games) {
-        try {
-          const normalized = normalizeGameName(game.entryName);
-          let results: SearchResult[] = [];
-
-          for (const provider of providers) {
+      for (let i = 0; i < games.length; i += this.deps.concurrency) {
+        const chunk = games.slice(i, i + this.deps.concurrency);
+        const results = await Promise.all(
+          chunk.map(async (game) => {
             try {
-              results = await provider.search(normalized.query);
+              const normalized = normalizeGameName(game.entryName);
+              let searchResults: SearchResult[] = [];
+
+              for (const provider of providers) {
+                try {
+                  const partial = await provider.search(normalized.query);
+                  searchResults.push(...partial);
+                } catch (err) {
+                  logger.warn(
+                    { err: (err as Error).message, provider: provider.name, gameId: game.id },
+                    'retry-match: provider search failed',
+                  );
+                  continue;
+                }
+              }
+
+              const decision = decideMatch(searchResults);
+              const topResult = decision.result;
+              const now = this.deps.now();
+
+              const applied = topResult
+                ? await applyMatchResult(game.id, decision, now)
+                : false;
+              if (!applied) {
+                await libraryRepository.update(game.id, {
+                  matchStatus: decision.status,
+                  matchScore: decision.score,
+                  matchedAt: now,
+                });
+              }
+
+              if (applied && topResult) {
+                logger.info(
+                  { gameId: game.id, provider: topResult.providerName, score: decision.score },
+                  'retry-match: matched',
+                );
+                return { id: game.id, ok: true as const };
+              }
+              logger.debug({ gameId: game.id }, 'retry-match: no match found');
+              return { id: game.id, ok: false as const };
             } catch (err) {
               logger.warn(
-                { err: (err as Error).message, provider: provider.name, gameId: game.id },
-                'retry-match: provider search failed',
+                { gameId: game.id, err: (err as Error).message },
+                'retry-match: failed for game',
               );
-              continue;
+              return { id: game.id, ok: false as const };
             }
-            if (results.length > 0 && (results[0]?.score ?? 0) >= FLAG_THRESHOLD) {
-              break;
-            }
-          }
+          }),
+        );
 
-          const decision = decideMatch(results);
-
-          if (decision.result && await applyMatchResult(game.id, decision, new Date())) {
+        for (const r of results) {
+          if (r.ok) {
             this.processed += 1;
-            logger.info(
-              { gameId: game.id, provider: decision.result.providerName, score: decision.score },
-              'retry-match: matched',
-            );
+            this.succeededIds.push(r.id);
           } else {
             this.failed += 1;
-            logger.debug({ gameId: game.id }, 'retry-match: no match found');
+            this.failedIdsList.push(r.id);
           }
-        } catch (err) {
-          this.failed += 1;
-          logger.warn(
-            { gameId: game.id, err: (err as Error).message },
-            'retry-match: failed for game',
-          );
+        }
+
+        if (i + this.deps.concurrency < games.length) {
+          await this.deps.sleep(this.deps.delayMs);
         }
       }
 
