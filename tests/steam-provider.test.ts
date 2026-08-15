@@ -107,6 +107,7 @@ describe('SteamProvider.getGame', () => {
         genres: [
           { id: '1', description: 'Action' },
           { id: '21', description: 'Puzzle' },
+          { id: '3', description: 'Multiplayer' },
         ],
         short_description: 'A puzzle game.',
         header_image: 'https://x/header.jpg',

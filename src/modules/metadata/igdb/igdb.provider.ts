@@ -15,6 +15,7 @@ import {
 } from './igdb.http.types.js';
 import { igdbHttpClient as defaultClient } from './igdb.http.js';
 import type { IgdbHttpClient } from './igdb.http.js';
+import { normalizeGenres } from '../genre-map.js';
 
 const SEARCH_LIMIT = 20;
 const FUSE_THRESHOLD = 0.6;
@@ -104,6 +105,10 @@ export class IgdbProvider implements MetadataProvider {
       })
       .filter((s): s is { url: string; thumbnailUrl: string } => !!s);
 
+    const genreNames = (game.genres ?? []).map((g) => g.name);
+    const themeNames = (game.themes ?? []).map((t) => t.name);
+    const genres = normalizeGenres('igdb', genreNames, themeNames);
+
     return {
       remoteId: String(game.id),
       title: game.name,
@@ -111,7 +116,7 @@ export class IgdbProvider implements MetadataProvider {
       description: game.summary ?? undefined,
       developers,
       publishers,
-      genres: (game.genres ?? []).map((g) => g.name),
+      genres,
       coverUrl: normalizeIgdbImageUrl(game.cover?.url, IGDB_IMAGE_SIZE_COVER),
       headerUrl: normalizeIgdbImageUrl(firstArtwork, IGDB_IMAGE_SIZE_HEADER),
       screenshots: screenshots.length > 0 ? screenshots : undefined,

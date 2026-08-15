@@ -15,6 +15,11 @@ export interface IgdbGenre {
   name: string;
 }
 
+export interface IgdbTheme {
+  id: number;
+  name: string;
+}
+
 export interface IgdbCompanyRef {
   id: number;
   name: string;
@@ -34,6 +39,7 @@ export interface IgdbGame {
   storyline?: string;
   first_release_date?: number;
   genres?: IgdbGenre[];
+  themes?: IgdbTheme[];
   involved_companies?: IgdbInvolvedCompany[];
   cover?: IgdbImage;
   artworks?: IgdbImage[];

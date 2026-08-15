@@ -35,12 +35,12 @@ const GAME_FIELDS = [
   'summary',
   'first_release_date',
   'genres.name',
+  'themes.name',
   'involved_companies.company.name',
   'involved_companies.developer',
   'involved_companies.publisher',
   'cover.url',
   'artworks.url',
-  'screenshots.url',
 ].join(',');
 
 const SEARCH_LIMIT = 20;

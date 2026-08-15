@@ -11,6 +11,7 @@ import { steamHttpClient as defaultClient } from './steam.http.js';
 import type { SteamAppDetailsData, SteamStoreSearchItem } from './steam.http.types.js';
 import type { SteamIndexSearcher, SteamIndexSearchResult } from '../steam-index/steam-index.service.js';
 import { steamIndexService } from '../steam-index/steam-index.service.js';
+import { normalizeGenres } from '../genre-map.js';
 
 const SEARCH_LIMIT = 20;
 const FUSE_THRESHOLD = 0.6;
@@ -115,6 +116,9 @@ export class SteamProvider implements MetadataProvider {
       return { url, thumbnailUrl: m.thumbnail, name: m.name, hlsUrl };
     }).filter((v) => v.url.length > 0);
 
+    const genreNames = (data.genres ?? []).map((g) => g.description);
+    const genres = normalizeGenres('steam', genreNames);
+
     return {
       remoteId: String(data.steam_appid),
       title: data.name,
@@ -122,7 +126,7 @@ export class SteamProvider implements MetadataProvider {
       description: data.short_description ?? undefined,
       developers: data.developers ?? [],
       publishers: data.publishers ?? [],
-      genres: (data.genres ?? []).map((g) => g.description),
+      genres,
       coverUrl: `${STEAM_CDN_BASE}/${data.steam_appid}/library_600x900.jpg`,
       headerUrl: data.header_image ?? undefined,
       heroUrl: `${STEAM_CDN_BASE}/${data.steam_appid}/library_hero.jpg`,

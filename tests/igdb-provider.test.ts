@@ -23,6 +23,7 @@ function makeGame(opts: Partial<IgdbGame> & { id: number; name: string }): IgdbG
     cover: opts.cover,
     artworks: opts.artworks,
     genres: opts.genres,
+    themes: opts.themes,
     involved_companies: opts.involved_companies,
     screenshots: opts.screenshots,
   };
@@ -115,8 +116,12 @@ describe('IgdbProvider.getGame', () => {
         { id: 2, url: '//images.igdb.com/igdb/artwork/def/t_thumb/ar_def.jpg', image_id: 'def' },
       ],
       genres: [
-        { id: 1, name: 'Action' },
-        { id: 2, name: 'Puzzle' },
+        { id: 1, name: 'Role-playing (RPG)' },
+        { id: 2, name: 'Action' },
+      ],
+      themes: [
+        { id: 1, name: '4X' },
+        { id: 2, name: 'Survival' },
       ],
       involved_companies: [
         { id: 1, company: { id: 10, name: 'Valve' }, developer: true, publisher: true },
@@ -132,7 +137,7 @@ describe('IgdbProvider.getGame', () => {
     expect(result!.releaseYear).toBe(2011);
     expect(result!.developers).toEqual(['Valve']);
     expect(result!.publishers).toEqual(['Valve']);
-    expect(result!.genres).toEqual(['Action', 'Puzzle']);
+    expect(result!.genres).toEqual(['RPG', 'Action', 'Strategy', 'Survival']);
     expect(result!.description).toBe('A puzzle game.');
     expect(result!.coverUrl).toBe('https://images.igdb.com/igdb/cover/abc/t_1080p/co_abc.jpg');
     expect(result!.headerUrl).toBe('https://images.igdb.com/igdb/artwork/def/t_1080p/ar_def.jpg');
@@ -163,6 +168,7 @@ describe('IgdbProvider.getGame', () => {
     const game = makeGame({
       id: 7,
       name: 'No Art Game',
+      genres: [{ id: 1, name: 'Action' }],
       cover: { id: 1, url: '//images.igdb.com/igdb/cover/x/t_thumb/co_x.jpg' },
     });
     const provider = new IgdbProvider(makeMockClient({}, { 7: game }));
@@ -178,6 +184,7 @@ describe('IgdbProvider.getGame', () => {
     const game = makeGame({
       id: 8,
       name: 'Dup Dev',
+      genres: [{ id: 1, name: 'Action' }],
       involved_companies: [
         { id: 1, company: { id: 10, name: 'Valve' }, developer: true, publisher: false },
         { id: 2, company: { id: 10, name: 'Valve' }, developer: true, publisher: false },
