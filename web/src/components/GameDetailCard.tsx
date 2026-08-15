@@ -20,6 +20,26 @@ export function GameDetailCard(): JSX.Element {
   const { viewportRef, textRef } = useMarquee(game?.displayName ?? '');
   const toast = useToast();
   const [refreshing, setRefreshing] = useState(false);
+  const colLeftRef = useRef<HTMLDivElement>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = colLeftRef.current;
+    if (!el) return;
+    function onScroll() {
+      setIsScrolled(el.scrollTop > 0);
+    }
+    el.addEventListener('scroll', onScroll);
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
 
   async function handleRefresh() {
     if (!id) return;
@@ -128,22 +148,19 @@ export function GameDetailCard(): JSX.Element {
               )}
               <div className="game-detail-hero-overlay" />
               <div className="game-detail-hero-blur" />
-            </div>
-
-            <div className="game-detail-body">
               <div className="game-detail-title-row">
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div ref={viewportRef} className="game-detail-title marquee-viewport">
                     <span ref={textRef} className="marquee-text">{game.displayName}</span>
                   </div>
-                  <div className="game-detail-subtitle">
-                    {game.sizeBytes > 0 && <span>{formatBytes(game.sizeBytes)}</span>}
-                  </div>
+                  <div className="game-detail-subtitle" />
                 </div>
               </div>
+            </div>
 
+            <div className="game-detail-body">
               <div className="game-detail-columns">
-                <div className="game-detail-col-left">
+                <div className={`game-detail-col-left ${isScrolled ? 'is-scrolled' : ''}`} ref={colLeftRef}>
                   <section className="detail-section">
                     <div className="detail-section-title">Gallery</div>
                     <div className="game-detail-screenshots-placeholder">
