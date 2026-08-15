@@ -5,6 +5,7 @@ import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
 import { api, ApiError } from '../api/client';
 import type { Game } from '../api/types';
 import { useMarquee } from '../hooks/useMarquee';
+import { MediaGallery } from './MediaGallery';
 
 import { formatBytes, joinStringList } from '../format';
 
@@ -137,10 +138,7 @@ export function GameDetailCard(): JSX.Element {
               <div className="game-detail-columns">
                 <div className={`game-detail-col-left ${isScrolled ? 'is-scrolled' : ''}`} ref={colLeftRef}>
                   <section className="detail-section">
-                    <div className="detail-section-title">Gallery</div>
-                    <div className="game-detail-screenshots-placeholder">
-                      <span>Coming soon</span>
-                    </div>
+                    <MediaGallery screenshots={game.screenshots} videos={game.videos} />
                   </section>
 
                   {game.description && (

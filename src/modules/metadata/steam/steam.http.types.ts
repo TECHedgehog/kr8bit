@@ -41,6 +41,25 @@ export interface SteamAppDetailsData {
   capsule_imagev5?: string;
   library_capsule?: string;
   library_capsule_2x?: string;
+  screenshots?: SteamScreenshot[];
+  movies?: SteamMovie[];
+}
+
+export interface SteamScreenshot {
+  id: number;
+  path_thumbnail: string;
+  path_full: string;
+}
+
+export interface SteamMovie {
+  id: number;
+  name: string;
+  thumbnail: string;
+  hls_h264?: string;
+  dash_h264?: string;
+  dash_av1?: string;
+  mp4?: { max?: string; "480"?: string };
+  webm?: { max?: string; "480"?: string };
 }
 
 export interface SteamAppDetailsResponse {

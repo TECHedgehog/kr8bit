@@ -40,6 +40,7 @@ const GAME_FIELDS = [
   'involved_companies.publisher',
   'cover.url',
   'artworks.url',
+  'screenshots.url',
 ].join(',');
 
 const SEARCH_LIMIT = 20;

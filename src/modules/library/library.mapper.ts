@@ -1,6 +1,6 @@
 import type { Game as PrismaGame } from '@prisma/client';
 import type { Game } from './library.types.js';
-import { decodeArray } from '../../shared/json.js';
+import { decodeArray, decodeJson } from '../../shared/json.js';
 import type { EntryType, MatchStatus } from '../../shared/enums.js';
 import { normalizeGameName } from '../../shared/normalize.js';
 
@@ -19,11 +19,13 @@ export function toDomain(row: PrismaGame): Game {
     developers: decodeArray(row.developers),
     publishers: decodeArray(row.publishers),
     genres: decodeArray(row.genres),
-    coverUrl: row.coverUrl,
-    headerUrl: row.headerUrl,
-    heroUrl: row.heroUrl,
-    logoUrl: row.logoUrl,
-    matchStatus: row.matchStatus as MatchStatus,
+  coverUrl: row.coverUrl,
+  headerUrl: row.headerUrl,
+  heroUrl: row.heroUrl,
+  logoUrl: row.logoUrl,
+  screenshots: decodeJson(row.screenshots, []),
+  videos: decodeJson(row.videos, []),
+  matchStatus: row.matchStatus as MatchStatus,
     matchScore: row.matchScore,
     matchedAt: row.matchedAt,
     createdAt: row.createdAt,

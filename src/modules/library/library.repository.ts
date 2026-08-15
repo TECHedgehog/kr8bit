@@ -36,6 +36,8 @@ export const libraryRepository = {
           developers: encodeArray([]),
           publishers: encodeArray([]),
           genres: encodeArray([]),
+          screenshots: JSON.stringify([]),
+          videos: JSON.stringify([]),
         },
       });
       return toDomain(row);
@@ -102,6 +104,8 @@ export const libraryRepository = {
     if (input.headerUrl !== undefined) data.headerUrl = input.headerUrl;
     if (input.heroUrl !== undefined) data.heroUrl = input.heroUrl;
     if (input.logoUrl !== undefined) data.logoUrl = input.logoUrl;
+    if (input.screenshots !== undefined) data.screenshots = JSON.stringify(input.screenshots);
+    if (input.videos !== undefined) data.videos = JSON.stringify(input.videos);
     if (input.matchStatus !== undefined) data.matchStatus = input.matchStatus;
       if (input.matchScore !== undefined) data.matchScore = input.matchScore;
       if (input.matchedAt !== undefined) data.matchedAt = input.matchedAt;

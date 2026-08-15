@@ -19,6 +19,8 @@ export interface GameMetadata {
   headerUrl?: string;
   heroUrl?: string;
   logoUrl?: string;
+  screenshots?: { url: string; thumbnailUrl: string }[];
+  videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
 }
 
 export interface MetadataProvider {

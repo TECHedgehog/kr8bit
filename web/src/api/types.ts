@@ -22,6 +22,8 @@ export interface Game {
   genres: string[];
   coverUrl: string | null;
   headerUrl: string | null;
+  screenshots?: { url: string; thumbnailUrl: string }[];
+  videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
   matchStatus: MatchStatus;
   matchScore: number | null;
   matchedAt: string | null;

@@ -24,6 +24,8 @@ model Game {
   headerUrl   String?
   heroUrl     String?
   logoUrl     String?
+  screenshots String @default("[]")
+  videos      String @default("[]")
 
   matchStatus String // MatchStatus enum mirror: PENDING | FLAGGED | ACCEPTED | MANUAL | REJECTED
   matchScore  Float?

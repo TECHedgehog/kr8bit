@@ -141,6 +141,8 @@ export class MetadataService {
       headerUrl: null,
       heroUrl: null,
       logoUrl: null,
+      screenshots: [],
+      videos: [],
       matchStatus: MatchStatus.PENDING,
       matchScore: null,
       matchedAt: null,
@@ -267,6 +269,8 @@ export class MetadataService {
         ? (steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? null))
         : (heroCached ? (metadata.heroUrl ?? null) : null),
       logoUrl: sgdb.logoUrl,
+      screenshots: metadata.screenshots ?? [],
+      videos: metadata.videos ?? [],
       matchedAt: options.now,
     };
 

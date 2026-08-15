@@ -9,6 +9,8 @@ import type { IgdbGame } from './igdb.http.types.js';
 import {
   IGDB_IMAGE_SIZE_COVER,
   IGDB_IMAGE_SIZE_HEADER,
+  IGDB_IMAGE_SIZE_SCREENSHOT_THUMB,
+  IGDB_IMAGE_SIZE_SCREENSHOT_FULL,
   normalizeIgdbImageUrl,
 } from './igdb.http.types.js';
 import { igdbHttpClient as defaultClient } from './igdb.http.js';
@@ -93,6 +95,14 @@ export class IgdbProvider implements MetadataProvider {
     }
 
     const firstArtwork = game.artworks?.[0]?.url;
+    const screenshots = (game.screenshots ?? [])
+      .map((s) => {
+        const url = normalizeIgdbImageUrl(s.url, IGDB_IMAGE_SIZE_SCREENSHOT_FULL);
+        const thumb = normalizeIgdbImageUrl(s.url, IGDB_IMAGE_SIZE_SCREENSHOT_THUMB);
+        if (!url || !thumb) return undefined;
+        return { url, thumbnailUrl: thumb };
+      })
+      .filter((s): s is { url: string; thumbnailUrl: string } => !!s);
 
     return {
       remoteId: String(game.id),
@@ -104,6 +114,7 @@ export class IgdbProvider implements MetadataProvider {
       genres: (game.genres ?? []).map((g) => g.name),
       coverUrl: normalizeIgdbImageUrl(game.cover?.url, IGDB_IMAGE_SIZE_COVER),
       headerUrl: normalizeIgdbImageUrl(firstArtwork, IGDB_IMAGE_SIZE_HEADER),
+      screenshots: screenshots.length > 0 ? screenshots : undefined,
     };
   }
 

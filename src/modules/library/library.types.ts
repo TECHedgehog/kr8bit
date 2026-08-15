@@ -18,6 +18,8 @@ export interface Game {
   headerUrl: string | null;
   heroUrl: string | null;
   logoUrl: string | null;
+  screenshots: { url: string; thumbnailUrl: string }[];
+  videos: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
   matchStatus: MatchStatus;
   matchScore: number | null;
   matchedAt: Date | null;
@@ -45,6 +47,8 @@ export interface GameUpdateInput {
   headerUrl?: string | null;
   heroUrl?: string | null;
   logoUrl?: string | null;
+  screenshots?: { url: string; thumbnailUrl: string }[];
+  videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
   matchStatus?: MatchStatus;
   matchScore?: number | null;
   matchedAt?: Date | null;

@@ -105,6 +105,16 @@ export class SteamProvider implements MetadataProvider {
 
   private mapDetails(data: SteamAppDetailsData): GameMetadata {
     const releaseYear = this.extractYear(data.release_date?.date);
+    const screenshots = (data.screenshots ?? []).map((s) => ({
+      url: s.path_full,
+      thumbnailUrl: s.path_thumbnail,
+    }));
+    const videos = (data.movies ?? []).map((m) => {
+      const hlsUrl = m.hls_h264 ?? undefined;
+      const url = m.mp4?.max ?? m.mp4?.["480"] ?? m.webm?.max ?? m.webm?.["480"] ?? hlsUrl ?? '';
+      return { url, thumbnailUrl: m.thumbnail, name: m.name, hlsUrl };
+    }).filter((v) => v.url.length > 0);
+
     return {
       remoteId: String(data.steam_appid),
       title: data.name,
@@ -116,6 +126,8 @@ export class SteamProvider implements MetadataProvider {
       coverUrl: `${STEAM_CDN_BASE}/${data.steam_appid}/library_600x900.jpg`,
       headerUrl: data.header_image ?? undefined,
       heroUrl: `${STEAM_CDN_BASE}/${data.steam_appid}/library_hero.jpg`,
+      screenshots: screenshots.length > 0 ? screenshots : undefined,
+      videos: videos.length > 0 ? videos : undefined,
     };
   }
 
