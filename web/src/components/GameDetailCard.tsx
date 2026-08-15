@@ -145,7 +145,7 @@ export function GameDetailCard(): JSX.Element {
               <div className="game-detail-columns">
                 <div className="game-detail-col-left">
                   <section className="detail-section">
-                    <div className="detail-section-title">Screenshots</div>
+                    <div className="detail-section-title">Gallery</div>
                     <div className="game-detail-screenshots-placeholder">
                       <span>Coming soon</span>
                     </div>
