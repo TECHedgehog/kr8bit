@@ -1860,6 +1860,7 @@ textarea {
   z-index: 100;
   padding: var(--space-4);
   animation: game-detail-fade-in 0.2s ease-out;
+  overscroll-behavior: contain;
 }
 
 .game-detail-card {
@@ -1911,6 +1912,9 @@ textarea {
   height: 240px;
   overflow: hidden;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 .game-detail-hero img {
@@ -1926,9 +1930,10 @@ textarea {
   inset: 0;
   background: linear-gradient(
     to top,
-    var(--liquid-glass-bg) 15%,
-    rgba(0, 0, 0, 0.4) 50%,
-    transparent 80%
+    var(--liquid-glass-bg) 0%,
+    rgba(0, 0, 0, 0.6) 8%,
+    rgba(0, 0, 0, 0.3) 35%,
+    transparent 65%
   );
   z-index: 1;
 }
@@ -1938,7 +1943,7 @@ textarea {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 60px;
+  height: 80px;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 2;
@@ -1948,11 +1953,11 @@ textarea {
 
 .game-detail-body {
   flex: 1;
-  overflow-y: auto;
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  min-height: 0;
 }
 
 .game-detail-title-row {
@@ -1960,19 +1965,22 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
+  position: relative;
+  z-index: 3;
+  padding: var(--space-4) var(--space-6);
 }
 
 .game-detail-title {
   font-size: var(--text-2xl);
   font-weight: 700;
-  color: var(--text);
+  color: #ffffff;
 }
 
 .game-detail-subtitle {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.7);
   font-size: var(--text-sm);
   margin-top: var(--space-1);
 }
@@ -1996,14 +2004,30 @@ textarea {
   display: grid;
   grid-template-columns: 4fr 2fr;
   gap: var(--space-6);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .game-detail-col-left {
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.game-detail-col-left.is-scrolled {
+  mask-image: linear-gradient(to bottom, transparent 0, black 40px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 40px);
 }
 
 .game-detail-col-right {
   min-width: 0;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .game-detail-col-right .detail-meta {
@@ -2050,6 +2074,7 @@ textarea {
 .game-detail-actions {
   display: flex;
   gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 @media (max-width: 720px) {
@@ -2066,9 +2091,24 @@ textarea {
 
   .game-detail-body {
     padding: var(--space-4);
+    overflow-y: auto;
   }
 
   .game-detail-columns {
+    flex: none;
+    overflow: visible;
     grid-template-columns: 1fr;
+  }
+
+  .game-detail-col-left {
+    overflow: visible;
+    min-height: auto;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .game-detail-col-right {
+    overflow: visible;
+    min-height: auto;
   }
 }
