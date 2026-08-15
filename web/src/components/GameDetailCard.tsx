@@ -6,7 +6,6 @@ import { api, ApiError } from '../api/client';
 import type { Game } from '../api/types';
 import { useMarquee } from '../hooks/useMarquee';
 import { useToast } from '../context/ToastContext';
-import { StatusBadge } from './StatusBadge';
 import { formatBytes, formatDateTime, joinStringList } from '../format';
 
 export function GameDetailCard(): JSX.Element {
@@ -138,8 +137,6 @@ export function GameDetailCard(): JSX.Element {
                     <span ref={textRef} className="marquee-text">{game.displayName}</span>
                   </div>
                   <div className="game-detail-subtitle">
-                    <StatusBadge status={game.matchStatus} />
-                    {game.releaseYear && <span>{game.releaseYear}</span>}
                     {game.sizeBytes > 0 && <span>{formatBytes(game.sizeBytes)}</span>}
                   </div>
                 </div>
