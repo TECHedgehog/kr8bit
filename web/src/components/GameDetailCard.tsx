@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
-import IconRefresh from '@tabler/icons-react/dist/esm/icons/IconRefresh.mjs';
+
 import { api, ApiError } from '../api/client';
 import type { Game } from '../api/types';
 import { useMarquee } from '../hooks/useMarquee';
-import { useToast } from '../context/ToastContext';
-import { formatBytes, formatDateTime, joinStringList } from '../format';
+
+import { formatBytes, joinStringList } from '../format';
 
 export function GameDetailCard(): JSX.Element {
   const { id } = useParams<{ id: string }>();
@@ -18,8 +18,6 @@ export function GameDetailCard(): JSX.Element {
   const [heroError, setHeroError] = useState(false);
   const cancelledRef = useRef(false);
   const { viewportRef, textRef } = useMarquee(game?.displayName ?? '');
-  const toast = useToast();
-  const [refreshing, setRefreshing] = useState(false);
   const colLeftRef = useRef<HTMLDivElement>(null);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -35,34 +33,11 @@ export function GameDetailCard(): JSX.Element {
     const el = colLeftRef.current;
     if (!el) return;
     function onScroll() {
-      setIsScrolled(el.scrollTop > 0);
+      setIsScrolled(el!.scrollTop > 0);
     }
     el.addEventListener('scroll', onScroll);
-    return () => el.removeEventListener('scroll', onScroll);
+    return () => el!.removeEventListener('scroll', onScroll);
   }, []);
-
-  async function handleRefresh() {
-    if (!id) return;
-    setRefreshing(true);
-    try {
-      const updated = await api.post<Game>(`/api/games/${id}/metadata/refresh`);
-      if (!cancelledRef.current) {
-        if (updated) {
-          setGame(updated);
-          setHeroError(false);
-          toast.success('metadata refreshed');
-        } else {
-          toast.error('no metadata to refresh');
-        }
-      }
-    } catch (err) {
-      if (!cancelledRef.current) {
-        toast.error(err instanceof ApiError ? err.message : 'refresh failed');
-      }
-    } finally {
-      if (!cancelledRef.current) setRefreshing(false);
-    }
-  }
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -197,6 +172,35 @@ export function GameDetailCard(): JSX.Element {
                           {joinStringList(game.publishers) || '—'}
                         </span>
                       </div>
+                      {game.ageRating && (
+                        <div className="detail-row">
+                          <span className="detail-label">Age Rating</span>
+                          <span className="detail-pill detail-pill--age">{game.ageRating}</span>
+                        </div>
+                      )}
+                      {!game.ageRating && (
+                        <div className="detail-row">
+                          <span className="detail-label">Age Rating</span>
+                          <span className="detail-value detail-value--placeholder">—</span>
+                        </div>
+                      )}
+                      <div className="detail-row">
+                        <span className="detail-label">Metacritic</span>
+                        <span className="detail-value">
+                          {game.metacriticScore !== null && game.metacriticScore !== undefined
+                            ? `${game.metacriticScore}/100`
+                            : <span className="detail-value--placeholder">—</span>}
+                        </span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Size</span>
+                        <span className="detail-value mono">{formatBytes(game.sizeBytes)}</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="detail-section">
+                    <div className="detail-genres-tags">
                       {game.genres.length > 0 && (
                         <div className="detail-row">
                           <span className="detail-label">Genres</span>
@@ -223,55 +227,9 @@ export function GameDetailCard(): JSX.Element {
                           <span className="detail-value detail-value--placeholder">—</span>
                         </div>
                       )}
-                      {game.ageRating && (
-                        <div className="detail-row">
-                          <span className="detail-label">Age Rating</span>
-                          <span className="detail-pill detail-pill--age">{game.ageRating}</span>
-                        </div>
-                      )}
-                      {!game.ageRating && (
-                        <div className="detail-row">
-                          <span className="detail-label">Age Rating</span>
-                          <span className="detail-value detail-value--placeholder">—</span>
-                        </div>
-                      )}
-                      <div className="detail-row">
-                        <span className="detail-label">Metacritic</span>
-                        <span className="detail-value">
-                          {game.metacriticScore !== null && game.metacriticScore !== undefined
-                            ? `${game.metacriticScore}/100`
-                            : <span className="detail-value--placeholder">—</span>}
-                        </span>
-                      </div>
-                      <div className="detail-row">
-                        <span className="detail-label">Size</span>
-                        <span className="detail-value mono">{formatBytes(game.sizeBytes)}</span>
-                      </div>
-                      <div className="detail-row">
-                        <span className="detail-label">Path</span>
-                        <span className="detail-value mono">{game.entryPath}</span>
-                      </div>
-                      {game.matchedAt && (
-                        <div className="detail-row">
-                          <span className="detail-label">Matched</span>
-                          <span className="detail-value mono">{formatDateTime(game.matchedAt)}</span>
-                        </div>
-                      )}
                     </div>
                   </section>
                 </div>
-              </div>
-
-              <div className="game-detail-actions">
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                >
-                  <IconRefresh size={16} />
-                  {refreshing ? 'Refreshing…' : 'Refresh Metadata'}
-                </button>
               </div>
             </div>
           </>

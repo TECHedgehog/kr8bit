@@ -2030,8 +2030,10 @@ textarea {
   min-height: 0;
 }
 
-.game-detail-col-right .detail-meta {
-  grid-template-columns: 1fr;
+.detail-genres-tags {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .detail-badges {
@@ -2069,12 +2071,6 @@ textarea {
 .detail-value--placeholder {
   color: var(--text-subtle);
   font-style: italic;
-}
-
-.game-detail-actions {
-  display: flex;
-  gap: var(--space-2);
-  flex-shrink: 0;
 }
 
 @media (max-width: 720px) {
