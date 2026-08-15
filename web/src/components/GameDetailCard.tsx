@@ -145,15 +145,15 @@ export function GameDetailCard(): JSX.Element {
                 </div>
               </div>
 
-              <section className="detail-section">
-                <div className="detail-section-title">Screenshots</div>
-                <div className="game-detail-screenshots-placeholder">
-                  <span>Coming soon</span>
-                </div>
-              </section>
-
               <div className="game-detail-columns">
                 <div className="game-detail-col-left">
+                  <section className="detail-section">
+                    <div className="detail-section-title">Screenshots</div>
+                    <div className="game-detail-screenshots-placeholder">
+                      <span>Coming soon</span>
+                    </div>
+                  </section>
+
                   {game.description && (
                     <section className="detail-section">
                       <div className="detail-section-title">Description</div>
