@@ -44,6 +44,7 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
   const hlsInstanceRef = useRef<Hls | null>(null);
   const inlineHlsRef = useRef<Hls | null>(null);
   const lastLightboxTime = useRef<number>(0);
+  const isDraggingTimeline = useRef<boolean>(false);
 
   const media: MediaItem[] = useMemo(() => {
     const v = videos.map((v) => ({ type: 'video' as const, url: v.url, thumbnailUrl: v.thumbnailUrl, name: v.name, hlsUrl: v.hlsUrl }));
@@ -84,6 +85,8 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
     }
   }, [isLightboxOpen, selectedMedia, isMuted, volume]);
 
+  const isVideo = (selectedMedia?.type || media[0]?.type || 'screenshot') === 'video';
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (!isLightboxOpen) return;
@@ -97,15 +100,15 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
         handleNext();
       } else if (e.key === 'ArrowLeft') {
         handlePrev();
-      } else if (e.key === '+' || e.key === '=') {
+      } else if (!isVideo && (e.key === '+' || e.key === '=')) {
         setZoom((z) => Math.min(z + 0.25, 4));
-      } else if (e.key === '-' || e.key === '_') {
+      } else if (!isVideo && (e.key === '-' || e.key === '_')) {
         setZoom((z) => Math.max(z - 0.25, 0.5));
       }
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [isLightboxOpen, media, selectedMedia]);
+  }, [isLightboxOpen, media, selectedMedia, isVideo]);
 
   const handleNext = () => {
     if (!selectedMedia || media.length === 0) return;
@@ -124,7 +127,7 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
   };
 
   const handleWheel = (e: React.WheelEvent) => {
-    if (!isLightboxOpen) return;
+    if (!isLightboxOpen || isVideo) return;
     e.preventDefault();
     const delta = -e.deltaY * 0.001;
     setZoom((z) => Math.max(0.5, Math.min(4, z + delta)));
@@ -133,12 +136,6 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
   const handleThumbnailClick = (item: MediaItem) => {
     setSelectedMedia(item);
     setZoom(1);
-  };
-
-  const handleMainClick = () => {
-    if (media.length > 0 && selectedMedia) {
-      setIsLightboxOpen(true);
-    }
   };
 
   const formatTime = (seconds: number): string => {
@@ -161,13 +158,48 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     setDuration(e.currentTarget.duration);
   };
-  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!lightboxVideoRef.current || duration === 0) return;
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>, videoRef: React.RefObject<HTMLVideoElement>) => {
+    if (!videoRef.current || duration === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const newTime = (clickX / rect.width) * duration;
-    lightboxVideoRef.current.currentTime = newTime;
+    videoRef.current.currentTime = newTime;
   };
+
+  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLDivElement>, videoRef: React.RefObject<HTMLVideoElement>) => {
+    if (!videoRef.current || duration === 0) return;
+    handleTimelineClick(e, videoRef);
+    isDraggingTimeline.current = true;
+  };
+
+  useEffect(() => {
+    function handleMouseMove(e: MouseEvent) {
+      if (!isDraggingTimeline.current) return;
+      const timeline = document.querySelector('.media-lightbox-timeline') as HTMLElement;
+      if (timeline) {
+        const rect = timeline.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const newTime = Math.max(0, Math.min((clickX / rect.width) * duration, duration));
+        if (lightboxVideoRef.current) {
+          lightboxVideoRef.current.currentTime = newTime;
+        }
+      }
+    }
+
+    function handleMouseUp() {
+      isDraggingTimeline.current = false;
+    }
+
+    if (isDraggingTimeline.current) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [duration, lightboxVideoRef]);
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
@@ -194,8 +226,6 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
     );
   }
 
-  const selectedType = selectedMedia?.type || media[0]?.type || 'screenshot';
-  const isVideo = selectedType === 'video';
   const needsHls = selectedMedia?.hlsUrl || (selectedMedia?.url || '').endsWith('.m3u8');
   const hasHls = needsHls && !isSafari();
 
@@ -261,7 +291,7 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
     <div className="detail-section">
       <div className="detail-section-title">Gallery</div>
       <div className="media-gallery">
-        <div className="media-gallery-main" onClick={handleMainClick}>
+        <div className="media-gallery-main">
           {isVideo && selectedMedia ? (
             <div className="media-gallery-video-wrapper">
               <video
@@ -295,7 +325,7 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
                 >
                   {isPlaying ? <IconPlayerPause size={32} /> : <IconPlayerPlay size={32} />}
                 </button>
-                <div className="media-gallery-timeline" onClick={handleTimelineClick}>
+                 <div className="media-gallery-timeline" onClick={(e) => handleTimelineClick(e, inlineVideoRef)} onMouseDown={(e) => handleTimelineMouseDown(e, inlineVideoRef)}>
                   <div
                     className="media-gallery-timeline-fill"
                     style={{ width: `${(currentTime / duration) * 100}%` }}
@@ -329,16 +359,15 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
                 </div>
               </div>
             </div>
-          ) : (
-            selectedMedia && (
+          ) : !isVideo && selectedMedia ? (
               <img
                 src={selectedMedia.url}
                 alt={selectedMedia.name || 'Screenshot'}
                 className="media-gallery-image"
                 style={{ transform: `scale(${zoom})` }}
               />
-            )
-          )}
+            ) : null
+          }
           <button
             className="media-gallery-maximize"
             onClick={(e) => {
@@ -395,9 +424,9 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
             >
               <IconChevronLeft size={48} />
             </button>
-            <div className="media-lightbox-main">
+            <div className="media-lightbox-main" onClick={(e) => e.stopPropagation()}>
               {isVideo && selectedMedia ? (
-                <div className="media-lightbox-video-wrapper" onClick={handleMainClick}>
+                <div className="media-lightbox-video-wrapper">
                   <video
                     ref={lightboxVideoRef}
                     src={hasHls ? undefined : selectedMedia.url}
@@ -411,67 +440,69 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
                     onVolumeChange={handleVideoVolumeChange}
                     onTimeUpdate={handleVideoTimeUpdate}
                     onLoadedMetadata={handleVideoLoadedMetadata}
-                    style={{ transform: `scale(${zoom})` }}
                   />
-                  <div className="media-lightbox-video-controls">
-                    <button
-                      className="media-lightbox-play-toggle"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (lightboxVideoRef.current) {
-                          if (isPlaying) {
-                            lightboxVideoRef.current.pause();
-                          } else {
-                            lightboxVideoRef.current.play().catch(() => {});
-                          }
-                        }
-                      }}
-                      aria-label={isPlaying ? 'Pause' : 'Play'}
-                    >
-                      {isPlaying ? <IconPlayerPause size={32} /> : <IconPlayerPlay size={32} />}
-                    </button>
-                    <div className="media-lightbox-timeline" onClick={handleTimelineClick}>
-                      <div
-                        className="media-lightbox-timeline-fill"
-                        style={{ width: `${(currentTime / duration) * 100}%` }}
-                      />
-                    </div>
-                    <span className="media-lightbox-time">
-                      {formatTime(currentTime)} / {formatTime(duration)}
-                    </span>
-                    <button
-                      className="media-lightbox-volume-toggle"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMuteToggle();
-                      }}
-                      aria-label={isMuted ? 'Unmute' : 'Mute'}
-                    >
-                      {isMuted ? <IconVolumeOff size={24} /> : <IconVolume size={24} />}
-                    </button>
-                    <div className="media-lightbox-volume-slider">
-                      <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={volume}
-                        onChange={handleVolumeChange}
-                        aria-label="Volume"
-                      />
-                    </div>
-                  </div>
+                   <div className="media-lightbox-video-controls">
+                     <button
+                       className="media-lightbox-play-toggle"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         if (lightboxVideoRef.current) {
+                           if (isPlaying) {
+                             lightboxVideoRef.current.pause();
+                           } else {
+                             lightboxVideoRef.current.play().catch(() => {});
+                           }
+                         }
+                       }}
+                       aria-label={isPlaying ? 'Pause' : 'Play'}
+                     >
+                       {isPlaying ? <IconPlayerPause size={32} /> : <IconPlayerPlay size={32} />}
+                     </button>
+                     <div
+                       className="media-lightbox-timeline"
+                       onClick={(e) => handleTimelineClick(e, lightboxVideoRef)}
+                       onMouseDown={(e) => handleTimelineMouseDown(e, lightboxVideoRef)}
+                     >
+                       <div
+                         className="media-lightbox-timeline-fill"
+                         style={{ width: `${(currentTime / duration) * 100}%` }}
+                       />
+                     </div>
+                     <span className="media-lightbox-time">
+                       {formatTime(currentTime)} / {formatTime(duration)}
+                     </span>
+                     <button
+                       className="media-lightbox-volume-toggle"
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         handleMuteToggle();
+                       }}
+                       aria-label={isMuted ? 'Unmute' : 'Mute'}
+                     >
+                       {isMuted ? <IconVolumeOff size={24} /> : <IconVolume size={24} />}
+                     </button>
+                     <div className="media-lightbox-volume-slider">
+                       <input
+                         type="range"
+                         min={0}
+                         max={1}
+                         step={0.01}
+                         value={volume}
+                         onChange={handleVolumeChange}
+                         aria-label="Volume"
+                       />
+                     </div>
+                   </div>
                 </div>
-              ) : (
-                selectedMedia && (
+              ) : !isVideo && selectedMedia ? (
                   <img
                     src={selectedMedia.url}
                     alt={selectedMedia.name || 'Screenshot'}
                     className="media-lightbox-image"
                     style={{ transform: `scale(${zoom})` }}
                   />
-                )
-              )}
+                ) : null
+              }
             </div>
             <button
               className="media-lightbox-nav media-lightbox-nav--next"
@@ -483,29 +514,31 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
             >
               <IconChevronRight size={48} />
             </button>
-            <div className="media-lightbox-controls">
-              <button
-                className="media-lightbox-zoom media-lightbox-zoom--out"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setZoom((z) => Math.max(0.5, z - 0.25));
-                }}
-                aria-label="Zoom out"
-              >
-                <IconZoomOut size={20} />
-              </button>
-              <span className="media-lightbox-zoom-level">{Math.round(zoom * 100)}%</span>
-              <button
-                className="media-lightbox-zoom media-lightbox-zoom--in"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setZoom((z) => Math.min(4, z + 0.25));
-                }}
-                aria-label="Zoom in"
-              >
-                <IconZoomIn size={20} />
-              </button>
-            </div>
+            {!isVideo && (
+              <div className="media-lightbox-controls">
+                <button
+                  className="media-lightbox-zoom media-lightbox-zoom--out"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoom((z) => Math.max(0.5, z - 0.25));
+                  }}
+                  aria-label="Zoom out"
+                >
+                  <IconZoomOut size={20} />
+                </button>
+                <span className="media-lightbox-zoom-level">{Math.round(zoom * 100)}%</span>
+                <button
+                  className="media-lightbox-zoom media-lightbox-zoom--in"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoom((z) => Math.min(4, z + 0.25));
+                  }}
+                  aria-label="Zoom in"
+                >
+                  <IconZoomIn size={20} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
