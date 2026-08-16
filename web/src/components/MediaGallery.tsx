@@ -203,15 +203,19 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
-    if (lightboxVideoRef.current) {
-      lightboxVideoRef.current.volume = newVolume;
-      setIsMuted(false);
-    }
+    setIsMuted(newVolume === 0);
   };
   const handleMuteToggle = () => {
-    if (lightboxVideoRef.current) {
-      lightboxVideoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
+    setIsMuted(!isMuted);
+  };
+
+  const handleVideoClick = (ref: React.RefObject<HTMLVideoElement>) => {
+    const video = ref.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
     }
   };
 
@@ -294,6 +298,30 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
         <div className="media-gallery-main">
           {isVideo && selectedMedia ? (
             <div className="media-gallery-video-wrapper">
+              <div className="media-gallery-volume-corner">
+                <button
+                  className="media-gallery-volume-corner-toggle"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleMuteToggle();
+                  }}
+                  aria-label={isMuted ? 'Unmute' : 'Mute'}
+                >
+                      {isMuted ? <IconVolumeOff size={24} /> : <IconVolume size={24} />}
+                </button>
+                <input
+                  className="media-gallery-volume-corner-slider"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={isMuted ? 0 : volume}
+                  onChange={handleVolumeChange}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Volume"
+                  style={{ '--vol': `${(isMuted ? 0 : volume) * 100}%` } as React.CSSProperties}
+                />
+              </div>
               <video
                 ref={inlineVideoRef}
                 src={hasHls ? undefined : selectedMedia.url}
@@ -302,6 +330,7 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
                 loop
                 playsInline
                 muted={isMuted}
+                onClick={() => handleVideoClick(inlineVideoRef)}
                 onPlay={handleVideoPlay}
                 onPause={handleVideoPause}
                 onVolumeChange={handleVideoVolumeChange}
@@ -334,29 +363,6 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
                 <span className="media-gallery-time">
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </span>
-                <div className="media-gallery-volume">
-                  <button
-                    className="media-gallery-volume-toggle"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMuteToggle();
-                    }}
-                    aria-label={isMuted ? 'Unmute' : 'Mute'}
-                  >
-                    {isMuted ? <IconVolumeOff size={24} /> : <IconVolume size={24} />}
-                  </button>
-                  <div className="media-gallery-volume-slider">
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={volume}
-                      onChange={handleVolumeChange}
-                      aria-label="Volume"
-                    />
-                  </div>
-                </div>
               </div>
             </div>
           ) : !isVideo && selectedMedia ? (
@@ -427,6 +433,30 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
             <div className="media-lightbox-main" onClick={(e) => e.stopPropagation()}>
               {isVideo && selectedMedia ? (
                 <div className="media-lightbox-video-wrapper">
+                  <div className="media-lightbox-volume-corner">
+                    <button
+                      className="media-lightbox-volume-corner-toggle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMuteToggle();
+                      }}
+                      aria-label={isMuted ? 'Unmute' : 'Mute'}
+                    >
+                       {isMuted ? <IconVolumeOff size={28} /> : <IconVolume size={28} />}
+                    </button>
+                    <input
+                      className="media-lightbox-volume-corner-slider"
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={isMuted ? 0 : volume}
+                      onChange={handleVolumeChange}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Volume"
+                      style={{ '--vol': `${(isMuted ? 0 : volume) * 100}%` } as React.CSSProperties}
+                    />
+                  </div>
                   <video
                     ref={lightboxVideoRef}
                     src={hasHls ? undefined : selectedMedia.url}
@@ -435,6 +465,7 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
                     loop
                     playsInline
                     muted={isMuted}
+                    onClick={() => handleVideoClick(lightboxVideoRef)}
                     onPlay={handleVideoPlay}
                     onPause={handleVideoPause}
                     onVolumeChange={handleVideoVolumeChange}
@@ -468,32 +499,11 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
                          style={{ width: `${(currentTime / duration) * 100}%` }}
                        />
                      </div>
-                     <span className="media-lightbox-time">
-                       {formatTime(currentTime)} / {formatTime(duration)}
-                     </span>
-                     <button
-                       className="media-lightbox-volume-toggle"
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         handleMuteToggle();
-                       }}
-                       aria-label={isMuted ? 'Unmute' : 'Mute'}
-                     >
-                       {isMuted ? <IconVolumeOff size={24} /> : <IconVolume size={24} />}
-                     </button>
-                     <div className="media-lightbox-volume-slider">
-                       <input
-                         type="range"
-                         min={0}
-                         max={1}
-                         step={0.01}
-                         value={volume}
-                         onChange={handleVolumeChange}
-                         aria-label="Volume"
-                       />
-                     </div>
-                   </div>
-                </div>
+                      <span className="media-lightbox-time">
+                        {formatTime(currentTime)} / {formatTime(duration)}
+                      </span>
+                    </div>
+                 </div>
               ) : !isVideo && selectedMedia ? (
                   <img
                     src={selectedMedia.url}
