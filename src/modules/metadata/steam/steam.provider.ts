@@ -12,6 +12,7 @@ import type { SteamAppDetailsData, SteamStoreSearchItem } from './steam.http.typ
 import type { SteamIndexSearcher, SteamIndexSearchResult } from '../steam-index/steam-index.service.js';
 import { steamIndexService } from '../steam-index/steam-index.service.js';
 import { normalizeGenres } from '../genre-map.js';
+import { normalizeForMatch } from '../../../shared/normalize.js';
 
 const SEARCH_LIMIT = 20;
 const FUSE_THRESHOLD = 0.6;
@@ -42,8 +43,14 @@ export class SteamProvider implements MetadataProvider {
     const items = response?.items ?? [];
     if (items.length === 0) return [];
 
-    const fuse = new Fuse(items, {
-      keys: ['name'],
+    const matchQuery = normalizeForMatch(normalized);
+    const fuseItems = items.map((item) => ({
+      ...item,
+      matchName: normalizeForMatch(item.name),
+    }));
+
+    const fuse = new Fuse(fuseItems, {
+      keys: ['matchName'],
       threshold: FUSE_THRESHOLD,
       includeScore: true,
       ignoreLocation: true,
@@ -51,7 +58,7 @@ export class SteamProvider implements MetadataProvider {
     });
 
     return fuse
-      .search(normalized, { limit: SEARCH_LIMIT })
+      .search(matchQuery, { limit: SEARCH_LIMIT })
       .map(({ item, score }) => this.buildResult(item, score));
   }
 

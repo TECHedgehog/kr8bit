@@ -185,3 +185,12 @@ export function normalizeGameName(rawName: string): NormalizedName {
     yearDetected: yearResult.year,
   };
 }
+
+const NON_ALPHANUMERIC = /[^a-z0-9]+/g;
+
+export function normalizeForMatch(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(NON_ALPHANUMERIC, ' ')
+    .trim();
+}

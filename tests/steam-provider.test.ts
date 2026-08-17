@@ -91,6 +91,21 @@ describe('SteamProvider.search', () => {
     const results = await provider.search('Skyrim');
     expect(results.length).toBeLessThanOrEqual(20);
   });
+
+  it('scores colon-title matches above the accept threshold', async () => {
+    const provider = new SteamProvider(
+      makeMockClient({
+        witcher: {
+          total: 1,
+          items: [makeStoreItem(292030, 'The Witcher 3: Wild Hunt')],
+        },
+      }),
+    );
+    const results = await provider.search('The Witcher 3 Wild Hunt');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].title).toBe('The Witcher 3: Wild Hunt');
+    expect(results[0].score).toBeGreaterThanOrEqual(85);
+  });
 });
 
 describe('SteamProvider.getGame', () => {

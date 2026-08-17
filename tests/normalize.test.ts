@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeGameName } from '../src/shared/normalize.js';
+import { normalizeGameName, normalizeForMatch } from '../src/shared/normalize.js';
 
 describe('normalizeGameName', () => {
   it('strips .7z extension', () => {
@@ -159,5 +159,16 @@ describe('normalizeGameName', () => {
     expect(normalizeGameName('Quake 3').query).toBe('Quake 3');
     expect(normalizeGameName("Tony Hawk's Pro Skater 1+2").query).toBe("Tony Hawk's Pro Skater 1 2");
     expect(normalizeGameName('Golden Axe').query).toBe('Golden Axe');
+  });
+});
+
+describe('normalizeForMatch', () => {
+  it('lowercases and strips punctuation', () => {
+    expect(normalizeForMatch('The Witcher 3: Wild Hunt')).toBe('the witcher 3 wild hunt');
+    expect(normalizeForMatch("Tony Hawk's Pro Skater 1+2")).toBe('tony hawk s pro skater 1 2');
+  });
+
+  it('collapses whitespace', () => {
+    expect(normalizeForMatch('  Game   Title  ')).toBe('game title');
   });
 });
