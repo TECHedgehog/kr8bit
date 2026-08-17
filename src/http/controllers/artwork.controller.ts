@@ -3,6 +3,21 @@ import { libraryService } from '../../modules/library/library.service.js';
 import { metadataService } from '../../modules/metadata/metadata.service.js';
 import { STEAM_PROVIDER_NAME } from '../../modules/metadata/metadata.service.js';
 import { ValidationError, NotFoundError } from '../../shared/errors.js';
+import type { ArtworkKind } from '../../modules/artwork/artwork.service.js';
+import type { Game } from '../../modules/library/library.types.js';
+
+function remoteUrlFor(game: Game, kind: ArtworkKind): string | null | undefined {
+  switch (kind) {
+    case 'cover':
+      return game.coverUrl;
+    case 'header':
+      return game.headerUrl;
+    case 'hero':
+      return game.heroUrl;
+    case 'logo':
+      return game.logoUrl;
+  }
+}
 
 export const artworkController = {
   async serve(req: FastifyRequest, reply: FastifyReply) {
@@ -17,6 +32,11 @@ export const artworkController = {
     const primary = await metadataService.primaryProviderMatch(id);
 
     if (primary && primary.providerName !== STEAM_PROVIDER_NAME) {
+      const remoteUrl = remoteUrlFor(game, kindValue);
+      if (!remoteUrl) {
+        throw new NotFoundError('Artwork', `${id}/${kind}`);
+      }
+
       const cached = await metadataService
         .artwork()
         .readWithContentTypeGeneric(primary.providerName, primary.remoteId, kindValue);
@@ -25,19 +45,17 @@ export const artworkController = {
         reply.header('Cache-Control', 'public, max-age=86400');
         return reply.send(cached.bytes);
       }
-      const remoteUrl =
-        kindValue === 'header' ? game.headerUrl :
-        kindValue === 'cover' ? game.coverUrl :
-        kindValue === 'hero' ? game.heroUrl :
-        kindValue === 'logo' ? game.logoUrl : undefined;
-      if (!remoteUrl) {
-        throw new NotFoundError('Artwork', `${id}/${kind}`);
-      }
+
       reply.redirect(302, remoteUrl);
       return;
     }
 
     if (!game.steamAppId) {
+      throw new NotFoundError('Artwork', `${id}/${kind}`);
+    }
+
+    const remoteUrl = remoteUrlFor(game, kindValue);
+    if (!remoteUrl) {
       throw new NotFoundError('Artwork', `${id}/${kind}`);
     }
 
@@ -49,14 +67,6 @@ export const artworkController = {
       return reply.send(cached.bytes);
     }
 
-    const remoteUrl =
-      kindValue === 'header' ? game.headerUrl :
-      kindValue === 'cover' ? game.coverUrl :
-      kindValue === 'hero' ? game.heroUrl :
-      kindValue === 'logo' ? game.logoUrl : undefined;
-  if (!remoteUrl) {
-    throw new NotFoundError('Artwork', `${id}/${kind}`);
-  }
-  reply.redirect(302, remoteUrl);
-},
+    reply.redirect(302, remoteUrl);
+  },
 };

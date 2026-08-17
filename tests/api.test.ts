@@ -305,6 +305,16 @@ describe('Artwork endpoint', () => {
     expect(res.statusCode).toBe(302);
     expect(res.headers.location).toBe('https://steamcdn.test/header.jpg');
   });
+
+  it('returns 404 when cache exists but DB URL is null', async () => {
+    const id = await createGame({ steamAppId: 620 });
+    const cacheDir = join(config.cacheDir, 'artwork', '620');
+    await fs.mkdir(cacheDir, { recursive: true });
+    await fs.writeFile(join(cacheDir, 'header'), Buffer.from([0xff, 0xd8, 0xff]));
+
+    const res = await app.inject({ method: 'GET', url: `/api/games/${id}/artwork/header` });
+    expect(res.statusCode).toBe(404);
+  });
 });
 
 describe('error envelope shape', () => {
