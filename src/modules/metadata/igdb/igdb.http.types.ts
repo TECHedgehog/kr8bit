@@ -55,8 +55,8 @@ export interface IgdbGame {
 
 export const IGDB_IMAGE_SIZE_COVER = 't_1080p';
 export const IGDB_IMAGE_SIZE_HEADER = 't_1080p';
-export const IGDB_IMAGE_SIZE_SCREENSHOT_THUMB = 'screenshot_med';
-export const IGDB_IMAGE_SIZE_SCREENSHOT_FULL = 'screenshot_huge';
+export const IGDB_IMAGE_SIZE_SCREENSHOT_THUMB = 't_screenshot_med';
+export const IGDB_IMAGE_SIZE_SCREENSHOT_FULL = 't_screenshot_huge';
 
 export function normalizeIgdbImageUrl(raw: string | undefined, size: string): string | undefined {
   if (!raw) return undefined;

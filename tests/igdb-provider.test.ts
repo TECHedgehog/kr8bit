@@ -166,8 +166,8 @@ describe('IgdbProvider.getGame', () => {
     expect(result!.headerUrl).toBe('https://images.igdb.com/igdb/artwork/def/t_1080p/ar_def.jpg');
     expect(result!.screenshots).toEqual([
       {
-        url: 'https://images.igdb.com/igdb/screenshot/sss/screenshot_huge/ss_sss.jpg',
-        thumbnailUrl: 'https://images.igdb.com/igdb/screenshot/sss/screenshot_med/ss_sss.jpg',
+        url: 'https://images.igdb.com/igdb/screenshot/sss/t_screenshot_huge/ss_sss.jpg',
+        thumbnailUrl: 'https://images.igdb.com/igdb/screenshot/sss/t_screenshot_med/ss_sss.jpg',
       },
     ]);
   });
