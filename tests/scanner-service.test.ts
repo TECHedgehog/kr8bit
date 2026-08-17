@@ -325,6 +325,18 @@ describe('ScannerService.start', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it('eagerly refreshes metadata for FLAGGED matches during scan', async () => {
+    await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
+    const refresh = vi.fn().mockResolvedValue({ id: 'game-1' });
+    const provider = mockProvider([{ providerName: 'steam', remoteId: '1', title: 'Game', score: 75 }]);
+    const service = new ScannerService(makeDeps({ providers: [provider], metadataRefresh: { refresh } }));
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+
+    expect(refresh).toHaveBeenCalled();
+  });
+
   it('does not eagerly refresh for non-ACCEPTED matches', async () => {
     await fs.writeFile(join(tmpDir, 'Junk.7z'), 'data');
     const refresh = vi.fn().mockResolvedValue(null);

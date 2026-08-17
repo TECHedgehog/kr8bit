@@ -241,7 +241,7 @@ export class ScannerService {
             matchedAt: this.deps.now(),
           });
         }
-        if (decision.status === MatchStatus.ACCEPTED) {
+        if (decision.status === MatchStatus.ACCEPTED || decision.status === MatchStatus.FLAGGED) {
           try {
             await this.deps.metadataRefresh.refresh(existing.id);
           } catch (err) {
@@ -265,7 +265,7 @@ export class ScannerService {
 
     await applyMatchResult(created.id, decision, this.deps.now());
 
-    if (decision.result && decision.status === MatchStatus.ACCEPTED) {
+    if (decision.result && (decision.status === MatchStatus.ACCEPTED || decision.status === MatchStatus.FLAGGED)) {
       try {
         await this.deps.metadataRefresh.refresh(created.id);
       } catch (err) {

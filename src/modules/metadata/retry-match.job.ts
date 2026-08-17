@@ -6,6 +6,8 @@ import { normalizeGameName } from '../../shared/normalize.js';
 import { decideMatch } from '../scanner/match-policy.js';
 import { applyMatchResult } from '../scanner/match-apply.js';
 import { metadataRefreshJob } from './metadata-refresh.job.js';
+import { metadataService } from './metadata.service.js';
+import { MatchStatus } from '../../shared/enums.js';
 import type { SearchResult } from '../../shared/types.js';
 
 export interface RetryMatchJobState {
@@ -21,6 +23,7 @@ export interface RetryMatchJobDeps {
   delayMs: number;
   concurrency: number;
   sleep: (ms: number) => Promise<void>;
+  metadataRefresh: { refresh: (gameId: string) => Promise<void> };
 }
 
 export const defaultRetryMatchJobDeps: RetryMatchJobDeps = {
@@ -28,6 +31,11 @@ export const defaultRetryMatchJobDeps: RetryMatchJobDeps = {
   delayMs: config.metadata.retryDelayMs,
   concurrency: config.metadata.retryConcurrency,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  metadataRefresh: {
+    refresh: async (gameId: string) => {
+      await metadataService.refresh(gameId);
+    },
+  },
 };
 
 export class RetryMatchJob {
@@ -117,6 +125,18 @@ export class RetryMatchJob {
                   { gameId: game.id, provider: topResult.providerName, score: decision.score },
                   'retry-match: matched',
                 );
+
+                if (decision.status === MatchStatus.ACCEPTED || decision.status === MatchStatus.FLAGGED) {
+                  try {
+                    await this.deps.metadataRefresh.refresh(game.id);
+                  } catch (err) {
+                    logger.debug(
+                      { err: (err as Error).message, gameId: game.id },
+                      'retry-match: eager metadata refresh failed',
+                    );
+                  }
+                }
+
                 return { id: game.id, ok: true as const };
               }
               logger.debug({ gameId: game.id }, 'retry-match: no match found');

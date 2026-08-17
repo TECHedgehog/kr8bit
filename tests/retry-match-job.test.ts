@@ -52,12 +52,21 @@ function makeDecision(status: MatchStatus, score: number, result: unknown) {
   return { status, score, result } as unknown as { status: MatchStatus; score: number; result: unknown };
 }
 
-function makeJob(overrides: { now?: () => Date; delayMs?: number; concurrency?: number; sleep?: ReturnType<typeof vi.fn> } = {}) {
+function makeJob(overrides: {
+  now?: () => Date;
+  delayMs?: number;
+  concurrency?: number;
+  sleep?: ReturnType<typeof vi.fn>;
+  metadataRefresh?: ReturnType<typeof vi.fn>;
+} = {}) {
   return new RetryMatchJob({
     now: overrides.now ?? (() => new Date('2024-08-01T00:00:00Z')),
     delayMs: overrides.delayMs ?? 0,
     concurrency: overrides.concurrency ?? 1,
     sleep: overrides.sleep ?? vi.fn(async () => undefined),
+    metadataRefresh: {
+      refresh: overrides.metadataRefresh ?? vi.fn(async () => undefined),
+    },
   });
 }
 
@@ -188,6 +197,48 @@ describe('RetryMatchJob', () => {
     await job.start();
 
     expect(metadataRefreshJob.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('eagerly refreshes metadata for ACCEPTED match', async () => {
+    vi.mocked(libraryRepository.findPendingGames).mockResolvedValue([makeGame('1', 'Game')]);
+    vi.mocked(providerRegistry.order).mockReturnValue([makeProvider('igdb', [])] as unknown as ReturnType<typeof providerRegistry.order>);
+    vi.mocked(decideMatch).mockReturnValue(
+      makeDecision(MatchStatus.ACCEPTED, 90, { providerName: 'igdb', remoteId: '20', title: 'Igdb Game' }),
+    );
+    vi.mocked(applyMatchResult).mockResolvedValue(true);
+
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    await makeJob({ metadataRefresh: refresh }).start();
+
+    expect(refresh).toHaveBeenCalledWith('1');
+  });
+
+  it('eagerly refreshes metadata for FLAGGED match', async () => {
+    vi.mocked(libraryRepository.findPendingGames).mockResolvedValue([makeGame('1', 'Game')]);
+    vi.mocked(providerRegistry.order).mockReturnValue([makeProvider('igdb', [])] as unknown as ReturnType<typeof providerRegistry.order>);
+    vi.mocked(decideMatch).mockReturnValue(
+      makeDecision(MatchStatus.FLAGGED, 75, { providerName: 'igdb', remoteId: '20', title: 'Igdb Game' }),
+    );
+    vi.mocked(applyMatchResult).mockResolvedValue(true);
+
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    await makeJob({ metadataRefresh: refresh }).start();
+
+    expect(refresh).toHaveBeenCalledWith('1');
+  });
+
+  it('does not eagerly refresh metadata for REJECTED match', async () => {
+    vi.mocked(libraryRepository.findPendingGames).mockResolvedValue([makeGame('1', 'Game')]);
+    vi.mocked(providerRegistry.order).mockReturnValue([makeProvider('igdb', [])] as unknown as ReturnType<typeof providerRegistry.order>);
+    vi.mocked(decideMatch).mockReturnValue(
+      makeDecision(MatchStatus.REJECTED, 50, { providerName: 'igdb', remoteId: '20', title: 'Igdb Game' }),
+    );
+    vi.mocked(applyMatchResult).mockResolvedValue(true);
+
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    await makeJob({ metadataRefresh: refresh }).start();
+
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it('does not trigger metadata refresh when processed === 0', async () => {
