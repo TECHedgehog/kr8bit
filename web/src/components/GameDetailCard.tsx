@@ -159,9 +159,11 @@ export function GameDetailCard(): JSX.Element {
                         </span>
                       </div>
                       <div className="detail-row">
-                        <span className="detail-label">Developers</span>
+                        <span className="detail-label">Metacritic</span>
                         <span className="detail-value">
-                          {joinStringList(game.developers) || '—'}
+                          {game.metacriticScore !== null && game.metacriticScore !== undefined
+                            ? `${game.metacriticScore}/100`
+                            : <span className="detail-value--placeholder">—</span>}
                         </span>
                       </div>
                       <div className="detail-row">
@@ -183,11 +185,9 @@ export function GameDetailCard(): JSX.Element {
                         </div>
                       )}
                       <div className="detail-row">
-                        <span className="detail-label">Metacritic</span>
+                        <span className="detail-label">Developers</span>
                         <span className="detail-value">
-                          {game.metacriticScore !== null && game.metacriticScore !== undefined
-                            ? `${game.metacriticScore}/100`
-                            : <span className="detail-value--placeholder">—</span>}
+                          {joinStringList(game.developers) || '—'}
                         </span>
                       </div>
                       <div className="detail-row">

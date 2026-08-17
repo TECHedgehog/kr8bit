@@ -1532,6 +1532,13 @@ textarea {
   gap: var(--space-3) var(--space-6);
 }
 
+@media (min-width: 721px) {
+  .detail-meta > .detail-row:nth-child(even) {
+    text-align: right;
+    align-items: flex-end;
+  }
+}
+
 @media (max-width: 720px) {
   .detail-meta {
     grid-template-columns: 1fr;
@@ -2003,7 +2010,7 @@ textarea {
 .game-detail-columns {
   display: grid;
   grid-template-columns: 4fr 2fr;
-  gap: var(--space-6);
+  gap: var(--space-4);
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -2017,6 +2024,22 @@ textarea {
   gap: var(--space-8);
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+  scrollbar-gutter: stable;
+}
+
+.game-detail-col-left::-webkit-scrollbar {
+  width: 6px;
+}
+
+.game-detail-col-left::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.game-detail-col-left::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
 }
 
 .game-detail-col-left.is-scrolled {
@@ -2028,6 +2051,11 @@ textarea {
   min-width: 0;
   overflow: hidden;
   min-height: 0;
+  border-left: 1px solid var(--border-subtle);
+  padding: 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .detail-genres-tags {
@@ -2224,5 +2252,7 @@ textarea {
   .game-detail-col-right {
     overflow: visible;
     min-height: auto;
+    border-left: none;
+    padding: 0;
   }
 }
