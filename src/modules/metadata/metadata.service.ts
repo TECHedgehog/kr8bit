@@ -11,6 +11,7 @@ import { artworkService, type ArtworkService, type ArtworkKind } from '../artwor
 import { steamGridDbHttpClient } from '../artwork/steamgriddb/steamgriddb.http.js';
 import type { SteamGridDbImage, SteamGridDbImageQuery } from '../artwork/steamgriddb/steamgriddb.http.types.js';
 import { normalizeGameName } from '../../shared/normalize.js';
+import { SteamProvider } from './steam/steam.provider.js';
 
 export { STEAM_PROVIDER_NAME };
 function selectBestImage(images: SteamGridDbImage[]): SteamGridDbImage | undefined {
@@ -203,13 +204,37 @@ export class MetadataService {
       return null;
     }
     const metadata = await provider.getGame(String(game.steamAppId));
-    if (!metadata) return null;
+    if (metadata) {
+      const { game: updated } = await this.applyMetadataToGame(game, metadata, provider, {
+        isManual: false,
+        now: this.deps.now(),
+      });
+      return updated;
+    }
 
-    const { game: updated } = await this.applyMetadataToGame(game, metadata, provider, {
-      isManual: false,
-      now: this.deps.now(),
-    });
-    return updated;
+    if (game.matchStatus === MatchStatus.MANUAL || !game.entryName) {
+      return null;
+    }
+
+    const steamProvider = provider as SteamProvider;
+    const fallbackResults = await steamProvider.resolveByStoreSearch(game.entryName);
+    for (const candidate of fallbackResults) {
+      const fallbackMetadata = await provider.getGame(candidate.remoteId);
+      if (!fallbackMetadata) continue;
+
+      logger.info(
+        { gameId: game.id, oldAppId: game.steamAppId, newAppId: candidate.remoteId, title: candidate.title },
+        'refresh: correcting stale steam appId',
+      );
+      await libraryRepository.update(game.id, { steamAppId: Number(candidate.remoteId) });
+      const { game: updated } = await this.applyMetadataToGame(game, fallbackMetadata, provider, {
+        isManual: false,
+        now: this.deps.now(),
+      });
+      return updated;
+    }
+
+    return null;
   }
 
   private async applyMetadataToGame(

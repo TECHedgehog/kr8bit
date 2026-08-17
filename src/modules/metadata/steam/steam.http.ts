@@ -5,6 +5,7 @@ import {
   STEAM_STORE_BASE,
   type SteamStoreSearchResponse,
   type SteamAppDetailsResponse,
+  type SteamDeckCompatibility,
 } from './steam.http.types.js';
 import {
   withRetry,
@@ -15,6 +16,7 @@ import {
 export interface SteamHttpClient {
   searchStore(term: string): Promise<SteamStoreSearchResponse>;
   fetchAppDetails(appId: number): Promise<SteamAppDetailsResponse>;
+  fetchDeckCompatibility(appId: number): Promise<SteamDeckCompatibility | null>;
 }
 
 async function getJson(url: string): Promise<unknown> {
@@ -53,7 +55,32 @@ export const steamHttpClient: SteamHttpClient = {
 
   async fetchAppDetails(appId: number): Promise<SteamAppDetailsResponse> {
     const url = `${STEAM_STORE_BASE}/api/appdetails?appids=${appId}&l=en`;
-    const body = await getJson(url);
-    return body as SteamAppDetailsResponse;
+    let lastBody: unknown;
+    try {
+      return await withRetry(
+        async () => {
+          const body = await getJson(url);
+          lastBody = body;
+          const response = body as SteamAppDetailsResponse;
+          const entry = response[String(appId)];
+          if (!entry?.success) {
+            throw new RetryableHttpError(`steam appdetails success:false for ${appId}`);
+          }
+          return response;
+        },
+        {
+          // Steam appdetails returns success:false transiently (rate limits,
+          // cache misses). Keep this small: bad appIds fail fast, transient
+          // hiccups usually resolve on the first retry.
+          retries: 2,
+          baseDelayMs: 500,
+        },
+      );
+    } catch (err) {
+      if (lastBody !== undefined) {
+        return lastBody as SteamAppDetailsResponse;
+      }
+      throw err;
+    }
   },
 };

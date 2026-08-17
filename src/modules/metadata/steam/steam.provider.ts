@@ -40,10 +40,33 @@ export class SteamProvider implements MetadataProvider {
       return [];
     }
 
-    const items = response?.items ?? [];
+    return this.rankStoreSearchResults(response?.items ?? [], normalized);
+  }
+
+  /**
+   * Live storesearch bypassing the local index. Used as a fallback when a
+   * previously-matched appId becomes stale (e.g. superseded edition) and
+   * appdetails returns success:false.
+   */
+  async resolveByStoreSearch(query: string): Promise<SearchResult[]> {
+    const normalized = query.trim();
+    if (!normalized) return [];
+
+    let response;
+    try {
+      response = await this.client.searchStore(normalized);
+    } catch (err) {
+      logger.warn({ err: (err as Error).message, query: normalized }, 'steam fallback storesearch failed');
+      return [];
+    }
+
+    return this.rankStoreSearchResults(response?.items ?? [], normalized);
+  }
+
+  private rankStoreSearchResults(items: SteamStoreSearchItem[], query: string): SearchResult[] {
     if (items.length === 0) return [];
 
-    const matchQuery = normalizeForMatch(normalized);
+    const matchQuery = normalizeForMatch(query);
     const fuseItems = items.map((item) => ({
       ...item,
       matchName: normalizeForMatch(item.name),

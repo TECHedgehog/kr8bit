@@ -49,6 +49,19 @@ function mockProvider(
   } as unknown as MetadataProvider;
 }
 
+function mockSteamProvider(
+  searchResults: SearchResult[],
+  resolveByStoreSearchResults: SearchResult[],
+  metadataByRemoteId: Record<string, GameMetadata>,
+): MetadataProvider & { resolveByStoreSearch: ReturnType<typeof vi.fn> } {
+  return {
+    name: 'steam',
+    search: vi.fn(async () => searchResults),
+    resolveByStoreSearch: vi.fn(async () => resolveByStoreSearchResults),
+    getGame: vi.fn(async (id: string) => metadataByRemoteId[id] ?? null),
+  } as unknown as MetadataProvider & { resolveByStoreSearch: ReturnType<typeof vi.fn> };
+}
+
 function mockRegistry(providers: MetadataProvider[]): ProviderRegistry {
   const byName = new Map(providers.map((p) => [p.name, p]));
   return {
@@ -478,6 +491,64 @@ describe('MetadataService.refresh', () => {
     expect(game!.genres).toEqual(['Puzzle']);
     expect(game!.matchedAt).toEqual(new Date('2024-06-10T00:00:00Z'));
     expect(game!.matchStatus).toBe(MatchStatus.MANUAL);
+  });
+
+  it('re-resolves stale steam appId via storesearch fallback and persists corrected id', async () => {
+    const gameId = await createGame({
+      entryName: 'Sunless Skies',
+      steamAppId: 739870,
+      status: MatchStatus.ACCEPTED,
+    });
+    const steam = mockSteamProvider(
+      [],
+      [{ providerName: 'steam', remoteId: '596970', title: 'Sunless Skies: Sovereign Edition', score: 95 }],
+      {
+        '596970': {
+          remoteId: '596970',
+          title: 'Sunless Skies: Sovereign Edition',
+          releaseYear: 2019,
+          developers: ['Failbetter Games'],
+          publishers: ['Failbetter Games'],
+          genres: ['RPG'],
+          coverUrl: 'https://x/cover.jpg',
+          headerUrl: 'https://x/header.jpg',
+          screenshots: [{ url: 'https://x/ss.jpg', thumbnailUrl: 'https://x/ss_thumb.jpg' }],
+        },
+      },
+    );
+    const service = new MetadataService({
+      providers: mockRegistry([steam]),
+      artwork: mockArtwork(),
+      now: () => new Date('2024-06-10T00:00:00Z'),
+    });
+
+    const game = await service.refresh(gameId);
+
+    expect(game).not.toBeNull();
+    expect(game!.steamAppId).toBe(596970);
+    expect(game!.title).toBe('Sunless Skies: Sovereign Edition');
+    expect(game!.screenshots).toHaveLength(1);
+    expect(steam.getGame).toHaveBeenCalledWith('739870');
+    expect(steam.resolveByStoreSearch).toHaveBeenCalledWith('Sunless Skies');
+    expect(steam.getGame).toHaveBeenCalledWith('596970');
+  });
+
+  it('does not re-resolve steam appId when match is MANUAL', async () => {
+    const gameId = await createGame({
+      entryName: 'Sunless Skies',
+      steamAppId: 739870,
+      status: MatchStatus.MANUAL,
+    });
+    const steam = mockSteamProvider([], [], {});
+    const service = new MetadataService({
+      providers: mockRegistry([steam]),
+      artwork: mockArtwork(),
+      now: () => new Date(),
+    });
+
+    expect(await service.refresh(gameId)).toBeNull();
+    expect(steam.getGame).toHaveBeenCalledWith('739870');
+    expect(steam.resolveByStoreSearch).not.toHaveBeenCalled();
   });
 
   it('returns null when game has no steamAppId and no ProviderMatch', async () => {

@@ -1,12 +1,22 @@
-import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
+import { request } from 'undici';
 import { prisma } from '../src/prisma-client.js';
 import { SteamProvider } from '../src/modules/metadata/steam/steam.provider.js';
+import { steamHttpClient } from '../src/modules/metadata/steam/steam.http.js';
 import type {
   SteamAppDetailsResponse,
   SteamStoreSearchItem,
   SteamStoreSearchResponse,
 } from '../src/modules/metadata/steam/steam.http.types.js';
 import type { SteamHttpClient } from '../src/modules/metadata/steam/steam.http.js';
+
+vi.mock('undici', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('undici')>();
+  return {
+    ...actual,
+    request: vi.fn(),
+  };
+});
 
 function makeStoreItem(id: number, name: string, tiny_image?: string): SteamStoreSearchItem {
   return { type: 'app', name, id, tiny_image };
@@ -108,6 +118,42 @@ describe('SteamProvider.search', () => {
   });
 });
 
+describe('SteamProvider.resolveByStoreSearch', () => {
+  it('ranks live storesearch results bypassing the index', async () => {
+    const provider = new SteamProvider(
+      makeMockClient({
+        sunless: {
+          total: 2,
+          items: [
+            makeStoreItem(596970, 'Sunless Skies: Sovereign Edition'),
+            makeStoreItem(1010110, 'Sunless Skies Soundtrack'),
+          ],
+        },
+      }),
+      null,
+    );
+    const results = await provider.resolveByStoreSearch('Sunless Skies');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.map((r) => r.remoteId)).toContain('596970');
+    expect(results.find((r) => r.remoteId === '596970')?.title).toBe('Sunless Skies: Sovereign Edition');
+  });
+
+  it('returns empty array for empty query', async () => {
+    const provider = new SteamProvider(makeMockClient(), null);
+    expect(await provider.resolveByStoreSearch('')).toEqual([]);
+    expect(await provider.resolveByStoreSearch('   ')).toEqual([]);
+  });
+
+  it('returns empty array on HTTP error', async () => {
+    const client: SteamHttpClient = {
+      searchStore: vi.fn(async () => { throw new Error('bad gateway'); }),
+      fetchAppDetails: vi.fn(),
+    };
+    const provider = new SteamProvider(client, null);
+    expect(await provider.resolveByStoreSearch('Anything')).toEqual([]);
+  });
+});
+
 describe('SteamProvider.getGame', () => {
   it('maps appdetails to GameMetadata', async () => {
     const details: SteamAppDetailsResponse[string] = {
@@ -170,5 +216,42 @@ describe('SteamProvider interface', () => {
   it('exposes a stable name', () => {
     const provider = new SteamProvider(makeMockClient());
     expect(provider.name).toBe('steam');
+  });
+});
+
+describe('steamHttpClient.fetchAppDetails', () => {
+  afterEach(() => {
+    vi.mocked(request).mockReset();
+  });
+
+  function mockResponse(body: unknown) {
+    return {
+      statusCode: 200,
+      body: {
+        json: async () => body,
+        text: async () => JSON.stringify(body),
+      },
+    };
+  }
+
+  it('retries when appdetails returns success:false then succeeds', async () => {
+    vi.mocked(request)
+      .mockResolvedValueOnce(mockResponse({ '620': { success: false } }) as unknown as ReturnType<typeof request>)
+      .mockResolvedValueOnce(mockResponse({ '620': { success: true, data: { steam_appid: 620, name: 'Portal 2' } } }) as unknown as ReturnType<typeof request>);
+
+    const result = await steamHttpClient.fetchAppDetails(620);
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(result['620'].success).toBe(true);
+    expect(result['620'].data?.name).toBe('Portal 2');
+  });
+
+  it('returns the last failed response after exhausting retries', async () => {
+    vi.mocked(request).mockResolvedValue(mockResponse({ '620': { success: false } }) as unknown as ReturnType<typeof request>);
+
+    const result = await steamHttpClient.fetchAppDetails(620);
+
+    expect(request).toHaveBeenCalledTimes(3); // initial + 2 retries
+    expect(result['620'].success).toBe(false);
   });
 });
