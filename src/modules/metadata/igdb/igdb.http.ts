@@ -25,6 +25,7 @@ export interface IgdbHttpClient {
 
 const SEARCH_FIELDS = [
   'name',
+  'alternative_names.name',
   'first_release_date',
   'cover.url',
   'artworks.url',
@@ -41,6 +42,7 @@ const GAME_FIELDS = [
   'involved_companies.publisher',
   'cover.url',
   'artworks.url',
+  'screenshots.url',
 ].join(',');
 
 const SEARCH_LIMIT = 20;

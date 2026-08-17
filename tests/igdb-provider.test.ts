@@ -26,6 +26,7 @@ function makeGame(opts: Partial<IgdbGame> & { id: number; name: string }): IgdbG
     themes: opts.themes,
     involved_companies: opts.involved_companies,
     screenshots: opts.screenshots,
+    alternative_names: opts.alternative_names,
   };
 }
 
@@ -102,6 +103,25 @@ describe('IgdbProvider.search', () => {
     const results = await provider.search('Skyrim');
     expect(results.length).toBeLessThanOrEqual(20);
   });
+
+  it('matches renamed games via alternative_names', async () => {
+    const provider = new IgdbProvider(
+      makeMockClient({
+        simplerockets: [
+          makeGame({
+            id: 1172200,
+            name: 'Juno: New Origins',
+            alternative_names: [{ id: 1, name: 'SimpleRockets 2' }],
+          }),
+        ],
+      }),
+    );
+
+    const results = await provider.search('SimpleRockets 2');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].title).toBe('Juno: New Origins');
+    expect(results[0].score).toBeGreaterThanOrEqual(85);
+  });
 });
 
 describe('IgdbProvider.getGame', () => {
@@ -114,6 +134,9 @@ describe('IgdbProvider.getGame', () => {
       cover: { id: 1, url: '//images.igdb.com/igdb/cover/abc/t_thumb/co_abc.jpg', image_id: 'abc' },
       artworks: [
         { id: 2, url: '//images.igdb.com/igdb/artwork/def/t_thumb/ar_def.jpg', image_id: 'def' },
+      ],
+      screenshots: [
+        { id: 3, url: '//images.igdb.com/igdb/screenshot/sss/t_thumb/ss_sss.jpg', image_id: 'sss' },
       ],
       genres: [
         { id: 1, name: 'Role-playing (RPG)' },
@@ -141,6 +164,12 @@ describe('IgdbProvider.getGame', () => {
     expect(result!.description).toBe('A puzzle game.');
     expect(result!.coverUrl).toBe('https://images.igdb.com/igdb/cover/abc/t_1080p/co_abc.jpg');
     expect(result!.headerUrl).toBe('https://images.igdb.com/igdb/artwork/def/t_1080p/ar_def.jpg');
+    expect(result!.screenshots).toEqual([
+      {
+        url: 'https://images.igdb.com/igdb/screenshot/sss/screenshot_huge/ss_sss.jpg',
+        thumbnailUrl: 'https://images.igdb.com/igdb/screenshot/sss/screenshot_med/ss_sss.jpg',
+      },
+    ]);
   });
 
   it('returns null when game not found', async () => {
@@ -333,6 +362,22 @@ describe('IgdbHttpClientImpl', () => {
     );
   });
 
+  it('requests alternative_names when searching games', async () => {
+    const game = makeGame({ id: 1, name: 'Game' });
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(200, [game]));
+    const client = new IgdbHttpClientImpl(credentials, token, apiBase, timeoutMs);
+
+    await client.searchGames('Game');
+
+    expect(request).toHaveBeenCalledWith(
+      `${apiBase}/games`,
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('alternative_names.name'),
+      }),
+    );
+  });
+
   it('refreshes token and retries on 401', async () => {
     const game = makeGame({ id: 1, name: 'Game' });
     vi.mocked(request)
@@ -360,6 +405,23 @@ describe('IgdbHttpClientImpl', () => {
 
     expect(result).toEqual([game]);
     expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('requests screenshots when fetching game by id', async () => {
+    const game = makeGame({ id: 1, name: 'Game' });
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(200, [game]));
+    const client = new IgdbHttpClientImpl(credentials, token, apiBase, timeoutMs);
+
+    const result = await client.getGame(1);
+
+    expect(result).toEqual(game);
+    expect(request).toHaveBeenCalledWith(
+      `${apiBase}/games`,
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('screenshots.url'),
+      }),
+    );
   });
 });
 

@@ -43,7 +43,7 @@ export class IgdbProvider implements MetadataProvider {
     if (!response || response.length === 0) return [];
 
     const fuse = new Fuse(response, {
-      keys: ['name'],
+      keys: ['name', 'alternative_names.name'],
       threshold: FUSE_THRESHOLD,
       includeScore: true,
       ignoreLocation: true,

@@ -4,10 +4,16 @@ export interface IgdbTokenResponse {
   token_type: string;
 }
 
+
 export interface IgdbImage {
   id: number;
   url: string;
   image_id?: string;
+}
+
+export interface IgdbAlternativeName {
+  id: number;
+  name: string;
 }
 
 export interface IgdbGenre {
@@ -44,6 +50,7 @@ export interface IgdbGame {
   cover?: IgdbImage;
   artworks?: IgdbImage[];
   screenshots?: IgdbImage[];
+  alternative_names?: IgdbAlternativeName[];
 }
 
 export const IGDB_IMAGE_SIZE_COVER = 't_1080p';
