@@ -66,6 +66,7 @@ Two providers ship today:
 - `SteamAppIndex` Prisma model — cached Steam app list, indexed on `name`.
 - `STEAM_INDEX_REFRESH_INTERVAL_HOURS` env — app index refresh cadence (default 168h = 7 days).
 - HTTP client: `undici`.
+- Deck compatibility: `fetchDeckCompatibility(appId)` scrapes the Steam store page HTML and extracts the JSON from `#application_config[data-hardwarecompatibility]`. It HTML-decodes the attribute, validates the shape, and returns a category (`0` Unknown, `1` Unsupported, `2` Playable, `3` Verified) plus `resolved_items` (`display_type` + `loc_token`). This fetch runs in parallel with `appdetails` inside `SteamProvider.getGame` and is merged into `GameMetadata.steamDeckCompat`.
 - Fuzzy: `fuse.js` to match scanner entry names to `SteamAppIndex.name`.
 - Steam assignments do **not** write a `ProviderMatch` row — `Game.steamAppId` remains the source of truth.
 

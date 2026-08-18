@@ -25,6 +25,8 @@ export function toDomain(row: PrismaGame): Game {
   logoUrl: row.logoUrl,
   screenshots: decodeJson(row.screenshots, []),
   videos: decodeJson(row.videos, []),
+  steamDeckCategory: row.steamDeckCategory,
+  steamDeckItems: decodeJson(row.steamDeckItems, []),
   matchStatus: row.matchStatus as MatchStatus,
     matchScore: row.matchScore,
     matchedAt: row.matchedAt,

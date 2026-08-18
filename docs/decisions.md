@@ -618,3 +618,45 @@ Scanner's `processCandidate` applied `decideMatch()` thresholds and stored `stea
 - Refresh job preserves `matchStatus` (ACCEPTED/FLAGGED unchanged); MANUAL/PENDING/REJECTED games are excluded.
 - Adding required `displayName` and `providerName` to public types is technically breaking, but both are always populated by the backend mapper / search endpoint.
 - Accepting full metadata for FLAGGED games means artwork may be downloaded for uncertain matches; user can unlink if wrong.
+
+---
+
+## ADR-029 — Steam Deck Compatibility via Store Page Structured Data
+
+### Context
+Steam does not expose an official API for Steam Deck compatibility. The status is visible on each store page inside an HTML attribute on `#application_config` named `data-hardwarecompatibility`. The attribute contains a JSON string with HTML-encoded quotes and a category enum plus per-check results.
+
+### Decision
+
+**Scrape the store page for structured data.** `fetchDeckCompatibility(appId)` fetches `https://store.steampowered.com/app/{appId}` and extracts `#application_config[data-hardwarecompatibility]`. The attribute value is HTML-decoded, parsed as JSON, and validated before use.
+
+**Compatibility shape.** The parsed object contains:
+- `category`: `0` Unknown, `1` Unsupported, `2` Playable, `3` Verified.
+- `resolved_items`: array of objects with `display_type` (`1`/`3` caveat, `2` fail, `4` pass) and `loc_token` (localization key).
+
+**Provider integration.** `SteamProvider.getGame` fetches deck compatibility in parallel with `appdetails`. The result is mapped to `GameMetadata.steamDeckCompat` (`category`, `items`) and persisted to `Game.steamDeckCategory` / `Game.steamDeckItems`.
+
+**Token labels on the frontend.** `web/src/data/steamDeckTokens.ts` maps known `loc_token` values to human-readable labels; unknown tokens are converted from camelCase to spaced words as a fallback.
+
+### Files modified
+- `src/modules/metadata/steam/steam.http.ts` — adds `fetchDeckCompatibility(appId)` and parsing/validation.
+- `src/modules/metadata/steam/steam.http.types.ts` — adds `SteamDeckCompatibility` + `SteamDeckCompatibilityItem`.
+- `src/modules/metadata/steam/steam.provider.ts` — runs deck compat fetch in parallel with `appdetails`; maps into `GameMetadata`.
+- `src/shared/types.ts` — adds `SteamDeckCompatItem` + `SteamDeckCompatMetadata` to `GameMetadata`.
+- `src/modules/library/library.types.ts` — adds `steamDeckCategory` / `steamDeckItems` to domain `Game`.
+- `src/modules/library/library.mapper.ts` — decodes JSON `steamDeckItems`.
+- `src/modules/library/library.repository.ts` — reads/writes `steamDeckCategory` / `steamDeckItems`.
+- `src/modules/metadata/metadata.service.ts` — applies/clears deck compat in `applyMetadataToGame` and `unlink`.
+- `prisma/schema.prisma` — adds `steamDeckCategory Int?` and `steamDeckItems String @default("[]")` to `Game`.
+- `web/src/api/types.ts` — adds `SteamDeckCompatItem` + optional deck fields to `Game`.
+- `web/src/components/SteamDeckBadge.tsx` — renders badge with category icon, hover pill, expanded explanation + checks.
+- `web/src/data/steamDeckTokens.ts` — maps `loc_token` → label.
+- `web/src/styles.css` — styles badge states and layout.
+- `docs/providers.md` — documents store-page fetch in Steam provider section.
+
+### Consequences
+- No official API dependency; data is current with the store page.
+- Couples the fetch to the current Steam store page HTML structure. If Valve changes the attribute, fetch returns `null` and the badge falls back to Unknown (fail-soft).
+- HTML entities in the attribute must be decoded before JSON parsing.
+- The category enum and `display_type` values are hardcoded based on observed store pages; Valve could change them.
+- Existing games need a metadata refresh to populate the new fields; the migration only adds columns.

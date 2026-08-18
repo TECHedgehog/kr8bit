@@ -7,6 +7,16 @@ export interface SearchResult {
   score?: number;
 }
 
+export interface SteamDeckCompatItem {
+  displayType: number;
+  locToken: string;
+}
+
+export interface SteamDeckCompatMetadata {
+  category: number;
+  items: SteamDeckCompatItem[];
+}
+
 export interface GameMetadata {
   remoteId: string;
   title: string;
@@ -21,6 +31,7 @@ export interface GameMetadata {
   logoUrl?: string;
   screenshots?: { url: string; thumbnailUrl: string }[];
   videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
+  steamDeckCompat?: SteamDeckCompatMetadata;
 }
 
 export interface MetadataProvider {

@@ -1,4 +1,5 @@
 import type { EntryType, MatchStatus } from '../../shared/enums.js';
+import type { SteamDeckCompatItem } from '../../shared/types.js';
 
 export interface Game {
   id: string;
@@ -20,6 +21,8 @@ export interface Game {
   logoUrl: string | null;
   screenshots: { url: string; thumbnailUrl: string }[];
   videos: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
+  steamDeckCategory: number | null;
+  steamDeckItems: SteamDeckCompatItem[];
   matchStatus: MatchStatus;
   matchScore: number | null;
   matchedAt: Date | null;
@@ -49,6 +52,8 @@ export interface GameUpdateInput {
   logoUrl?: string | null;
   screenshots?: { url: string; thumbnailUrl: string }[];
   videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
+  steamDeckCategory?: number | null;
+  steamDeckItems?: SteamDeckCompatItem[];
   matchStatus?: MatchStatus;
   matchScore?: number | null;
   matchedAt?: Date | null;

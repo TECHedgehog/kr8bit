@@ -8,7 +8,7 @@ import type {
 import { STEAM_CDN_BASE } from './steam.http.types.js';
 import type { SteamHttpClient } from './steam.http.js';
 import { steamHttpClient as defaultClient } from './steam.http.js';
-import type { SteamAppDetailsData, SteamStoreSearchItem } from './steam.http.types.js';
+import type { SteamAppDetailsData, SteamDeckCompatibility, SteamStoreSearchItem } from './steam.http.types.js';
 import type { SteamIndexSearcher, SteamIndexSearchResult } from '../steam-index/steam-index.service.js';
 import { steamIndexService } from '../steam-index/steam-index.service.js';
 import { normalizeGenres } from '../genre-map.js';
@@ -102,13 +102,19 @@ export class SteamProvider implements MetadataProvider {
     if (!Number.isInteger(appId) || appId <= 0) return null;
 
     try {
-      const response = await this.client.fetchAppDetails(appId);
+      const [response, deckCompat] = await Promise.all([
+        this.client.fetchAppDetails(appId),
+        this.client.fetchDeckCompatibility(appId).catch((err) => {
+          logger.warn({ appId, err: (err as Error).message }, 'steam deck compatibility failed');
+          return null;
+        }),
+      ]);
       const entry = response[String(appId)];
       if (!entry?.success || !entry.data) {
         logger.info({ appId }, 'steam appdetails: not success');
         return null;
       }
-      return this.mapDetails(entry.data);
+      return this.mapDetails(entry.data, deckCompat);
     } catch (err) {
       logger.warn({ appId, err: (err as Error).message }, 'steam appdetails failed');
       return null;
@@ -134,7 +140,7 @@ export class SteamProvider implements MetadataProvider {
     };
   }
 
-  private mapDetails(data: SteamAppDetailsData): GameMetadata {
+  private mapDetails(data: SteamAppDetailsData, deckCompat?: SteamDeckCompatibility | null): GameMetadata {
     const releaseYear = this.extractYear(data.release_date?.date);
     const screenshots = (data.screenshots ?? []).map((s) => ({
       url: s.path_full,
@@ -149,6 +155,16 @@ export class SteamProvider implements MetadataProvider {
     const genreNames = (data.genres ?? []).map((g) => g.description);
     const genres = normalizeGenres('steam', genreNames);
 
+    const steamDeckCompat = deckCompat
+      ? {
+          category: deckCompat.resolved_category,
+          items: deckCompat.resolved_items.map((item) => ({
+            displayType: item.display_type,
+            locToken: item.loc_token,
+          })),
+        }
+      : undefined;
+
     return {
       remoteId: String(data.steam_appid),
       title: data.name,
@@ -162,6 +178,7 @@ export class SteamProvider implements MetadataProvider {
       heroUrl: `${STEAM_CDN_BASE}/${data.steam_appid}/library_hero.jpg`,
       screenshots: screenshots.length > 0 ? screenshots : undefined,
       videos: videos.length > 0 ? videos : undefined,
+      steamDeckCompat,
     };
   }
 

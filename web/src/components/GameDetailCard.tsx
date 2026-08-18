@@ -6,6 +6,7 @@ import { api, ApiError } from '../api/client';
 import type { Game } from '../api/types';
 import { useMarquee } from '../hooks/useMarquee';
 import { MediaGallery } from './MediaGallery';
+import { SteamDeckBadge } from './SteamDeckBadge';
 
 import { formatBytes, joinStringList } from '../format';
 
@@ -124,6 +125,7 @@ export function GameDetailCard(): JSX.Element {
               )}
               <div className="game-detail-hero-overlay" />
               <div className="game-detail-hero-blur" />
+              <SteamDeckBadge game={game} />
               <div className="game-detail-title-row">
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div ref={viewportRef} className="game-detail-title marquee-viewport">

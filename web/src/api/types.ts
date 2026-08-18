@@ -6,6 +6,11 @@ export type ScanStatus = 'RUNNING' | 'DONE' | 'FAILED';
 
 export type ScanPhase = 'start' | 'candidate' | 'matched' | 'failed' | 'done';
 
+export interface SteamDeckCompatItem {
+  displayType: number;
+  locToken: string;
+}
+
 export interface Game {
   id: string;
   entryPath: string;
@@ -24,6 +29,8 @@ export interface Game {
   headerUrl: string | null;
   screenshots?: { url: string; thumbnailUrl: string }[];
   videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
+  steamDeckCategory?: number | null;
+  steamDeckItems?: SteamDeckCompatItem[];
   matchStatus: MatchStatus;
   matchScore: number | null;
   matchedAt: string | null;

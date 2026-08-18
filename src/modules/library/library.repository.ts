@@ -38,6 +38,7 @@ export const libraryRepository = {
           genres: encodeArray([]),
           screenshots: JSON.stringify([]),
           videos: JSON.stringify([]),
+          steamDeckItems: JSON.stringify([]),
         },
       });
       return toDomain(row);
@@ -106,6 +107,8 @@ export const libraryRepository = {
     if (input.logoUrl !== undefined) data.logoUrl = input.logoUrl;
     if (input.screenshots !== undefined) data.screenshots = JSON.stringify(input.screenshots);
     if (input.videos !== undefined) data.videos = JSON.stringify(input.videos);
+    if (input.steamDeckCategory !== undefined) data.steamDeckCategory = input.steamDeckCategory;
+    if (input.steamDeckItems !== undefined) data.steamDeckItems = JSON.stringify(input.steamDeckItems);
     if (input.matchStatus !== undefined) data.matchStatus = input.matchStatus;
       if (input.matchScore !== undefined) data.matchScore = input.matchScore;
       if (input.matchedAt !== undefined) data.matchedAt = input.matchedAt;

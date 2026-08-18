@@ -1958,6 +1958,159 @@ textarea {
   -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,1), rgba(0,0,0,0));
 }
 
+/* ===== Steam Deck Badge ===== */
+
+.steam-deck-badge {
+  --badge-expanded-width: 380px;
+
+  box-sizing: content-box;
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 4;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  max-width: 40px;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-edge);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    max-width 0.25s ease,
+    padding 0.25s ease,
+    gap 0.25s ease,
+    border-radius 0.25s ease,
+    background 0.15s;
+}
+
+.steam-deck-badge:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.steam-deck-badge__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.steam-deck-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.steam-deck-badge__label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 0.25s ease, opacity 0.15s ease;
+}
+
+.steam-deck-badge:hover:not(.is-expanded) {
+  max-width: 220px;
+  padding: 0 var(--space-3) 0 0;
+  background: var(--glass-tint-hover-bg);
+  border-color: var(--border-subtle);
+}
+
+.steam-deck-badge:hover:not(.is-expanded) .steam-deck-badge__head {
+  gap: var(--space-2);
+}
+
+.steam-deck-badge:hover:not(.is-expanded) .steam-deck-badge__label {
+  width: auto;
+  opacity: 1;
+}
+
+.steam-deck-badge.is-expanded {
+  max-width: var(--badge-expanded-width);
+  padding: 0 var(--space-3) var(--space-3) 0;
+  border-radius: var(--radius-lg);
+  border-color: var(--border-subtle);
+  background: var(--glass-bg);
+  overflow: visible;
+  gap: var(--space-1);
+}
+
+.steam-deck-badge.is-expanded .steam-deck-badge__head {
+  gap: var(--space-2);
+}
+
+.steam-deck-badge.is-expanded .steam-deck-badge__label {
+  width: auto;
+  opacity: 1;
+}
+
+.steam-deck-badge__body-wrap {
+  max-width: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-width 0.25s ease, max-height 0.25s ease;
+}
+
+.steam-deck-badge.is-expanded .steam-deck-badge__body-wrap {
+  max-width: var(--badge-expanded-width);
+  max-height: 300px;
+}
+
+.steam-deck-badge__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  width: var(--badge-expanded-width);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.steam-deck-badge.is-expanded .steam-deck-badge__body {
+  opacity: 1;
+}
+
+.steam-deck-badge__explanation {
+  font-size: var(--text-sm);
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.steam-deck-badge__checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.steam-deck-badge__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.steam-deck-badge__check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
 .game-detail-body {
   flex: 1;
   padding: var(--space-6);

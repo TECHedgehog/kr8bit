@@ -144,6 +144,8 @@ export class MetadataService {
       logoUrl: null,
       screenshots: [],
       videos: [],
+      steamDeckCategory: null,
+      steamDeckItems: [],
       matchStatus: MatchStatus.PENDING,
       matchScore: null,
       matchedAt: null,
@@ -296,6 +298,8 @@ export class MetadataService {
       logoUrl: sgdb.logoUrl,
       screenshots: metadata.screenshots ?? [],
       videos: metadata.videos ?? [],
+      steamDeckCategory: metadata.steamDeckCompat?.category ?? null,
+      steamDeckItems: metadata.steamDeckCompat?.items ?? [],
       matchedAt: options.now,
     };
 

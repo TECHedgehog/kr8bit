@@ -68,3 +68,14 @@ export interface SteamAppDetailsResponse {
     data?: SteamAppDetailsData;
   };
 }
+
+export interface SteamDeckCompatibilityItem {
+  display_type: number;
+  loc_token: string;
+}
+
+export interface SteamDeckCompatibility {
+  appid: number;
+  resolved_category: number;
+  resolved_items: SteamDeckCompatibilityItem[];
+}
