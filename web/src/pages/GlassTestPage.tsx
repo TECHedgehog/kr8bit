@@ -5,6 +5,7 @@ import {
   useGlassTune,
   GEOMETRY_SLIDERS_BY_TARGET,
   OPTIC_SECTIONS,
+  PILL_HIDDEN_OPTICS,
   formatValue,
   type GeometryKey,
   type OpticKey,
@@ -247,13 +248,18 @@ export function GlassTestPage(): JSX.Element {
           {OPTIC_SECTIONS.map((section) => (
             <section className="glass-test-panel-section" key={section.title}>
               <h3 className="glass-test-panel-heading">{section.title}</h3>
-              {section.sliders.map((cfg) =>
-                renderSlider(
-                  cfg,
-                  active.effectiveOptics[cfg.key] as number,
-                  updateOptic as (key: OpticKey, value: number) => void,
-                ),
-              )}
+              {section.sliders
+                .filter(
+                  (cfg) =>
+                    !(activeTarget === 'pill' && PILL_HIDDEN_OPTICS.has(cfg.key)),
+                )
+                .map((cfg) =>
+                  renderSlider(
+                    cfg,
+                    active.effectiveOptics[cfg.key] as number,
+                    updateOptic as (key: OpticKey, value: number) => void,
+                  ),
+                )}
             </section>
           ))}
         </aside>

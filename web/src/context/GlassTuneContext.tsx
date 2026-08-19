@@ -76,7 +76,6 @@ export const GEOMETRY_SLIDERS_BY_TARGET: Record<GlassTarget, SliderConfig<Geomet
     { key: 'radius', label: 'Radius', min: 0, max: 200, step: 1 },
   ],
   pill: [
-    { key: 'width', label: 'Width', min: 40, max: 300, step: 1 },
     { key: 'height', label: 'Height', min: 16, max: 80, step: 1 },
     { key: 'radius', label: 'Radius', min: 0, max: 40, step: 1 },
   ],
@@ -117,6 +116,12 @@ export const OPTIC_SECTIONS: OpticSection[] = [
     ],
   },
 ];
+
+// Optic sliders hidden for the pill target. Empty now — the pill's width is
+// dynamic (driven by the active nav entry, no slider) and sheenAngle is back to
+// a static value. This set is the forward shape for locking more pill sliders
+// to defaults when that step comes.
+export const PILL_HIDDEN_OPTICS: ReadonlySet<OpticKey> = new Set<OpticKey>();
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

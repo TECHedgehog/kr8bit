@@ -34,12 +34,16 @@ const NAV_ITEMS: NavItem[] = [
 
 const PILL_ANIMATION = { duration: 0.4, ease: glassEase };
 
+// Extra width beyond the active entry so the pill isn't flush against the link
+// text — 4px each side. The dynamic lens width = activeRect.width + this pad.
+const PILL_WIDTH_PAD = 8;
+
 // Fixed lens clearance so the Glass container size never changes when pill
 // geometry is tuned. If the container resized with pill width/height, the
 // package's internal size (ResizeObserver) lagged our lensX fraction by a
 // frame, shifting the lens off-center and clamping the clip-path at the stale
-// edge. Fixed clearance = slider maxes (GlassTuneContext.tsx
-// GEOMETRY_SLIDERS_BY_TARGET.pill: width max 300, height max 80).
+// edge. Clearance = half the largest expected lens extent (height slider max
+// 80; width is now dynamic per active entry, 150 stays a safe upper bound).
 const PILL_CLEARANCE_X = 150;
 const PILL_CLEARANCE_Y = 80;
 
@@ -51,6 +55,13 @@ export function TopBar(): JSX.Element {
   const { pill } = useGlassTune();
   const navRef = useRef<HTMLDivElement>(null);
   const lensX = useMemo(() => glassValue(0.5), []);
+  // Dynamic lens width: animates to the active nav entry's width (+ pad) on
+  // route change. A motion value so the package animates geometry cheaply and
+  // re-rasters the displacement map on its 90ms debounce, not every frame.
+  // Seed read once only — recreating the value on width change would reset the
+  // imperative animation (same one-shot-seed pattern as lensX above).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lensW = useMemo(() => glassValue(pill.geometry.width), []);
 
   // Slide the glass pill lens so its center sits on the active nav entry's
   // center. The motion value is a 0..1 fraction of the glass container width.
@@ -71,7 +82,8 @@ export function TopBar(): JSX.Element {
     const fraction =
       glassRect.width > 0 ? (activeCenter - glassRect.left) / glassRect.width : 0.5;
     animateGlassValue(lensX, Math.max(0, Math.min(1, fraction)), PILL_ANIMATION);
-  }, [location.pathname, lensX]);
+    animateGlassValue(lensW, activeRect.width + PILL_WIDTH_PAD, PILL_ANIMATION);
+  }, [location.pathname, lensX, lensW]);
 
   const renderNavItems = (as: 'link' | 'copy') => (
     <div className="topbar-nav-items">
@@ -111,7 +123,7 @@ export function TopBar(): JSX.Element {
           <div ref={navRef} className="topbar-glass-nav">
             <Glass
               optics={pill.effectiveOptics}
-              width={pill.geometry.width}
+              width={lensW}
               height={pill.geometry.height}
               radius={pill.geometry.radius}
               center={{ x: lensX, y: 0.5 }}
