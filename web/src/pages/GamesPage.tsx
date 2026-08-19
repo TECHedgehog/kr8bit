@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams, Link, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
-import { useSliderIndicator } from '../hooks/useSliderIndicator';
 import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
 import IconGrid3x3 from '@tabler/icons-react/dist/esm/icons/IconGrid3x3.mjs';
 import IconList from '@tabler/icons-react/dist/esm/icons/IconList.mjs';
@@ -79,23 +78,9 @@ export function GamesPage(): JSX.Element {
   useTiltGlow(searchRef);
   const viewToggleRef = useRef<HTMLDivElement>(null);
   useGlowFollow(viewToggleRef);
-  const viewToggleIndicatorRef = useRef<HTMLDivElement>(null);
-  const viewIndicator = useSliderIndicator({
-    toggleRef: viewToggleRef,
-    indicatorRef: viewToggleIndicatorRef,
-    activeSelector: '.icon-button.active',
-    dep: view,
-  });
 
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
   useGlowFollow(gridSizeToggleRef, view === 'grid');
-  const gridSizeIndicatorRef = useRef<HTMLDivElement>(null);
-  const gridSizeIndicator = useSliderIndicator({
-    toggleRef: gridSizeToggleRef,
-    indicatorRef: gridSizeIndicatorRef,
-    activeSelector: '.size-button.active',
-    dep: gridSize,
-  });
 
   useEffect(() => {
     setSearchInput(search);
@@ -263,46 +248,38 @@ export function GamesPage(): JSX.Element {
 
           {view === 'grid' && (
             <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
-              <div
-                ref={gridSizeIndicatorRef}
-                className={`view-toggle-indicator${gridSizeIndicator.suppressTransition ? ' view-toggle-indicator--no-transition' : ''}`}
-                style={gridSizeIndicator.indicatorStyle}
-                onAnimationEnd={gridSizeIndicator.onAnimationEnd}
-              />
-              {GRID_SIZES.map((s) => (
-                <button
-                  key={s.value}
-                  className={`size-button${gridSize === s.value ? ' active' : ''}`}
-                  onClick={() => onGridSizeChange(s.value)}
-                  title={s.label}
-                >
-                  <IconSquareFilled size={s.iconSize}/>
-                </button>
-              ))}
+              <div className="view-toggle-lens">
+                {GRID_SIZES.map((s) => (
+                  <button
+                    key={s.value}
+                    className={`size-button${gridSize === s.value ? ' active' : ''}`}
+                    onClick={() => onGridSizeChange(s.value)}
+                    title={s.label}
+                  >
+                    <IconSquareFilled size={s.iconSize}/>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           <div className="view-toggle glow-follow" ref={viewToggleRef}>
-            <div
-              ref={viewToggleIndicatorRef}
-              className={`view-toggle-indicator${viewIndicator.suppressTransition ? ' view-toggle-indicator--no-transition' : ''}`}
-              style={viewIndicator.indicatorStyle}
-              onAnimationEnd={viewIndicator.onAnimationEnd}
-            />
-            <IconButton
-              icon={IconGrid3x3}
-              label="Grid view"
-              active={view === 'grid'}
-              ghost
-              onClick={() => onViewChange('grid')}
-            />
-            <IconButton
-              icon={IconList}
-              label="List view"
-              active={view === 'list'}
-              ghost
-              onClick={() => onViewChange('list')}
-            />
+            <div className="view-toggle-lens">
+              <IconButton
+                icon={IconGrid3x3}
+                label="Grid view"
+                active={view === 'grid'}
+                ghost
+                onClick={() => onViewChange('grid')}
+              />
+              <IconButton
+                icon={IconList}
+                label="List view"
+                active={view === 'list'}
+                ghost
+                onClick={() => onViewChange('list')}
+              />
+            </div>
           </div>
         </div>
       </div>

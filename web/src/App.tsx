@@ -3,6 +3,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { ScanPage } from './pages/ScanPage';
 import { GamesPage } from './pages/GamesPage';
 import { GameDetailCard } from './components/GameDetailCard';
+import { GlassTestPage } from './pages/GlassTestPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 export function App(): JSX.Element {
@@ -15,6 +16,7 @@ export function App(): JSX.Element {
           <Route path=":id" element={<GameDetailCard />} />
         </Route>
         <Route path="/scan" element={<ScanPage />} />
+        <Route path="/glass-test" element={<GlassTestPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
