@@ -17,12 +17,12 @@ import {
 // fill that won't resolve a var() reference, so hex is safest here.
 const PANEL_BG = {
   dark: '#121419',
-  light: '#ffffff',
+  light: '#f7f8fb',
 } as const;
 
 const TRACK = {
   dark: '#252932',
-  light: '#e6e8ec',
+  light: '#d8dce4',
 } as const;
 
 const ACTIVE = {

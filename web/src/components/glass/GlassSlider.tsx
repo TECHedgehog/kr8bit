@@ -398,8 +398,8 @@ export const GlassSlider: React.FC<GlassSliderProps> = ({
     };
   }, [isDark, isSafari, lens]);
 
-  const surfaceColor = surface ?? (isDark ? '#1f1f24' : '#ffffff');
-  const track = trackColor ?? (isDark ? '#2a2828' : '#e1dfdf');
+  const surfaceColor = surface ?? (isDark ? '#1f1f24' : '#f7f8fb');
+  const track = trackColor ?? (isDark ? '#2a2828' : '#d8dce4');
   const active = activeColor ?? '#0a84ff';
 
   const endDrag = (e: React.PointerEvent) => {

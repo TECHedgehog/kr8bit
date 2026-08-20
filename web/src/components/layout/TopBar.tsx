@@ -300,7 +300,7 @@ export function TopBar(): JSX.Element {
     </div>
   );
 
-  const behind = theme === 'dark' ? '#1a1d24' : '#f0f1f4';
+  const behind = theme === 'dark' ? '#1a1d24' : '#e8ebf0';
 
   return (
     <>
