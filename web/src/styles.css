@@ -200,14 +200,18 @@ a {
   align-items: center;
   height: 46px;
   border-radius: var(--radius-full);
-  background: var(--surface-2);
+  background: rgba(26, 29, 36, 0.65);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-lg);
   position: relative;
 }
 
 [data-theme='light'] .topbar-pill {
-  background: var(--surface-1);
+  background: rgba(255, 255, 255, 0.65);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
   border-color: rgba(0, 0, 0, 0.08);
 }
@@ -217,7 +221,15 @@ a {
 }
 
 .topbar-theme-pill {
-  padding: 0 var(--space-2);
+  padding: 3px;
+  height: 48px;
+  overflow: hidden;
+}
+
+/* While the lens is raised (transit between theme entries) let it grow beyond
+   the pill border. At rest the clip stays so idle lens bleed is contained. */
+.topbar-theme-pill.is-moving {
+  overflow: visible;
 }
 
 /* Fixed nav pill — centered, stays on top while scrolling. */
@@ -283,6 +295,13 @@ a {
   color: var(--text);
 }
 
+/* Theme options are icon-only. Elongate BOTH the link <button> and the
+   refracted copy <div> equally (via a shared class) so they overlay and the
+   icon stays centered in the lens. radius-full yields a capsule. */
+.topbar-theme-link {
+  min-width: 46px;
+}
+
 /* Responsive — shrink pills to one row on narrow screens. */
 @media (max-width: 720px) {
   .topbar-flow {
@@ -304,27 +323,6 @@ a {
   .topbar-link span {
     display: none;
   }
-}
-
-/* ===== Theme Toggle ===== */
-
-.theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-full);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s;
-}
-
-.theme-toggle:hover {
-  color: var(--text);
-  background: var(--glass-tint-hover-bg);
 }
 
 /* ===== Page Container ===== */
@@ -415,6 +413,18 @@ button.danger {
 
 button.danger:hover:not(:disabled) {
   background: var(--danger-subtle);
+}
+
+/* topbar-link rendered as <button> (theme toggle): neutralize the global
+   button default — the inset edge shadow (rest) and the hover background tint
+   — so it stays seamless like the nav <a> links. Only color shifts on hover.
+   Specificity 0,1,1 / 0,2,2 beats `button` (0,0,1) and
+   `button:hover:not(:disabled)` (0,2,1). */
+button.topbar-link,
+button.topbar-link:hover:not(:disabled) {
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* ===== IconButton ===== */

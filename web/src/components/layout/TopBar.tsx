@@ -7,12 +7,11 @@ import {
   glassValue,
 } from '@samasante/liquid-glass';
 import IconDeviceGamepad2 from '@tabler/icons-react/dist/esm/icons/IconDeviceGamepad2.mjs';
-import IconSun from '@tabler/icons-react/dist/esm/icons/IconSun.mjs';
-import IconMoon from '@tabler/icons-react/dist/esm/icons/IconMoon.mjs';
 import { useTheme } from '../../context/ThemeContext';
 import { useGlowFollow } from '../../hooks/useGlowFollow';
 import { useGlassTune } from '../../context/GlassTuneContext';
 import { NAV_ITEMS } from './navItems';
+import { THEME_ITEMS } from './themeItems';
 
 // Smooth S-curve — slow start + slow end. Used for the horizontal slide and
 // the RAISE phase so the lens starts moving/growing slowly and decelerates
@@ -94,6 +93,18 @@ export function TopBar(): JSX.Element {
   const lensH = useMemo(() => glassValue(42), []);
   const lensScale = useMemo(() => glassValue(LENS_SCALE_IDLE), []);
 
+  // ---- Theme lens (mirrors the nav lens above) ----
+  // Two-icon pill (moon/sun). The lens slides to the active entry on theme
+  // change with the same raise → move → lower choreography as the nav lens.
+  const themeNavRef = useRef<HTMLDivElement>(null);
+  const themeMountedRef = useRef(false);
+  const themeTransitRef = useRef(0);
+  const [themeIsMoving, setThemeIsMoving] = useState(false);
+  const themeLensX = useMemo(() => glassValue(0.5), []);
+  const themeLensW = useMemo(() => glassValue(40), []);
+  const themeLensH = useMemo(() => glassValue(42), []);
+  const themeLensScale = useMemo(() => glassValue(LENS_SCALE_IDLE), []);
+
   // Slide the glass pill lens so its center sits on the active nav entry's
   // center. The motion value is a 0..1 fraction of the glass container width.
   // On route change the lens slowly RAISES (grows tall + ramps refraction
@@ -173,6 +184,74 @@ export function TopBar(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMoving]);
 
+  // Slide the theme lens so its center sits on the active theme entry (moon or
+  // sun). Same raise → move → lower choreography as the nav lens, keyed on the
+  // theme value instead of the route.
+  useLayoutEffect(() => {
+    const nav = themeNavRef.current;
+    if (!nav) return;
+    const glass = nav.querySelector('[data-liquid-glass]') as HTMLElement | null;
+    if (!glass) return;
+    const active = nav.querySelector('.topbar-link.active') as HTMLElement | null;
+    if (!active) return;
+    const glassRect = glass.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const activeCenter = activeRect.left + activeRect.width / 2;
+    const fraction =
+      glassRect.width > 0 ? (activeCenter - glassRect.left) / glassRect.width : 0.5;
+    const rim = LENS_MARGIN;
+    const targetW = activeRect.width + 2 * rim;
+    const clampedFraction = Math.max(0, Math.min(1, fraction));
+    const idleH = activeRect.height + 2 * LENS_MARGIN;
+    const peakH = idleH + LENS_RISE;
+    const peakStrength = LENS_SCALE_PEAK;
+
+    if (!themeMountedRef.current) {
+      themeLensX.set(clampedFraction);
+      themeLensW.set(targetW);
+      themeLensH.set(idleH);
+      themeLensScale.set(LENS_SCALE_IDLE);
+      themeMountedRef.current = true;
+      return;
+    }
+
+    const myTransit = ++themeTransitRef.current;
+    setThemeIsMoving(true);
+
+    animateGlassValue(themeLensX, clampedFraction, MOVE_ANIMATION);
+    animateGlassValue(themeLensW, targetW, MOVE_ANIMATION);
+    animateGlassValue(themeLensH, peakH, {
+      ...RAISE_ANIMATION,
+      onComplete: () => {
+        if (themeTransitRef.current !== myTransit) return; // superseded
+        animateGlassValue(themeLensH, idleH, {
+          ...LOWER_ANIMATION,
+          onComplete: () => {
+            if (themeTransitRef.current !== myTransit) return;
+            setThemeIsMoving(false);
+          },
+        });
+        animateGlassValue(themeLensScale, LENS_SCALE_IDLE, LOWER_ANIMATION);
+      },
+    });
+    animateGlassValue(themeLensScale, peakStrength, RAISE_ANIMATION);
+  }, [theme, themeLensX, themeLensW, themeLensH, themeLensScale]);
+
+  // While idle, re-sync the theme lens dimensions to the active entry's
+  // measured rect without animating. Mirrors the nav idle re-sync above.
+  useLayoutEffect(() => {
+    if (!themeMountedRef.current || themeIsMoving) return;
+    const nav = themeNavRef.current;
+    if (!nav) return;
+    const active = nav.querySelector('.topbar-link.active') as HTMLElement | null;
+    if (!active) return;
+    const activeRect = active.getBoundingClientRect();
+    const rim = LENS_MARGIN;
+    themeLensH.set(activeRect.height + 2 * LENS_MARGIN);
+    themeLensW.set(activeRect.width + 2 * rim);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeIsMoving]);
+
   const renderNavItems = (as: 'link' | 'copy') => (
     <div className="topbar-nav-items">
       {NAV_ITEMS.map((item) =>
@@ -197,6 +276,30 @@ export function TopBar(): JSX.Element {
     </div>
   );
 
+  const renderThemeItems = (as: 'link' | 'copy') => (
+    <div className="topbar-nav-items">
+      {THEME_ITEMS.map((item) => {
+        const isActive = theme === item.theme;
+        return as === 'link' ? (
+          <button
+            key={item.theme}
+            type="button"
+            className={`topbar-link topbar-theme-link${isActive ? ' active' : ''}`}
+            onClick={isActive ? undefined : toggleTheme}
+            aria-label={`Switch to ${item.theme} mode`}
+            aria-pressed={isActive}
+          >
+            <item.icon size={16} />
+          </button>
+        ) : (
+          <div key={item.theme} className="topbar-link topbar-theme-link">
+            <item.icon size={16} color={item.color} />
+          </div>
+        );
+      })}
+    </div>
+  );
+
   const behind = theme === 'dark' ? '#1a1d24' : '#f0f1f4';
 
   return (
@@ -209,14 +312,34 @@ export function TopBar(): JSX.Element {
             <span>kr8bit</span>
           </div>
         </div>
-        <div ref={themeRef} className="topbar-pill topbar-theme-pill glow-follow">
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-          >
-            {theme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
-          </button>
+        <div
+          ref={themeRef}
+          className={`topbar-pill topbar-theme-pill glow-follow${themeIsMoving ? ' is-moving' : ''}`}
+        >
+          <div ref={themeNavRef} className="topbar-glass-nav">
+            <Glass
+              optics={pill.effectiveOptics}
+              width={themeLensW}
+              height={themeLensH}
+              radius={LENS_RADIUS}
+              center={{ x: themeLensX, y: 0.5 }}
+              scale={themeLensScale}
+              depth={LENS_DEPTH}
+              refract={renderThemeItems('copy')}
+              behind={behind}
+              filterResolution={2}
+              style={{
+                display: 'flex',
+                width: 'fit-content',
+                paddingInline: PILL_CLEARANCE_X,
+                marginInline: -PILL_CLEARANCE_X,
+                minHeight: PILL_CLEARANCE_Y,
+                overflow: 'visible',
+              }}
+            >
+              {renderThemeItems('link')}
+            </Glass>
+          </div>
         </div>
       </div>
       {/* Fixed nav pill — centered, stays on top while scrolling. */}
