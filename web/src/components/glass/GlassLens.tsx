@@ -24,7 +24,7 @@ import {
  *   No teleporting — all transitions are eased.
  */
 
-export const HERO_DEFAULT: Partial<GlassOptics> = {
+export const ORB_DEFAULT: Partial<GlassOptics> = {
   // A visible magnifying dome in the centre — the "liquid" middle.
   curvature: 0.6,
   // Refraction reaches well inward so the dome reads.
@@ -52,13 +52,13 @@ export const HERO_DEFAULT: Partial<GlassOptics> = {
   softEdge: true,
 };
 
-export interface HeroLensGeometry {
+export interface LensGeometry {
   width: number;
   height: number;
   radius: number;
 }
 
-export const DEFAULT_GEOMETRY: HeroLensGeometry = {
+export const DEFAULT_ORB_GEOMETRY: LensGeometry = {
   width: 220,
   height: 220,
   radius: 110,
@@ -106,7 +106,7 @@ const LENS_INSET_PX = 8;
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
 
-export interface HeroLensProps {
+export interface GlassLensProps {
   children: ReactNode;
   /** Lens width in px. @default 220 */
   width?: number;
@@ -114,7 +114,7 @@ export interface HeroLensProps {
   height?: number;
   /** Corner radius in px. @default 110 */
   radius?: number;
-  /** Optic overrides merged onto the hero default. */
+  /** Optic overrides merged onto the orb default. */
   optics?: Partial<GlassOptics>;
   /** Class on the tracking container. */
   className?: string;
@@ -126,17 +126,17 @@ export interface HeroLensProps {
   movementPattern?: MovementPattern;
 }
 
-export function HeroLens({
+export function GlassLens({
   children,
-  width = DEFAULT_GEOMETRY.width,
-  height = DEFAULT_GEOMETRY.height,
-  radius = DEFAULT_GEOMETRY.radius,
+  width = DEFAULT_ORB_GEOMETRY.width,
+  height = DEFAULT_ORB_GEOMETRY.height,
+  radius = DEFAULT_ORB_GEOMETRY.radius,
   optics,
   className,
   followCursor = true,
   independent = false,
   movementPattern = 'lissajous',
-}: HeroLensProps): JSX.Element {
+}: GlassLensProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   // Created once — the pointer handler / rAF loop mutates these without
   // re-rendering.
@@ -342,7 +342,7 @@ export function HeroLens({
         height={height}
         radius={radius}
         center={{ x: mx, y: my }}
-        optics={{ ...HERO_DEFAULT, ...optics }}
+        optics={{ ...ORB_DEFAULT, ...optics }}
         filterResolution={2}
       >
         {children}

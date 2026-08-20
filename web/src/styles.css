@@ -28,7 +28,7 @@
   --topbar-top-gap: 12px;
   --topbar-side-gap: 16px;
   --topbar-max-w: 500px;
-  --topbar-flow-offset: 80px;
+  --topbar-flow-offset: 74px;
 
   --tilt-max: 6deg;
   --tilt-perspective: 900px;
@@ -172,62 +172,79 @@ a {
 
 .app-layout {
   min-height: 100vh;
+  padding-top: var(--topbar-top-gap);
 }
 
 .app-content {
   min-height: calc(100vh - var(--topbar-flow-offset));
-  padding-top: var(--topbar-flow-offset);
+  padding-top: var(--space-4);
 }
 
 /* ===== TopBar ===== */
 
-.topbar-shell {
-  position: fixed;
-  top: var(--topbar-top-gap);
-  left: 0;
-  right: 0;
-  margin: 0 auto;
+/* In-flow row: logo pill (left) + theme pill (right). Scrolls away. */
+.topbar-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1400px;
   width: 100%;
-  max-width: var(--topbar-max-w);
-  height: 52px;
-  z-index: 50;
-  border-radius: var(--radius-full);
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+  height: 46px;
 }
 
-.topbar-bg {
-  position: absolute;
-  inset: 0;
+/* Shared surface pill — identical height + treatment for all three bars. */
+.topbar-pill {
+  display: flex;
+  align-items: center;
+  height: 46px;
   border-radius: var(--radius-full);
   background: var(--surface-2);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-lg);
-  z-index: 0;
-  pointer-events: none;
+  position: relative;
 }
 
-[data-theme='light'] .topbar-bg {
+[data-theme='light'] .topbar-pill {
   background: var(--surface-1);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
   border-color: rgba(0, 0, 0, 0.08);
 }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
+.topbar-logo-pill {
   padding: 0 var(--space-4);
-  height: 100%;
-  width: 100%;
-  position: relative;
-  z-index: 1;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-full);
-  box-shadow: none;
+}
+
+.topbar-theme-pill {
+  padding: 0 var(--space-2);
+}
+
+/* Fixed nav pill — centered, stays on top while scrolling. */
+.topbar-nav-fixed {
+  position: fixed;
+  top: var(--topbar-top-gap);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: fit-content;
+  z-index: 50;
+}
+
+.topbar-nav-pill {
+  padding: 3px;
+  height: 48px;
+  overflow: hidden;
+}
+
+/* While the lens is raised (transit between nav entries) let it grow beyond
+   the pill border. At rest the clip stays so idle lens bleed is contained. */
+.topbar-nav-pill.is-moving {
+  overflow: visible;
 }
 
 .topbar-logo {
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text);
@@ -239,26 +256,20 @@ a {
 
 .topbar-logo svg {
   color: var(--accent);
-}
-
-.topbar-nav {
-  display: flex;
-  gap: var(--space-1);
-  align-items: center;
-  position: relative;
-  margin: 0 auto;
-  z-index: 2;
+  width: 20px;
+  height: 20px;
 }
 
 .topbar-link {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  gap: 6px;
+  height: 40px;
+  padding: 0 13px;
   border-radius: var(--radius-full);
   color: var(--text-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: 500;
   cursor: pointer;
   border: none;
@@ -272,14 +283,27 @@ a {
   color: var(--text);
 }
 
-.topbar-spacer {
-  flex: 1;
-}
+/* Responsive — shrink pills to one row on narrow screens. */
+@media (max-width: 720px) {
+  .topbar-flow {
+    padding: 0 var(--space-4);
+  }
 
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  .topbar-logo-pill {
+    padding: 0 var(--space-2);
+  }
+
+  .topbar-logo span {
+    display: none;
+  }
+
+  .topbar-link {
+    padding: 0 10px;
+  }
+
+  .topbar-link span {
+    display: none;
+  }
 }
 
 /* ===== Theme Toggle ===== */
@@ -288,8 +312,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-full);
   border: none;
   background: transparent;
@@ -1265,7 +1289,7 @@ textarea {
   --grow-scale: 1.1;
 }
 
-.topbar-shell.glow-follow {
+.topbar-pill.glow-follow {
   --grow-scale: 1.04;
   --glow-strength: 0.3;
 }
@@ -2352,10 +2376,10 @@ textarea {
   line-height: 1.6;
 }
 
-/* Hero lens — the tracking container needs a relative position and some
+/* Orb lens — the tracking container needs a relative position and some
    breathing room so the lens doesn't clip at the edges. Sizes to its text
    content (no forced height) so the box wraps the paragraphs. */
-.glass-test-herolens {
+.glass-test-orblens {
   position: relative;
   padding: var(--space-4);
   border-radius: var(--radius-lg);
@@ -2596,6 +2620,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-1);
+  gap: 0;
   height: 100%;
 }
+

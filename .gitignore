@@ -9,6 +9,7 @@ data
 prisma/migrations/dev.db*
 var/
 .opencode/
+.openchamber/
 
 # AI assistant tooling
 .caveman/

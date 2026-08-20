@@ -9,11 +9,11 @@ import {
 } from 'react';
 import type { GlassOptics } from '@samasante/liquid-glass';
 import {
-  HERO_DEFAULT,
-  DEFAULT_GEOMETRY,
-  type HeroLensGeometry,
+  ORB_DEFAULT,
+  DEFAULT_ORB_GEOMETRY,
+  type LensGeometry,
   type MovementPattern,
-} from '../components/glass/HeroLens';
+} from '../components/glass/GlassLens';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -34,16 +34,20 @@ export interface OpticSection {
 }
 
 // ── Pill defaults ───────────────────────────────────────────────────
-// Tuned for a thin oblong pill (80×32), not a 220×220 round lens.
-// HERO_DEFAULT's depth 0.85 / curvature 0.6 is a strong magnifying dome
-// that distorts on a pill; these values keep a glassy rim + edge-light
-// without a heavy body dome. Reference: SLIDER_BASE in GlassSlider.tsx
-// (thin-control precedent).
+// Tuned for a thin oblong pill, not a 220×220 round lens. ORB_DEFAULT's
+// depth 0.85 / curvature 0.6 is a strong magnifying dome that distorts on
+// a pill; these values keep a glassy rim + edge-light without a heavy body
+// dome. Reference: SLIDER_BASE in GlassSlider.tsx (thin-control precedent).
+//
+// `strength` is the TRANSIT PEAK refraction: the lens has zero refraction
+// at rest (plain frosted chip) and ramps 0 → strength → 0 while it raises,
+// slides to the new active entry, and lowers back. The Strength slider
+// therefore controls the magnification seen only during the move.
 export const PILL_DEFAULT: Partial<GlassOptics> = {
   curvature: 0.4,
-  depth: 0.35,
+  depth: 0.5,
   dispersion: 0.4,
-  strength: 0.22,
+  strength: 0.5,
   bend: 0.12,
   bendWidth: 0.1,
   sheen: 0.5,
@@ -59,18 +63,18 @@ export const PILL_DEFAULT: Partial<GlassOptics> = {
   softEdge: true,
 };
 
-export const DEFAULT_PILL_GEOMETRY: HeroLensGeometry = {
+export const DEFAULT_PILL_GEOMETRY: LensGeometry = {
   width: 80,
-  height: 32,
-  radius: 16,
+  height: 44,
+  radius: 25,
 };
 
 // ── Slider configs ──────────────────────────────────────────────────
-// Per-target geometry ranges: hero is a large round lens, pill is a thin
+// Per-target geometry ranges: orb is a large round lens, pill is a thin
 // oblong chip. Pill height min 16 lets the default 32px pill be tuned
 // down; radius max 40 keeps the capsule ratio sensible at pill scale.
 export const GEOMETRY_SLIDERS_BY_TARGET: Record<GlassTarget, SliderConfig<GeometryKey>[]> = {
-  hero: [
+  orb: [
     { key: 'width', label: 'Width', min: 80, max: 400, step: 1 },
     { key: 'height', label: 'Height', min: 80, max: 400, step: 1 },
     { key: 'radius', label: 'Radius', min: 0, max: 200, step: 1 },
@@ -131,21 +135,21 @@ export function formatValue(value: number, step: number): string {
   return value.toFixed(2);
 }
 
-function geometryEquals(a: HeroLensGeometry, b: HeroLensGeometry): boolean {
+function geometryEquals(a: LensGeometry, b: LensGeometry): boolean {
   return a.width === b.width && a.height === b.height && a.radius === b.radius;
 }
 
 // ── Context ─────────────────────────────────────────────────────────
 
-export type GlassTarget = 'hero' | 'pill';
+export type GlassTarget = 'orb' | 'pill';
 
-// Re-exported for consumers of the context; defined in HeroLens.tsx where the
+// Re-exported for consumers of the context; defined in GlassLens.tsx where the
 // motion controller lives.
 export type { MovementPattern };
 
 interface TargetState {
   optics: Partial<GlassOptics>;
-  geometry: HeroLensGeometry;
+  geometry: LensGeometry;
   effectiveOptics: Partial<GlassOptics>;
 }
 
@@ -153,14 +157,14 @@ interface GlassTuneContextValue {
   activeTarget: GlassTarget;
   setActiveTarget: (target: GlassTarget) => void;
   active: TargetState;
-  hero: TargetState;
+  orb: TargetState;
   pill: TargetState;
   updateOptic: (key: OpticKey, value: number) => void;
   updateGeometry: (key: GeometryKey, value: number) => void;
   resetActive: () => void;
   saveActive: () => void;
   isDirty: boolean;
-  // Hero lens motion toggles. Playground-only — no other glass element reads
+  // Orb lens motion toggles. Playground-only — no other glass element reads
   // these. Persisted to localStorage so the test config survives reload.
   followCursor: boolean;
   independent: boolean;
@@ -176,7 +180,7 @@ const PILL_STORAGE_KEY = 'kr8bit-glass-pill';
 
 interface StoredPillConfig {
   optics: Partial<GlassOptics>;
-  geometry: HeroLensGeometry;
+  geometry: LensGeometry;
 }
 
 function loadStoredPill(): StoredPillConfig | null {
@@ -209,21 +213,21 @@ function saveStoredPill(config: StoredPillConfig): void {
   }
 }
 
-// ── Hero config persistence (explicit save) ───────────────────────
-// Hero is save-on-demand (the Save button), unlike pill which auto-saves.
+// ── Orb config persistence (explicit save) ────────────────────────
+// Orb is save-on-demand (the Save button), unlike pill which auto-saves.
 // Reset clears both the in-memory overrides and the stored snapshot.
-const HERO_STORAGE_KEY = 'kr8bit-glass-hero';
+const ORB_STORAGE_KEY = 'kr8bit-glass-orb';
 
-interface StoredHeroConfig {
+interface StoredOrbConfig {
   optics: Partial<GlassOptics>;
-  geometry: HeroLensGeometry;
+  geometry: LensGeometry;
 }
 
-function loadStoredHero(): StoredHeroConfig | null {
+function loadStoredOrb(): StoredOrbConfig | null {
   try {
-    const raw = localStorage.getItem(HERO_STORAGE_KEY);
+    const raw = localStorage.getItem(ORB_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredHeroConfig;
+    const parsed = JSON.parse(raw) as StoredOrbConfig;
     if (
       parsed &&
       typeof parsed === 'object' &&
@@ -241,24 +245,24 @@ function loadStoredHero(): StoredHeroConfig | null {
   return null;
 }
 
-function saveStoredHero(config: StoredHeroConfig): void {
+function saveStoredOrb(config: StoredOrbConfig): void {
   try {
-    localStorage.setItem(HERO_STORAGE_KEY, JSON.stringify(config));
+    localStorage.setItem(ORB_STORAGE_KEY, JSON.stringify(config));
   } catch {
     // ignore storage errors
   }
 }
 
-function clearStoredHero(): void {
+function clearStoredOrb(): void {
   try {
-    localStorage.removeItem(HERO_STORAGE_KEY);
+    localStorage.removeItem(ORB_STORAGE_KEY);
   } catch {
     // ignore storage errors
   }
 }
 
-// ── Motion config persistence (hero lens auto-movement) ───────────
-// Separate key from pill — motion is hero-only and toggles independently.
+// ── Motion config persistence (orb lens auto-movement) ───────────
+// Separate key from pill — motion is orb-only and toggles independently.
 const MOTION_STORAGE_KEY = 'kr8bit-glass-motion';
 
 interface StoredMotionConfig {
@@ -301,13 +305,13 @@ function saveStoredMotion(config: StoredMotionConfig): void {
 }
 
 export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [activeTarget, setActiveTarget] = useState<GlassTarget>('hero');
-  const storedHero = useMemo(() => loadStoredHero(), []);
-  const [heroOptics, setHeroOptics] = useState<Partial<GlassOptics>>(storedHero?.optics ?? {});
-  const [heroGeometry, setHeroGeometry] = useState<HeroLensGeometry>(storedHero?.geometry ?? DEFAULT_GEOMETRY);
+  const [activeTarget, setActiveTarget] = useState<GlassTarget>('orb');
+  const storedOrb = useMemo(() => loadStoredOrb(), []);
+  const [orbOptics, setOrbOptics] = useState<Partial<GlassOptics>>(storedOrb?.optics ?? {});
+  const [orbGeometry, setOrbGeometry] = useState<LensGeometry>(storedOrb?.geometry ?? DEFAULT_ORB_GEOMETRY);
   const storedPill = useMemo(() => loadStoredPill(), []);
   const [pillOptics, setPillOptics] = useState<Partial<GlassOptics>>(storedPill?.optics ?? {});
-  const [pillGeometry, setPillGeometry] = useState<HeroLensGeometry>(storedPill?.geometry ?? DEFAULT_PILL_GEOMETRY);
+  const [pillGeometry, setPillGeometry] = useState<LensGeometry>(storedPill?.geometry ?? DEFAULT_PILL_GEOMETRY);
   const storedMotion = useMemo(() => loadStoredMotion(), []);
   const [followCursor, setFollowCursor] = useState<boolean>(storedMotion.followCursor);
   const [independent, setIndependent] = useState<boolean>(storedMotion.independent);
@@ -323,8 +327,8 @@ export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.El
 
   const updateOptic = useCallback(
     (key: OpticKey, value: number) => {
-      if (activeTarget === 'hero') {
-        setHeroOptics((prev) => ({ ...prev, [key]: value }));
+      if (activeTarget === 'orb') {
+        setOrbOptics((prev) => ({ ...prev, [key]: value }));
       } else {
         setPillOptics((prev) => ({ ...prev, [key]: value }));
       }
@@ -334,8 +338,8 @@ export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.El
 
   const updateGeometry = useCallback(
     (key: GeometryKey, value: number) => {
-      if (activeTarget === 'hero') {
-        setHeroGeometry((prev) => ({ ...prev, [key]: value }));
+      if (activeTarget === 'orb') {
+        setOrbGeometry((prev) => ({ ...prev, [key]: value }));
       } else {
         setPillGeometry((prev) => ({ ...prev, [key]: value }));
       }
@@ -344,47 +348,47 @@ export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.El
   );
 
   const resetActive = useCallback(() => {
-    if (activeTarget === 'hero') {
-      setHeroOptics({});
-      setHeroGeometry(DEFAULT_GEOMETRY);
-      clearStoredHero();
+    if (activeTarget === 'orb') {
+      setOrbOptics({});
+      setOrbGeometry(DEFAULT_ORB_GEOMETRY);
+      clearStoredOrb();
     } else {
       setPillOptics({});
       setPillGeometry(DEFAULT_PILL_GEOMETRY);
     }
   }, [activeTarget]);
 
-  // Hero is save-on-demand; pill auto-saves via its own effect, so this is
+  // Orb is save-on-demand; pill auto-saves via its own effect, so this is
   // a no-op when pill is active (the Save button is hidden then anyway).
   const saveActive = useCallback(() => {
-    if (activeTarget === 'hero') {
-      saveStoredHero({ optics: heroOptics, geometry: heroGeometry });
+    if (activeTarget === 'orb') {
+      saveStoredOrb({ optics: orbOptics, geometry: orbGeometry });
     }
-  }, [activeTarget, heroOptics, heroGeometry]);
+  }, [activeTarget, orbOptics, orbGeometry]);
 
-  const heroEffective = useMemo(
-    () => ({ ...HERO_DEFAULT, ...heroOptics }),
-    [heroOptics],
+  const orbEffective = useMemo(
+    () => ({ ...ORB_DEFAULT, ...orbOptics }),
+    [orbOptics],
   );
   const pillEffective = useMemo(
     () => ({ ...PILL_DEFAULT, ...pillOptics }),
     [pillOptics],
   );
 
-  const hero: TargetState = useMemo(
+  const orb: TargetState = useMemo(
     () => ({
-      optics: heroOptics,
-      geometry: heroGeometry,
-      effectiveOptics: heroEffective,
+      optics: orbOptics,
+      geometry: orbGeometry,
+      effectiveOptics: orbEffective,
     }),
-    [heroOptics, heroGeometry, heroEffective],
+    [orbOptics, orbGeometry, orbEffective],
   );
 
   const active: TargetState = useMemo(
-    () => activeTarget === 'hero'
-      ? { optics: heroOptics, geometry: heroGeometry, effectiveOptics: heroEffective }
+    () => activeTarget === 'orb'
+      ? { optics: orbOptics, geometry: orbGeometry, effectiveOptics: orbEffective }
       : { optics: pillOptics, geometry: pillGeometry, effectiveOptics: pillEffective },
-    [activeTarget, heroOptics, heroGeometry, heroEffective, pillOptics, pillGeometry, pillEffective],
+    [activeTarget, orbOptics, orbGeometry, orbEffective, pillOptics, pillGeometry, pillEffective],
   );
 
   const pill: TargetState = useMemo(
@@ -396,8 +400,8 @@ export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.El
     [pillOptics, pillGeometry, pillEffective],
   );
 
-  const isDirty = activeTarget === 'hero'
-    ? Object.keys(heroOptics).length > 0 || !geometryEquals(heroGeometry, DEFAULT_GEOMETRY)
+  const isDirty = activeTarget === 'orb'
+    ? Object.keys(orbOptics).length > 0 || !geometryEquals(orbGeometry, DEFAULT_ORB_GEOMETRY)
     : Object.keys(pillOptics).length > 0 || !geometryEquals(pillGeometry, DEFAULT_PILL_GEOMETRY);
 
   const value = useMemo<GlassTuneContextValue>(
@@ -405,7 +409,7 @@ export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.El
       activeTarget,
       setActiveTarget,
       active,
-      hero,
+      orb,
       pill,
       updateOptic,
       updateGeometry,
@@ -422,7 +426,7 @@ export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.El
     [
       activeTarget,
       active,
-      hero,
+      orb,
       pill,
       updateOptic,
       updateGeometry,
