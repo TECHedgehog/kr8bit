@@ -712,6 +712,10 @@ textarea {
   font-size: var(--text-sm);
 }
 
+.library-title-block {
+  flex-shrink: 0;
+}
+
 .library-toolbar {
   display: flex;
   align-items: center;
@@ -766,22 +770,6 @@ textarea {
   flex: 1;
 }
 
-.toolbar-divider {
-  width: 1px;
-  height: 24px;
-  background: var(--border);
-  margin: 0 var(--space-1);
-}
-
-.view-toggle {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  position: relative;
-  align-items: center;
-  border-radius: var(--radius-full);
-}
-
 /* ===== Toggle segmented track ===== */
 .view-toggle-lens {
   display: inline-flex;
@@ -796,26 +784,6 @@ textarea {
   gap: 2px;
   align-items: center;
   height: 100%;
-}
-
-.view-toggle .icon-button {
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  position: relative;
-  z-index: 1;
-}
-
-.view-toggle .icon-button:hover:not(:disabled) {
-  color: var(--text);
-  background: transparent;
-}
-
-.view-toggle .icon-button.active {
-  background: var(--accent-subtle);
-  color: var(--accent);
 }
 
 /* ===== Grid Size Toggle ===== */
@@ -857,104 +825,66 @@ textarea {
   background: var(--accent-subtle);
 }
 
-/* ===== Sort Dropdown ===== */
+/* ===== Library Panels (Advanced Search / Settings) ===== */
 
-.sort-menu {
-  position: relative;
-}
-
-.sort-menu-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  background: var(--liquid-glass-bg);
-  backdrop-filter: var(--liquid-glass-blur);
-  -webkit-backdrop-filter: var(--liquid-glass-blur);
+.library-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  box-shadow: var(--liquid-glass-edge), var(--shadow-lg);
-  min-width: 180px;
-  z-index: 60;
-  overflow: hidden;
+  padding: var(--space-3);
 }
 
-.sort-menu-item {
+.panel-group {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.panel-label {
+  color: var(--text-muted);
   font-size: var(--text-sm);
-  background: transparent;
-  border: none;
-  width: 100%;
-  text-align: left;
-  border-radius: 0;
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 56px;
+}
+
+.panel-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.panel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
   font-weight: 500;
-}
-
-.sort-menu-item:hover {
-  background: var(--glass-tint-hover-bg);
-  border-color: transparent;
-}
-
-.sort-menu-item.active {
-  color: var(--accent);
-}
-
-.sort-menu-item svg {
-  color: var(--accent);
-  margin-left: auto;
-  opacity: 0;
-}
-
-.sort-menu-item.active svg {
-  opacity: 1;
-}
-
-/* ===== Status Filter Dropdown ===== */
-
-.filter-menu {
-  position: relative;
-}
-
-.filter-menu-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  background: var(--liquid-glass-bg);
-  backdrop-filter: var(--liquid-glass-blur);
-  -webkit-backdrop-filter: var(--liquid-glass-blur);
+  background: transparent;
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: var(--liquid-glass-edge), var(--shadow-lg);
-  min-width: 160px;
-  z-index: 60;
-  overflow: hidden;
-}
-
-.filter-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  color: var(--text-subtle);
   cursor: pointer;
-  font-size: var(--text-sm);
-  background: transparent;
-  border: none;
-  width: 100%;
-  text-align: left;
-  border-radius: 0;
-  font-weight: 500;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 
-.filter-menu-item:hover {
+.panel-chip:hover {
+  color: var(--text);
+  border-color: var(--border);
   background: var(--glass-tint-hover-bg);
-  border-color: transparent;
 }
 
-.filter-menu-item.active {
+.panel-chip.active {
   color: var(--accent);
+  background: var(--accent-subtle);
+  border-color: var(--accent);
 }
 
 /* ===== Game Grid ===== */
@@ -1302,12 +1232,6 @@ textarea {
 .topbar-pill.glow-follow {
   --grow-scale: 1.04;
   --glow-strength: 0.3;
-}
-
-.view-toggle.glow-follow {
-  --grow-scale: 1.04;
-  --glow-radius: 90px;
-  --glow-strength: 0.5;
 }
 
 .grid-size-toggle.glow-follow {

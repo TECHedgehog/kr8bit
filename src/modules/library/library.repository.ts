@@ -67,7 +67,6 @@ export const libraryRepository = {
     const offset = Math.max(filter.offset ?? 0, 0);
 
     const where: Record<string, unknown> = {};
-    if (filter.matchStatus) where.matchStatus = filter.matchStatus;
     if (filter.search) {
       where.OR = [
         { title: { contains: filter.search } },

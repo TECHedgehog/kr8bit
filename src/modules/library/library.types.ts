@@ -60,7 +60,6 @@ export interface GameUpdateInput {
 }
 
 export interface GameListFilter {
-  matchStatus?: MatchStatus;
   search?: string;
   limit?: number;
   offset?: number;

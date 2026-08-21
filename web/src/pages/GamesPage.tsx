@@ -1,31 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams, Link, Outlet } from 'react-router-dom';
+import { useSearchParams, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
-import IconGrid3x3 from '@tabler/icons-react/dist/esm/icons/IconGrid3x3.mjs';
-import IconList from '@tabler/icons-react/dist/esm/icons/IconList.mjs';
-import IconArrowsUpDown from '@tabler/icons-react/dist/esm/icons/IconArrowsUpDown.mjs';
-import IconFilter from '@tabler/icons-react/dist/esm/icons/IconFilter.mjs';
-import IconScan from '@tabler/icons-react/dist/esm/icons/IconScan.mjs';
+import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
+import IconSettings from '@tabler/icons-react/dist/esm/icons/IconSettings.mjs';
 import IconSortAZ from '@tabler/icons-react/dist/esm/icons/IconSortAZ.mjs';
 import IconSortZA from '@tabler/icons-react/dist/esm/icons/IconSortZA.mjs';
 import IconCalendarClock from '@tabler/icons-react/dist/esm/icons/IconCalendarClock.mjs';
 import IconCalendarMonth from '@tabler/icons-react/dist/esm/icons/IconCalendarMonth.mjs';
 import IconDatabase from '@tabler/icons-react/dist/esm/icons/IconDatabase.mjs';
 import IconDatabaseExport from '@tabler/icons-react/dist/esm/icons/IconDatabaseExport.mjs';
-import IconCheck from '@tabler/icons-react/dist/esm/icons/IconCheck.mjs';
 import IconSquareFilled from '@tabler/icons-react/dist/esm/icons/IconSquareFilled.mjs';
 import { api, ApiError } from '../api/client';
-import type { GameListResult, MatchStatus } from '../api/types';
+import type { GameListResult } from '../api/types';
 import { GameCard } from '../components/GameCard';
-import { GameListRow } from '../components/GameListRow';
 import { IconButton } from '../components/IconButton';
 
 
-type ViewMode = 'grid' | 'list';
 type SortKey = 'title-asc' | 'title-desc' | 'newest' | 'oldest' | 'largest' | 'smallest';
-type StatusFilter = '' | MatchStatus;
+type Panel = 'advanced' | 'settings' | null;
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSortAZ }> = [
   { value: 'title-asc', label: 'Title A-Z', icon: IconSortAZ },
@@ -34,15 +28,6 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSort
   { value: 'oldest', label: 'Oldest first', icon: IconCalendarMonth },
   { value: 'largest', label: 'Largest first', icon: IconDatabase },
   { value: 'smallest', label: 'Smallest first', icon: IconDatabaseExport },
-];
-
-const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: '', label: 'All statuses' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'FLAGGED', label: 'Flagged' },
-  { value: 'ACCEPTED', label: 'Accepted' },
-  { value: 'MANUAL', label: 'Manual' },
-  { value: 'REJECTED', label: 'Rejected' },
 ];
 
 const LIMIT_OPTIONS = [10, 25, 50, 100];
@@ -57,9 +42,7 @@ const GRID_SIZE_DEFAULT = 160;
 export function GamesPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const view = (searchParams.get('view') as ViewMode) ?? 'grid';
   const sort = (searchParams.get('sort') as SortKey) ?? 'title-asc';
-  const status = (searchParams.get('status') as StatusFilter) ?? '';
   const search = searchParams.get('search') ?? '';
   const limit = Number(searchParams.get('limit') ?? 25);
   const offset = Number(searchParams.get('offset') ?? 0);
@@ -70,17 +53,11 @@ export function GamesPage(): JSX.Element {
   const [data, setData] = useState<GameListResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sortOpen, setSortOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const sortRef = useRef<HTMLDivElement>(null);
-  const filterRef = useRef<HTMLDivElement>(null);
+  const [panelOpen, setPanelOpen] = useState<Panel>(null);
   const searchRef = useRef<HTMLFormElement>(null);
   useTiltGlow(searchRef);
-  const viewToggleRef = useRef<HTMLDivElement>(null);
-  useGlowFollow(viewToggleRef);
-
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
-  useGlowFollow(gridSizeToggleRef, view === 'grid');
+  useGlowFollow(gridSizeToggleRef);
 
   useEffect(() => {
     setSearchInput(search);
@@ -91,7 +68,6 @@ export function GamesPage(): JSX.Element {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (status) params.set('status', status);
       if (search.trim()) params.set('search', search.trim());
       params.set('limit', String(limit));
       params.set('offset', String(offset));
@@ -102,20 +78,11 @@ export function GamesPage(): JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [status, search, limit, offset]);
+  }, [search, limit, offset]);
 
   useEffect(() => {
     void fetchPage();
   }, [fetchPage]);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   function updateParams(updates: Record<string, string | number>) {
     const next = new URLSearchParams(searchParams);
@@ -136,16 +103,6 @@ export function GamesPage(): JSX.Element {
 
   function onSortChange(key: SortKey) {
     updateParams({ sort: key, offset: 0 });
-    setSortOpen(false);
-  }
-
-  function onStatusChange(value: StatusFilter) {
-    updateParams({ status: value, offset: 0 });
-    setFilterOpen(false);
-  }
-
-  function onViewChange(mode: ViewMode) {
-    updateParams({ view: mode });
   }
 
   function onLimitChange(value: number) {
@@ -156,21 +113,26 @@ export function GamesPage(): JSX.Element {
     updateParams({ gridSize: value });
   }
 
+  function togglePanel(panel: 'advanced' | 'settings') {
+    setPanelOpen((current) => (current === panel ? null : panel));
+  }
+
   const total = data?.total ?? 0;
   const items = data?.items ?? [];
   const hasPrev = offset > 0;
   const hasNext = offset + items.length < total;
-  const currentSort = SORT_OPTIONS.find((o) => o.value === sort) ?? SORT_OPTIONS[0];
 
   return (
     <div className="page">
       <div className="library-header">
-        <div>
-          <div className="library-title">Library</div>
-          <div className="library-subtitle">{total} {total === 1 ? 'game' : 'games'}</div>
-        </div>
-
         <div className="library-toolbar">
+          <div className="library-title-block">
+            <div className="library-title">Library</div>
+            <div className="library-subtitle">{total} {total === 1 ? 'game' : 'games'}</div>
+          </div>
+
+          <div className="toolbar-spacer" />
+
           <form
             ref={searchRef}
             className={`library-search tilt-glow${searchExpanded ? ' is-expanded' : ''}`}
@@ -191,97 +153,67 @@ export function GamesPage(): JSX.Element {
             />
           </form>
 
-          <div className="toolbar-spacer" />
+          <IconButton
+            icon={IconAdjustments}
+            label="Advanced search"
+            active={panelOpen === 'advanced'}
+            onClick={() => togglePanel('advanced')}
+            glow
+          />
 
-          <div className="filter-menu" ref={filterRef}>
-            <IconButton
-              icon={IconFilter}
-              label="Filter by status"
-              active={status !== ''}
-              onClick={() => setFilterOpen((v) => !v)}
-              glow
-            />
-            {filterOpen && (
-              <div className="filter-menu-dropdown">
-                {STATUS_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    className={`filter-menu-item${status === o.value ? ' active' : ''}`}
-                    onClick={() => onStatusChange(o.value)}
-                  >
-                    {o.label}
-                    {status === o.value && <IconCheck size={14} style={{ marginLeft: 'auto' }} />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="sort-menu" ref={sortRef}>
-            <IconButton
-              icon={IconArrowsUpDown}
-              label={`Sort: ${currentSort.label}`}
-              onClick={() => setSortOpen((v) => !v)}
-              glow
-            />
-            {sortOpen && (
-              <div className="sort-menu-dropdown">
-                {SORT_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    className={`sort-menu-item${sort === o.value ? ' active' : ''}`}
-                    onClick={() => onSortChange(o.value)}
-                  >
-                    {o.label}
-                    {sort === o.value && <IconCheck size={14} />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <Link to="/scan">
-            <IconButton icon={IconScan} label="Go to scanner" glow />
-          </Link>
-
-          <div className="toolbar-divider" />
-
-          {view === 'grid' && (
-            <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
-              <div className="view-toggle-lens">
-                {GRID_SIZES.map((s) => (
-                  <button
-                    key={s.value}
-                    className={`size-button${gridSize === s.value ? ' active' : ''}`}
-                    onClick={() => onGridSizeChange(s.value)}
-                    title={s.label}
-                  >
-                    <IconSquareFilled size={s.iconSize}/>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="view-toggle glow-follow" ref={viewToggleRef}>
-            <div className="view-toggle-lens">
-              <IconButton
-                icon={IconGrid3x3}
-                label="Grid view"
-                active={view === 'grid'}
-                ghost
-                onClick={() => onViewChange('grid')}
-              />
-              <IconButton
-                icon={IconList}
-                label="List view"
-                active={view === 'list'}
-                ghost
-                onClick={() => onViewChange('list')}
-              />
-            </div>
-          </div>
+          <IconButton
+            icon={IconSettings}
+            label="Settings"
+            active={panelOpen === 'settings'}
+            onClick={() => togglePanel('settings')}
+            glow
+          />
         </div>
+
+        {panelOpen === 'advanced' && (
+          <div className="library-panel">
+            <div className="panel-group">
+              <span className="panel-label">Sort</span>
+              <div className="panel-chips">
+                {SORT_OPTIONS.map((o) => {
+                  const Icon = o.icon;
+                  return (
+                    <button
+                      key={o.value}
+                      className={`panel-chip${sort === o.value ? ' active' : ''}`}
+                      onClick={() => onSortChange(o.value)}
+                    >
+                      <Icon size={14} />
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {panelOpen === 'settings' && (
+          <div className="library-panel">
+            <div className="panel-group">
+              <span className="panel-label">Grid size</span>
+              <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
+                <div className="view-toggle-lens">
+                  {GRID_SIZES.map((s) => (
+                    <button
+                      key={s.value}
+                      className={`size-button${gridSize === s.value ? ' active' : ''}`}
+                      onClick={() => onGridSizeChange(s.value)}
+                      title={s.label}
+                    >
+                      <IconSquareFilled size={s.iconSize} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <div className="error">{error}</div>}
@@ -291,19 +223,11 @@ export function GamesPage(): JSX.Element {
         <div className="muted">No games found</div>
       )}
 
-      {view === 'grid' ? (
-        <div className="game-grid" style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}>
-          {items.map((g) => (
-            <GameCard key={g.id} game={g} />
-          ))}
-        </div>
-      ) : (
-        <div className="game-list">
-          {items.map((g) => (
-            <GameListRow key={g.id} game={g} />
-          ))}
-        </div>
-      )}
+      <div className="game-grid" style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}>
+        {items.map((g) => (
+          <GameCard key={g.id} game={g} />
+        ))}
+      </div>
 
       {total > 0 && (
         <div className="pagination">

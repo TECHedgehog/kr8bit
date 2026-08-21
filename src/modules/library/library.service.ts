@@ -1,25 +1,14 @@
-import { MatchStatus } from '../../shared/enums.js';
 import { ValidationError } from '../../shared/errors.js';
 import { libraryRepository } from '../library/library.repository.js';
 import type { Game, GameListFilter, GameListResult, GameUpdateInput } from './library.types.js';
 
 export interface NormalizedListFilter {
-  matchStatus?: MatchStatus;
   search?: string;
   limit: number;
   offset: number;
 }
 
 export function parseListFilter(query: Record<string, string | undefined>): NormalizedListFilter {
-  const validStatuses = new Set<string>(Object.values(MatchStatus));
-  let matchStatus: MatchStatus | undefined;
-  if (query.status) {
-    if (!validStatuses.has(query.status)) {
-      throw new ValidationError(`invalid status: ${query.status}`);
-    }
-    matchStatus = query.status as MatchStatus;
-  }
-
   let limit = 50;
   let offset = 0;
   if (query.limit !== undefined) {
@@ -38,7 +27,7 @@ export function parseListFilter(query: Record<string, string | undefined>): Norm
   }
   limit = Math.min(limit, 200);
   const search = query.search?.trim() || undefined;
-  return { matchStatus, search, limit, offset, };
+  return { search, limit, offset, };
 }
 
 export function sanitizeGamePatch(body: unknown): GameUpdateInput {
