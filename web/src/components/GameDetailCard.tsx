@@ -211,22 +211,7 @@ export function GameDetailCard(): JSX.Element {
                           </div>
                         </div>
                       )}
-                      {(game.tags && game.tags.length > 0) && (
-                        <div className="detail-row">
-                          <span className="detail-label">Tags</span>
-                          <div className="detail-badges">
-                            {game.tags.map((t) => (
-                              <span key={t} className="detail-pill detail-pill--tag">{t}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {(!game.tags || game.tags.length === 0) && (
-                        <div className="detail-row">
-                          <span className="detail-label">Tags</span>
-                          <span className="detail-value detail-value--placeholder">—</span>
-                        </div>
-                      )}
+
                     </div>
                   </section>
                 </div>

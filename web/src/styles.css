@@ -2015,11 +2015,6 @@ textarea {
   white-space: nowrap;
 }
 
-.detail-pill--tag {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 20%, transparent);
-  color: var(--accent);
-}
 
 .detail-pill--age {
   background: color-mix(in srgb, var(--warning) 10%, transparent);

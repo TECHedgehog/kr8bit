@@ -39,7 +39,6 @@ export interface Game {
   steamDeckItems?: SteamDeckCompatItem[];
   createdAt: string;
   updatedAt: string;
-  tags?: string[];
   ageRating?: string | null;
   metacriticScore?: number | null;
   releaseDate?: string | null;
