@@ -79,6 +79,10 @@
   --glass-tint-bg: rgba(255, 255, 255, 0.06);
   --glass-tint-hover-bg: rgba(255, 255, 255, 0.1);
   --glass-tint-edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --pill-bg: rgba(26, 29, 36, 0.65);
+  --pill-blur: blur(12px) saturate(1.2);
+  --pill-border-color: var(--border-subtle);
+  --pill-shadow: var(--shadow-lg);
   --pending: #8a93a3;
   --flagged: #d4a72c;
   --accepted: #3fb950;
@@ -124,6 +128,10 @@
   --glass-tint-bg: rgba(255, 255, 255, 0.35);
   --glass-tint-hover-bg: rgba(255, 255, 255, 0.5);
   --glass-tint-edge: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  --pill-bg: rgba(255, 255, 255, 0.5);
+  --pill-blur: blur(12px) saturate(1.2);
+  --pill-border-color: rgba(0, 0, 0, 0.1);
+  --pill-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
   --pending: #6b7280;
   --flagged: #ca8a04;
   --accepted: #16a34a;
@@ -429,6 +437,9 @@ button.topbar-link:hover:not(:disabled) {
 
 /* ===== IconButton ===== */
 
+/* Icon buttons share the nav-pill glass surface: dark translucent + blur +
+   border + shadow. Active = accent border + accent text (no fill). Ghost
+   variant overrides back to transparent for overlay/modal use. */
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -436,20 +447,21 @@ button.topbar-link:hover:not(:disabled) {
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid var(--border-subtle);
-  background: var(--glass-tint-bg);
+  border: 1px solid var(--pill-border-color);
+  background: var(--pill-bg);
+  -webkit-backdrop-filter: var(--pill-blur);
+  backdrop-filter: var(--pill-blur);
   color: var(--text-muted);
   border-radius: var(--radius-full);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
   position: relative;
-  box-shadow: var(--glass-tint-edge);
+  box-shadow: var(--pill-shadow);
 }
 
 .icon-button:hover:not(:disabled) {
   color: var(--text);
-  background: var(--glass-tint-hover-bg);
-  border-color: var(--accent);
+  border-color: var(--border);
 }
 
 .icon-button:disabled {
@@ -461,6 +473,8 @@ button.topbar-link:hover:not(:disabled) {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .icon-button.ghost:hover:not(:disabled) {
@@ -474,10 +488,10 @@ button.topbar-link:hover:not(:disabled) {
   background: var(--danger-subtle);
 }
 
-.icon-button.active {
+.icon-button.active,
+.icon-button.active:hover:not(:disabled) {
   color: var(--accent);
   border-color: var(--accent);
-  background: var(--accent-subtle);
 }
 
 /* ===== Tooltip ===== */
@@ -867,23 +881,25 @@ textarea {
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-sm);
   font-weight: 500;
-  background: transparent;
-  border: 1px solid var(--border-subtle);
+  background: var(--pill-bg);
+  -webkit-backdrop-filter: var(--pill-blur);
+  backdrop-filter: var(--pill-blur);
+  border: 1px solid var(--pill-border-color);
+  box-shadow: var(--pill-shadow);
   border-radius: var(--radius-full);
   color: var(--text-subtle);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
 }
 
-.panel-chip:hover {
+.panel-chip:hover:not(:disabled) {
   color: var(--text);
   border-color: var(--border);
-  background: var(--glass-tint-hover-bg);
 }
 
-.panel-chip.active {
+.panel-chip.active,
+.panel-chip.active:hover:not(:disabled) {
   color: var(--accent);
-  background: var(--accent-subtle);
   border-color: var(--accent);
 }
 
@@ -1243,6 +1259,7 @@ textarea {
 /* Search bar: grow on hover, soft halo glow around the border */
 .library-search.tilt-glow {
   transform: scale(var(--tilt-active-scale, 1));
+  --tilt-active-scale: 1.03;
   --glow-strength: 0.25;
 }
 

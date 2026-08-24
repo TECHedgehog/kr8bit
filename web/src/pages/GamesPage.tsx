@@ -239,7 +239,7 @@ export function GamesPage(): JSX.Element {
           <IconButton
             icon={IconAdjustments}
             label="Advanced search"
-            active={panelOpen === 'advanced' || status !== ''}
+            active={panelOpen === 'advanced'}
             onClick={() => togglePanel('advanced')}
             glow
           />
