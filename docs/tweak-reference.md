@@ -6,139 +6,110 @@ Quick guide to every visual knob in the UI. Each section maps to a component you
 
 ## TopBar
 
-Floating glass pill at the top of every page. Contains the logo, nav links, and theme toggle.
+Three glass pills at the top of every page: logo pill (left), theme pill (right), and a centered nav pill that stays fixed while scrolling. The logo + theme pills live in an in-flow row (`.topbar-flow`, `styles.css:186`) that scrolls away; only the nav pill is fixed.
 
-### Container (`.topbar`)
-`styles.css:181`
+### Surface (`.topbar-pill`)
+`styles.css:198`
 
-The pill shape itself. Uses tier-1 liquid glass tokens:
+Shared frosted-glass surface for all three pills. Hardcoded (does **not** use the `--liquid-glass-*` tokens — those drive cards/panels elsewhere):
+
+| Knob | Property | Location | Effect |
+|---|---|---|---|
+| Blur | `backdrop-filter` | `styles.css:204` | `blur(12px) saturate(1.2)` — frosted look. Higher = blurrier, more GPU |
+| Fill | `background` | `styles.css:203` | `rgba(26,29,36,0.65)` alpha — lower = more see-through |
+| Border | `border` | `styles.css:206` | `1px solid var(--border-subtle)` |
+| Shadow | `box-shadow` | `styles.css:207` | `var(--shadow-lg)` |
+| Height | `height` | `styles.css:201` | `46px` (nav/theme pills override to `48px` at `:225`/`:248`) |
+
+**Light mode override** — `[data-theme='light'] .topbar-pill` (`styles.css:211`): fill `rgba(255,255,255,0.5)`, same blur, stronger shadow `0 10px 30px rgba(0,0,0,0.16)`, border `rgba(0,0,0,0.1)`.
+
+**Variants**
+- `.topbar-logo-pill` (`:219`) — padding only.
+- `.topbar-theme-pill` (`:223`) — `padding: 3px`, `height: 48px`, `overflow: hidden`; `.is-moving` (`:231`) flips to `overflow: visible` so the raised lens can grow past the border.
+- `.topbar-nav-pill` (`:246`) — same as theme pill for the nav lens.
+
+**Positioning**
+The nav pill is fixed via its wrapper `.topbar-nav-fixed` (`styles.css:236`): `position: fixed; top: var(--topbar-top-gap); left: 0; right: 0; margin: 0 auto; width: fit-content; z-index: 50`. Logo + theme pills are in-flow inside `.topbar-flow` and scroll away.
 
 | Knob | Token | Location | Effect |
 |---|---|---|---|
-| Blur strength | `--liquid-glass-blur` | `styles.css:66` (dark), `:111` (light) | Higher = blurrier background behind the bar, more GPU |
-| Fill opacity | `--liquid-glass-bg` alpha | `styles.css:67` (dark), `:112` (light) | Lower = more see-through |
-| Edge shine | `--liquid-glass-edge` white alpha | `styles.css:68` (dark), `:113` (light) | Higher = stronger rim light on top edge |
 | Top gap | `--topbar-top-gap` | `styles.css:28` | Space between bar and viewport top |
-| Max width | `--topbar-max-w` | `styles.css:30` | Wider = bar stretches further on large screens |
-| Flow offset | `--topbar-flow-offset` | `styles.css:31` | Total vertical space the bar occupies (gap + height + margin). Used to push `.app-content` down so content never hides under the fixed bar |
+| Flow offset | `--topbar-flow-offset` | `styles.css:31` | Total vertical space (gap + height + margin) used to push `.app-content` down |
 
-**Light mode overrides** (scoped, do not affect dark mode or other components):
+### Sliding glass lens (JS-driven)
+`TopBar.tsx`
 
-| Knob | Selector | Location | Effect |
-|---|---|---|---|
-| Bar fill | `[data-theme='light'] .topbar` `background` | `styles.css:199` | `rgba(230,232,240,0.5)` — more opaque than base `0.35` so the pill is clearly visible on light backgrounds |
-| Bar shadow | `[data-theme='light'] .topbar` `box-shadow` | `styles.css:200` | `0 10px 30px rgba(0,0,0,0.16)` — stronger drop shadow for extra depth |
-| Bar border | `[data-theme='light'] .topbar` `border-color` | `styles.css:201` | `rgba(0,0,0,0.08)` — slightly darker rim for definition |
-| Lens fill | `[data-theme='light'] .topbar-indicator` `background` | `styles.css:224` | `rgba(30,32,40,0.08)` — neutral dark glass tint, clearly visible against the light bar |
+The moving pill behind the active nav link (and the active theme icon) is a `Glass` component from `@samasante/liquid-glass`, animated **imperatively** — there is no CSS transition or keyframe for the slide. React measures the active link, computes a `0..1` horizontal fraction + target width, and drives motion values through `animateGlassValue()`.
 
-**Positioning**
-The bar is `position: fixed` (not sticky) so it stays pinned while scrolling. It is centered with `left: 50%` plus a scoped `transform: translateX(-50%)` inside `.topbar.tilt-glow` (`styles.css:1132`). The base `.tilt-glow` rule sets `position: relative`, so the more specific `.topbar.tilt-glow` override is required to keep the bar fixed without breaking the glow pseudo-element.
+**Choreography** (raise → move → lower, no bounce/overshoot):
+1. **RAISE** — lens grows taller (`idleH + LENS_RISE`) and ramps refraction `0 → LENS_SCALE_PEAK`.
+2. **MOVE** — slides `lensX` to the new fraction + `lensW` to the new width. Spans the whole transit; raise peaks at ~62% of the move so the lens is almost at target when lower begins.
+3. **LOWER** — settles height back to `idleH` and refraction back to `0`.
 
-### Nav lens indicator (`.topbar-indicator`)
-`styles.css:224`
+The same constants drive **both** lenses — the nav lens (route change, `useLayoutEffect` at `TopBar.tsx:114`) and the theme lens (theme toggle, `:190`).
 
-The sliding pill behind the active nav link. Two systems run at the same time:
+**Timing + easing constants** — `TopBar.tsx:19-29`
 
-**1. The slide (CSS transition)**  
-`styles.css:236`
+| Knob | Constant | Location | Value | Effect |
+|---|---|---|---|---|
+| Move duration | `MOVE_ANIMATION.duration` | `:27` | `0.4s` | Horizontal slide length. Raise/lower overlap inside it |
+| Raise duration | `RAISE_ANIMATION.duration` | `:28` | `0.25s` | Grow + refraction ramp. ~62% of move |
+| Lower duration | `LOWER_ANIMATION.duration` | `:29` | `0.2s` | Settle back to idle |
+| Move/raise ease | `EASE_IN_OUT` | `:19` | `cubicBezier(0.42,0,0.58,1)` | Smooth S-curve, no overshoot |
+| Lower ease | `EASE_OUT` | `:22` | `cubicBezier(0.33,1,0.68,1)` | Monotonic settle, slow finish |
 
-React measures the active link and sets `translate` + `width` via inline style. The transition smooths the jump:
+Total visible motion ~0.45s (lens lands at 0.4s, finishes shrinking at ~0.45s).
 
-```css
-transition: translate 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
-            width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
-            opacity 0.25s ease,
-            backdrop-filter 0.3s ease,
-            -webkit-backdrop-filter 0.3s ease;
-```
+**Geometry + refraction constants** — `TopBar.tsx:33-66`
 
-| Knob | Value | Effect |
-|---|---|---|
-| Slide duration | `0.6s` | Higher = slower horizontal slide |
-| Slide overshoot | `cubic-bezier(0.34, 1.56, 0.64, 1)` | `y1` > 1 = spring/overshoot. Lower toward `1.0` = less spring |
-| Fade speed | `opacity 0.25s` | How fast the lens appears/disappears |
-| Blur ramp | `backdrop-filter 0.3s` | How fast blur changes when moving starts/stops |
+| Knob | Constant | Location | Value | Effect |
+|---|---|---|---|---|
+| Peak vertical grow | `LENS_RISE` | `:33` | `20px` | How much taller the lens gets while raised. `0` = flat slide |
+| Refraction at rest | `LENS_SCALE_IDLE` | `:50` | `0` | Keeps text crisp when idle |
+| Refraction peak | `LENS_SCALE_PEAK` | `:51` | `0.05` | Bend strength during transit. `0` = no distortion |
+| Refraction depth | `LENS_DEPTH` | `:57` | `0.7` | How far distortion reaches inward from lens edge (0..1) |
+| Lens rim gap | `LENS_MARGIN` | `:41` | `1px` | Gap between lens edge and pill border on all sides |
+| Lens corner radius | `LENS_RADIUS` | `:44` | `40` | Corner roundness |
+| Container clearance X | `PILL_CLEARANCE_X` | `:65` | `150` | Fixed Glass container width so it never resizes mid-transit |
+| Container clearance Y | `PILL_CLEARANCE_Y` | `:66` | `80` | Fixed Glass container height (clears peak height 62) |
 
-**2. The vertical pulse (CSS keyframe animation)**  
-`styles.css:262`
-
-Triggered by adding `.topbar-indicator--moving` on route change. The lens stretches vertically while it slides:
-
-```css
-.topbar-indicator--moving {
-  animation: lens-pulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-```
-
-`@keyframes lens-pulse` — `styles.css:269`
-```css
-@keyframes lens-pulse {
-  0%   { transform: scaleY(1); }    /* normal height */
-  35%  { transform: scaleY(1.4); }  /* stretch 40% taller */
-  70%  { transform: scaleY(0.92); } /* slight undershoot */
-  100% { transform: scaleY(1); }    /* settle back */
-}
-```
-
-| Knob | Value | Effect |
-|---|---|---|
-| Pulse duration | `0.6s` in animation | Must match transition duration for sync |
-| Pulse overshoot | `cubic-bezier(...)` | Same easing curve as the slide |
-| Bounce height | `scaleY(1.4)` at `35%` | Higher = taller stretch. `1.0` = no stretch |
-| Undershoot | `70%` stop with `0.92` | Remove this line for less wobble |
-
-**Chromatic sheen** (`::before` pseudo-element) — `styles.css:239`  
-A subtle rainbow gradient overlay that catches light. Remove the `.topbar-indicator::before` block to kill the sheen entirely.
-
-**Resting blur vs moving blur**
-- Resting: `--lens-blur` (`blur(10px) saturate(160%)`) — `styles.css:71`
-- Moving: `--lens-blur-moving` (`blur(20px) saturate(220%)`) — `styles.css:72`
-
-### React side (`TopBar.tsx`)
-- `useLayoutEffect` measures active link position on route change
-- Sets `translate`, `width`, `opacity` via inline style (uses `offsetLeft` / `offsetWidth`, NOT `getBoundingClientRect` — avoids double-scaling from `.topbar.tilt-glow` transform)
-- `isMoving`: adds `--moving` class on route change; `onAnimationEnd` removes it when the keyframe finishes
-- `suppressTransition` state suppresses the first-mount slide via `requestAnimationFrame`
-- `fontReady` + `document.fonts.ready` re-measures silently after the Onest webfont swaps in (fires once, not on route change)
+**React side**
+- `useLayoutEffect` (`:114`) measures the active link on route change via `getBoundingClientRect`, computes the center fraction, and kicks off the three-phase animation. On first mount it sets position directly (no animation) so the lens starts idle on the active tab.
+- `transitRef` (`:86`) is a token incremented each route change; stale `onComplete` callbacks from a superseded transit no-op, preventing a late lower from dropping the lens mid-transit.
+- A second `useLayoutEffect` (`:174`) re-syncs lens dimensions to the active link's measured rect without animating once a transit settles (`isMoving → false`).
+- `document.fonts.ready` re-measures silently after the Onest webfont swaps in (fires once, not on route change).
 
 ---
 
-## Recipe: reduce extent of top bar selector movement
+## Recipe: tune top bar lens movement
 
-Three ways, from subtle to zero:
+All knobs are in `TopBar.tsx` — there is no CSS to edit for the slide.
 
-**1. Less overshoot on the slide (subtle)**  
-`styles.css:236` and `styles.css:265`
+**1. Faster or slower slide**  
+`TopBar.tsx:27-29`
 
-Lower the `1.56` in both the transition and animation `cubic-bezier` toward `1.0`:
-```css
-cubic-bezier(0.34, 1.2, 0.64, 1)
-```
-Try `1.1` for barely any spring, `1.0` for no overshoot at all.
-
-**2. Smaller vertical bounce (moderate)**  
-`styles.css:269`
-
-Reduce the peak stretch and remove the undershoot:
-```css
-@keyframes lens-pulse {
-  0%   { transform: scaleY(1); }
-  50%  { transform: scaleY(1.15); }  /* was 1.4 */
-  100% { transform: scaleY(1); }
-}
+Scale the three durations together to keep the raise→move→lower feel. Keep move longest, raise ~62% of move, lower shortest. Example — slower (back to the original feel):
+```ts
+const MOVE_ANIMATION  = { duration: 0.8, ease: EASE_IN_OUT };
+const RAISE_ANIMATION = { duration: 0.5, ease: EASE_IN_OUT };
+const LOWER_ANIMATION = { duration: 0.4, ease: EASE_OUT };
 ```
 
-**3. No bounce at all (flat)**  
-`styles.css:236`, `styles.css:265`, `styles.css:269`
+**2. Less vertical bounce**  
+`TopBar.tsx:33`
 
-- Replace `cubic-bezier(0.34, 1.56, 0.64, 1)` with `ease-out` on both transition and animation
-- Flatten the keyframe:
-```css
-@keyframes lens-pulse {
-  0%, 100% { transform: scaleY(1); }
-}
-```
-Or simply remove the `animation` line from `.topbar-indicator--moving` entirely.
+Lower `LENS_RISE`. `0` = flat slide (no grow/shrink), lens stays at idle height the whole transit.
+
+**3. Less refraction distortion**  
+`TopBar.tsx:51` and `:57`
+
+- `LENS_SCALE_PEAK` → `0` kills bend entirely during transit (text stays crisp).
+- `LENS_DEPTH` shrinks the distorted region toward the lens edge; `0.5` leaves a flat neutral centre, `0` = no distortion reach.
+
+**4. Different easing**  
+`TopBar.tsx:19` and `:22`
+
+Swap `EASE_IN_OUT` / `EASE_OUT` for any `cubicBezier(...)`. Avoid `y1 > 1` — the imperative animator does not clamp overshoot and the lens can drift past the target fraction.
 
 ---
 
