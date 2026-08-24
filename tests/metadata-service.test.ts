@@ -415,6 +415,48 @@ describe('MetadataService.assign (igdb)', () => {
   });
 });
 
+describe('MetadataService.assign (cross-provider genre union)', () => {
+  it('unions genres when re-assigned to a different provider instead of replacing', async () => {
+    const gameId = await createGame();
+    const steam = mockProvider('steam', [], {
+      '620': {
+        remoteId: '620',
+        title: 'Portal 2',
+        releaseYear: 2011,
+        developers: ['Valve'],
+        publishers: ['Valve'],
+        genres: ['Action', 'RPG'],
+        coverUrl: 'https://x/cover.jpg',
+        headerUrl: 'https://x/header.jpg',
+      },
+    });
+    const igdb = mockProvider('igdb', [], {
+      '1234': {
+        remoteId: '1234',
+        title: 'Portal 2',
+        releaseYear: 2011,
+        developers: ['Valve'],
+        publishers: ['Valve'],
+        genres: ['Action', 'Strategy'],
+        coverUrl: 'https://x/igdb-cover.jpg',
+        headerUrl: 'https://x/igdb-art.jpg',
+      },
+    });
+    const service = new MetadataService({
+      providers: mockRegistry([steam, igdb]),
+      artwork: mockArtwork(),
+      now: () => new Date('2024-06-01T00:00:00Z'),
+    });
+
+    await service.assign(gameId, 'steam', '620');
+    const gameAfterSteam = await libraryRepository.findById(gameId);
+    expect(gameAfterSteam.genres).toEqual(['Action', 'RPG']);
+
+    const assigned = await service.assign(gameId, 'igdb', '1234');
+    expect(assigned.game.genres).toEqual(['Action', 'RPG', 'Strategy']);
+  });
+});
+
 describe('MetadataService.refresh', () => {
   it('refreshes metadata via primary ProviderMatch when present (igdb)', async () => {
     const gameId = await createGame({ steamAppId: null });

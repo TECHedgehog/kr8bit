@@ -289,7 +289,7 @@ export class MetadataService {
       description: metadata.description ?? null,
       developers: metadata.developers,
       publishers: metadata.publishers,
-      genres: metadata.genres,
+      genres: [...new Set([...game.genres, ...metadata.genres])],
       coverUrl: coverCached ? (metadata.coverUrl ?? null) : (sgdb.gridUrl ?? metadata.coverUrl ?? null),
       headerUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? metadata.headerUrl ?? null),
       heroUrl: isSteam
