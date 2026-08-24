@@ -4,15 +4,15 @@ import { parseListFilter, sanitizeGamePatch } from '../src/modules/library/libra
 
 describe('parseListFilter', () => {
   it('returns defaults', () => {
-    expect(parseListFilter({})).toEqual({ limit: 50, offset: 0 });
+    expect(parseListFilter({})).toEqual({ limit: 50, offset: 0, sort: 'title-asc' });
   });
 
   it('uses custom limit and offset', () => {
-    expect(parseListFilter({ limit: '10', offset: '5' })).toEqual({ limit: 10, offset: 5 });
+    expect(parseListFilter({ limit: '10', offset: '5' })).toEqual({ limit: 10, offset: 5, sort: 'title-asc' });
   });
 
   it('caps limit at 200', () => {
-    expect(parseListFilter({ limit: '500' })).toEqual({ limit: 200, offset: 0 });
+    expect(parseListFilter({ limit: '500' })).toEqual({ limit: 200, offset: 0, sort: 'title-asc' });
   });
 
   it('rejects invalid limit values', () => {
@@ -27,8 +27,22 @@ describe('parseListFilter', () => {
   });
 
   it('trims search and drops empty string', () => {
-    expect(parseListFilter({ search: '  foo  ' })).toEqual({ search: 'foo', limit: 50, offset: 0 });
-    expect(parseListFilter({ search: '   ' })).toEqual({ limit: 50, offset: 0 });
+    expect(parseListFilter({ search: '  foo  ' })).toEqual({ search: 'foo', limit: 50, offset: 0, sort: 'title-asc' });
+    expect(parseListFilter({ search: '   ' })).toEqual({ limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('passes through valid sort', () => {
+    expect(parseListFilter({ sort: 'newest' })).toEqual({ limit: 50, offset: 0, sort: 'newest' });
+    expect(parseListFilter({ sort: 'title-desc' })).toEqual({ limit: 50, offset: 0, sort: 'title-desc' });
+    expect(parseListFilter({ sort: 'largest' })).toEqual({ limit: 50, offset: 0, sort: 'largest' });
+  });
+
+  it('falls back to default sort on unknown value', () => {
+    expect(parseListFilter({ sort: 'bogus' })).toEqual({ limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('falls back to default sort on empty value', () => {
+    expect(parseListFilter({ sort: '' })).toEqual({ limit: 50, offset: 0, sort: 'title-asc' });
   });
 });
 

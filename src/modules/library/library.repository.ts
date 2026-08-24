@@ -18,10 +18,31 @@ import type {
   GameUpdateInput,
   GameListFilter,
   GameListResult,
+  SortKey,
 } from './library.types.js';
+import { DEFAULT_SORT } from './library.types.js';
 
 export const REFRESH_BATCH_SIZE = 500;
 export const PENDING_BATCH_SIZE = 500;
+
+type GameOrderBy = Record<string, unknown>;
+
+function sortToOrderBy(sort: SortKey): GameOrderBy {
+  switch (sort) {
+    case 'title-asc':
+      return { title: { sort: 'asc', nulls: 'last' } };
+    case 'title-desc':
+      return { title: { sort: 'desc', nulls: 'last' } };
+    case 'newest':
+      return { updatedAt: 'desc' };
+    case 'oldest':
+      return { createdAt: 'asc' };
+    case 'largest':
+      return { sizeBytes: 'desc' };
+    case 'smallest':
+      return { sizeBytes: 'asc' };
+  }
+}
 
 export const libraryRepository = {
   async create(input: GameCreateInput): Promise<Game> {
@@ -65,6 +86,7 @@ export const libraryRepository = {
   async list(filter: GameListFilter = {}): Promise<GameListResult> {
     const limit = Math.min(filter.limit ?? 50, 200);
     const offset = Math.max(filter.offset ?? 0, 0);
+    const orderBy = sortToOrderBy(filter.sort ?? DEFAULT_SORT);
 
     const where: Record<string, unknown> = {};
     if (filter.search) {
@@ -78,7 +100,7 @@ export const libraryRepository = {
       const [rows, total] = await Promise.all([
         prisma.game.findMany({
           where,
-          orderBy: { updatedAt: 'desc' },
+          orderBy,
           take: limit,
           skip: offset,
         }),

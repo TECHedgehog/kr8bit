@@ -250,7 +250,7 @@ ADR-style log. Each entry: context + decision + consequences. Open issues at the
 - Scan page visually changes from token updates but layout/structure untouched — acknowledged scope boundary.
 - `App.tsx` `Page` type removed (was frontend-internal, not exported).
 - `styles.css` fully rewritten — all existing class names preserved for frozen components.
-- Sort dropdown stores selection in URL but client-side sort logic not yet implemented (backend sort params or client-side sort needed).
+- Sort chips store selection in URL `?sort=`; backend `GET /api/games` parses sort param and applies Prisma `orderBy` (O-11 resolved).
 - BrowserRouter works in Docker — Fastify `setNotFoundHandler` already serves `index.html` for non-API GET routes (SPA fallback).
 
 **New dependencies:**
@@ -433,11 +433,9 @@ Track here before they become closed decisions or roadmap tasks.
 - vitest configured (`package.json`, `tsconfig.json` excludes `tests`). No test files exist.
 - Owner: Phase 12.
 
-### O-11 — Sort Dropdown Not Wired to Backend
+### O-11 — Sort Dropdown Not Wired to Backend (resolved)
 
-- GamesPage sort menu (`?sort=title-asc|title-desc|newest|oldest|largest|smallest`) updates URL params but the API fetch does not pass sort params to `GET /api/games`. Client-side sorting not implemented either.
-- Fix: either add sort params to the backend `/api/games` endpoint, or sort client-side after fetch.
-- Owner: future UI task.
+- Closed: `?sort=` param now sent by `GamesPage` fetch and parsed by `parseListFilter`. Backend `library.repository.ts` maps `SortKey` to Prisma `orderBy` (title nulls last). Default `title-asc`; unknown values fall back to default.
 
 ### O-12 — Scan Page Layout Not Reworked
 

@@ -59,10 +59,34 @@ export interface GameUpdateInput {
   matchedAt?: Date | null;
 }
 
+export type SortKey =
+  | 'title-asc'
+  | 'title-desc'
+  | 'newest'
+  | 'oldest'
+  | 'largest'
+  | 'smallest';
+
+export const DEFAULT_SORT: SortKey = 'title-asc';
+
+export const SORT_KEYS: readonly SortKey[] = [
+  'title-asc',
+  'title-desc',
+  'newest',
+  'oldest',
+  'largest',
+  'smallest',
+];
+
+export function isSortKey(value: unknown): value is SortKey {
+  return typeof value === 'string' && (SORT_KEYS as readonly string[]).includes(value);
+}
+
 export interface GameListFilter {
   search?: string;
   limit?: number;
   offset?: number;
+  sort?: SortKey;
 }
 
 export interface GameListResult {

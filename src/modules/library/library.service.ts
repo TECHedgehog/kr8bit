@@ -1,11 +1,16 @@
 import { ValidationError } from '../../shared/errors.js';
 import { libraryRepository } from '../library/library.repository.js';
-import type { Game, GameListFilter, GameListResult, GameUpdateInput } from './library.types.js';
+import {
+  DEFAULT_SORT,
+  isSortKey,
+} from './library.types.js';
+import type { Game, GameListFilter, GameListResult, GameUpdateInput, SortKey } from './library.types.js';
 
 export interface NormalizedListFilter {
   search?: string;
   limit: number;
   offset: number;
+  sort: SortKey;
 }
 
 export function parseListFilter(query: Record<string, string | undefined>): NormalizedListFilter {
@@ -27,7 +32,8 @@ export function parseListFilter(query: Record<string, string | undefined>): Norm
   }
   limit = Math.min(limit, 200);
   const search = query.search?.trim() || undefined;
-  return { search, limit, offset, };
+  const sort: SortKey = isSortKey(query.sort) ? query.sort : DEFAULT_SORT;
+  return { search, limit, offset, sort };
 }
 
 export function sanitizeGamePatch(body: unknown): GameUpdateInput {

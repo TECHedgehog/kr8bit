@@ -14,12 +14,11 @@ import IconDatabaseExport from '@tabler/icons-react/dist/esm/icons/IconDatabaseE
 import IconSquareFilled from '@tabler/icons-react/dist/esm/icons/IconSquareFilled.mjs';
 import IconArrowUp from '@tabler/icons-react/dist/esm/icons/IconArrowUp.mjs';
 import { api, ApiError } from '../api/client';
-import type { Game, GameListResult } from '../api/types';
+import type { Game, GameListResult, SortKey } from '../api/types';
 import { GameCard } from '../components/GameCard';
 import { IconButton } from '../components/IconButton';
 
 
-type SortKey = 'title-asc' | 'title-desc' | 'newest' | 'oldest' | 'largest' | 'smallest';
 type Panel = 'advanced' | 'settings' | null;
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSortAZ }> = [
@@ -82,6 +81,7 @@ export function GamesPage(): JSX.Element {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
+      params.set('sort', sort);
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', '0');
       const res = await api.get<GameListResult>(`/api/games?${params.toString()}`);
@@ -95,7 +95,7 @@ export function GamesPage(): JSX.Element {
     } finally {
       if (reqToken.current === token) setLoading(false);
     }
-  }, [search]);
+  }, [search, sort]);
 
   const fetchMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -104,6 +104,7 @@ export function GamesPage(): JSX.Element {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
+      params.set('sort', sort);
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(items.length));
       const res = await api.get<GameListResult>(`/api/games?${params.toString()}`);
@@ -116,7 +117,7 @@ export function GamesPage(): JSX.Element {
     } finally {
       if (reqToken.current === token) setLoadingMore(false);
     }
-  }, [search, items.length, loadingMore, hasMore]);
+  }, [search, sort, items.length, loadingMore, hasMore]);
 
   // Reset + initial fetch whenever filters change.
   useEffect(() => {

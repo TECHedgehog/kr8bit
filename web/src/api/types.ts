@@ -4,6 +4,14 @@ export type ScanStatus = 'RUNNING' | 'DONE' | 'FAILED';
 
 export type ScanPhase = 'start' | 'candidate' | 'matched' | 'failed' | 'done';
 
+export type SortKey =
+  | 'title-asc'
+  | 'title-desc'
+  | 'newest'
+  | 'oldest'
+  | 'largest'
+  | 'smallest';
+
 export interface SteamDeckCompatItem {
   displayType: number;
   locToken: string;
