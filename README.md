@@ -87,7 +87,8 @@ PUT    /api/settings
 POST   /api/scanner/run
 GET    /api/scanner/status
 GET    /api/scanner/progress          (SSE)
-GET    /api/games                     (?status=, ?search=, ?limit=, ?offset=)
+GET    /api/games                     (?search=, ?genre=, ?deck=, ?sort=, ?limit=, ?offset=)
+GET    /api/games/genres
 GET    /api/games/:id
 PATCH  /api/games/:id
 DELETE /api/games/:id

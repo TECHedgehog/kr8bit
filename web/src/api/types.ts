@@ -49,6 +49,10 @@ export interface GameListResult {
   total: number;
 }
 
+export interface GenresResult {
+  genres: string[];
+}
+
 export interface GameUpdateInput {
   title?: string | null;
   releaseYear?: number | null;

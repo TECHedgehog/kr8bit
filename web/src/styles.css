@@ -841,6 +841,11 @@ textarea {
   gap: var(--space-1);
 }
 
+.panel-chips--wrap {
+  max-height: 168px;
+  overflow-y: auto;
+}
+
 .panel-chip {
   display: inline-flex;
   align-items: center;

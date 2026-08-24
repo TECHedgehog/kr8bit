@@ -8,6 +8,11 @@ export const libraryController = {
     return result;
   },
 
+  async genres(_req: FastifyRequest, _reply: FastifyReply) {
+    const genres = await libraryService.listGenres();
+    return { genres };
+  },
+
   async getById(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
     return libraryService.getById(id);

@@ -4,7 +4,7 @@ import { config } from '../../config/index.js';
 import { mapPrismaError } from '../../shared/prisma-errors.js';
 import { NotFoundError } from '../../shared/errors.js';
 import { MatchStatus } from '../../shared/enums.js';
-import { encodeArray } from '../../shared/json.js';
+import { encodeArray, decodeArray } from '../../shared/json.js';
 import { toDomain } from './library.mapper.js';
 import {
   findOrphanedProviderMatches as findOrphanedProviderMatchesDb,
@@ -88,13 +88,30 @@ export const libraryRepository = {
     const offset = Math.max(filter.offset ?? 0, 0);
     const orderBy = sortToOrderBy(filter.sort ?? DEFAULT_SORT);
 
-    const where: Record<string, unknown> = {};
+    const conditions: Record<string, unknown>[] = [];
     if (filter.search) {
-      where.OR = [
-        { title: { contains: filter.search } },
-        { entryName: { contains: filter.search } },
-      ];
+      conditions.push({
+        OR: [
+          { title: { contains: filter.search } },
+          { entryName: { contains: filter.search } },
+        ],
+      });
     }
+    if (filter.genres?.length) {
+      conditions.push({
+        OR: filter.genres.map((g) => ({ genres: { contains: JSON.stringify(g) } })),
+      });
+    }
+    if (filter.steamDeck?.length) {
+      conditions.push({
+        OR: filter.steamDeck.map((cat) =>
+          cat === 0
+            ? { OR: [{ steamDeckCategory: null }, { steamDeckCategory: 0 }] }
+            : { steamDeckCategory: cat },
+        ),
+      });
+    }
+    const where = conditions.length ? { AND: conditions } : {};
 
     try {
       const [rows, total] = await Promise.all([
@@ -152,6 +169,17 @@ export const libraryRepository = {
 
   async count(): Promise<number> {
     return prisma.game.count();
+  },
+
+  async findDistinctGenres(): Promise<string[]> {
+    const rows = await prisma.game.findMany({ select: { genres: true } });
+    const set = new Set<string>();
+    for (const row of rows) {
+      for (const g of decodeArray(row.genres)) {
+        set.add(g);
+      }
+    }
+    return [...set].sort();
   },
 
   async findEligibleForRefresh(): Promise<Game[]> {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
@@ -14,8 +14,12 @@ import IconDatabase from '@tabler/icons-react/dist/esm/icons/IconDatabase.mjs';
 import IconDatabaseExport from '@tabler/icons-react/dist/esm/icons/IconDatabaseExport.mjs';
 import IconSquareFilled from '@tabler/icons-react/dist/esm/icons/IconSquareFilled.mjs';
 import IconArrowUp from '@tabler/icons-react/dist/esm/icons/IconArrowUp.mjs';
+import IconCircleCheckFilled from '@tabler/icons-react/dist/esm/icons/IconCircleCheckFilled.mjs';
+import IconCircleXFilled from '@tabler/icons-react/dist/esm/icons/IconCircleXFilled.mjs';
+import IconCircleCaretRightFilled from '@tabler/icons-react/dist/esm/icons/IconCircleCaretRightFilled.mjs';
+import IconHelpCircleFilled from '@tabler/icons-react/dist/esm/icons/IconHelpCircleFilled.mjs';
 import { api, ApiError } from '../api/client';
-import type { Game, GameListResult, SortKey } from '../api/types';
+import type { Game, GameListResult, GenresResult, SortKey } from '../api/types';
 import { GameCard } from '../components/GameCard';
 import { IconButton } from '../components/IconButton';
 
@@ -29,6 +33,13 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSort
   { value: 'oldest', label: 'Oldest first', icon: IconCalendarMonth },
   { value: 'largest', label: 'Largest first', icon: IconDatabase },
   { value: 'smallest', label: 'Smallest first', icon: IconDatabaseExport },
+];
+
+const DECK_OPTIONS: Array<{ value: number; label: string; icon: typeof IconCircleCheckFilled }> = [
+  { value: 3, label: 'Verified', icon: IconCircleCheckFilled },
+  { value: 2, label: 'Playable', icon: IconCircleCaretRightFilled },
+  { value: 1, label: 'Unsupported', icon: IconCircleXFilled },
+  { value: 0, label: 'Unknown', icon: IconHelpCircleFilled },
 ];
 
 const GRID_SIZES = [
@@ -47,6 +58,10 @@ export function GamesPage(): JSX.Element {
   const sort = (searchParams.get('sort') as SortKey) ?? 'title-asc';
   const search = searchParams.get('search') ?? '';
   const gridSize = Number(searchParams.get('gridSize') ?? GRID_SIZE_DEFAULT);
+  const genreParam = searchParams.get('genre') ?? '';
+  const deckParam = searchParams.get('deck') ?? '';
+  const selectedGenres = useMemo(() => genreParam ? genreParam.split(',').filter(Boolean) : [], [genreParam]);
+  const selectedDeck = useMemo(() => deckParam ? deckParam.split(',').filter(Boolean).map(Number) : [], [deckParam]);
 
   const [searchInput, setSearchInput] = useState(search);
   const debouncedSearch = useDebouncedValue(searchInput, 250);
@@ -62,6 +77,7 @@ export function GamesPage(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState<Panel>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [genres, setGenres] = useState<string[]>([]);
   const searchRef = useRef<HTMLFormElement>(null);
   useTiltGlow(searchRef);
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
@@ -86,6 +102,15 @@ export function GamesPage(): JSX.Element {
     setSearchInput(search);
   }, [search]);
 
+  // Fetch distinct genres list once on mount for the genre filter chips.
+  useEffect(() => {
+    let cancelled = false;
+    api.get<GenresResult>('/api/games/genres')
+      .then((res) => { if (!cancelled) setGenres(res.genres); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   // Live search: write debounced input to URL (replace => no back-button spam).
   // Existing fetchInitial effect (:123) reacts to the URL change and fetches.
   useEffect(() => {
@@ -105,6 +130,8 @@ export function GamesPage(): JSX.Element {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
+      if (selectedGenres.length) params.set('genre', selectedGenres.join(','));
+      if (selectedDeck.length) params.set('deck', selectedDeck.join(','));
       params.set('sort', sort);
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', '0');
@@ -119,7 +146,7 @@ export function GamesPage(): JSX.Element {
     } finally {
       if (reqToken.current === token) setLoading(false);
     }
-  }, [search, sort]);
+  }, [search, sort, selectedGenres, selectedDeck]);
 
   const fetchMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -128,6 +155,8 @@ export function GamesPage(): JSX.Element {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
+      if (selectedGenres.length) params.set('genre', selectedGenres.join(','));
+      if (selectedDeck.length) params.set('deck', selectedDeck.join(','));
       params.set('sort', sort);
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(items.length));
@@ -141,7 +170,7 @@ export function GamesPage(): JSX.Element {
     } finally {
       if (reqToken.current === token) setLoadingMore(false);
     }
-  }, [search, sort, items.length, loadingMore, hasMore]);
+  }, [search, sort, selectedGenres, selectedDeck, items.length, loadingMore, hasMore]);
 
   // Reset + initial fetch whenever filters change.
   useEffect(() => {
@@ -209,6 +238,20 @@ export function GamesPage(): JSX.Element {
 
   function onGridSizeChange(value: number) {
     updateParams({ gridSize: value });
+  }
+
+  function toggleGenre(genre: string) {
+    const set = new Set(selectedGenres);
+    if (set.has(genre)) set.delete(genre);
+    else set.add(genre);
+    updateParams({ genre: [...set].join(',') });
+  }
+
+  function toggleDeck(cat: number) {
+    const set = new Set(selectedDeck);
+    if (set.has(cat)) set.delete(cat);
+    else set.add(cat);
+    updateParams({ deck: [...set].join(',') });
   }
 
   function togglePanel(panel: 'advanced' | 'settings') {
@@ -279,6 +322,40 @@ export function GamesPage(): JSX.Element {
                       key={o.value}
                       className={`panel-chip${sort === o.value ? ' active' : ''}`}
                       onClick={() => onSortChange(o.value)}
+                    >
+                      <Icon size={14} />
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {genres.length > 0 && (
+              <div className="panel-group">
+                <span className="panel-label">Genre</span>
+                <div className="panel-chips panel-chips--wrap">
+                  {genres.map((g) => (
+                    <button
+                      key={g}
+                      className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
+                      onClick={() => toggleGenre(g)}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="panel-group">
+              <span className="panel-label">Steam Deck</span>
+              <div className="panel-chips">
+                {DECK_OPTIONS.map((o) => {
+                  const Icon = o.icon;
+                  return (
+                    <button
+                      key={o.value}
+                      className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
+                      onClick={() => toggleDeck(o.value)}
                     >
                       <Icon size={14} />
                       {o.label}

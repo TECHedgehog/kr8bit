@@ -135,6 +135,103 @@ describe('GET /api/games', () => {
   });
 });
 
+describe('GET /api/games with genre filter', () => {
+  it('filters by single genre', async () => {
+    const idA = await createGame({ entryName: 'A.7z' });
+    const idB = await createGame({ entryName: 'B.7z' });
+    const idC = await createGame({ entryName: 'C.7z' });
+    await libraryRepository.update(idA, { genres: ['Action'] });
+    await libraryRepository.update(idB, { genres: ['RPG'] });
+    await libraryRepository.update(idC, { genres: ['Action', 'RPG'] });
+
+    const res = await app.inject({ method: 'GET', url: '/api/games?genre=Action' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.items).toHaveLength(2);
+    expect(body.total).toBe(2);
+    const names = body.items.map((i: { entryName: string }) => i.entryName);
+    expect(names).toContain('A.7z');
+    expect(names).toContain('C.7z');
+  });
+
+  it('filters by multiple genres (OR)', async () => {
+    const idA = await createGame({ entryName: 'A.7z' });
+    const idB = await createGame({ entryName: 'B.7z' });
+    const idC = await createGame({ entryName: 'C.7z' });
+    await libraryRepository.update(idA, { genres: ['Action'] });
+    await libraryRepository.update(idB, { genres: ['RPG'] });
+    await libraryRepository.update(idC, { genres: ['Indie'] });
+
+    const res = await app.inject({ method: 'GET', url: '/api/games?genre=Action,RPG' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.items).toHaveLength(2);
+    expect(body.total).toBe(2);
+  });
+});
+
+describe('GET /api/games with deck filter', () => {
+  it('filters by single deck category', async () => {
+    const idV = await createGame({ entryName: 'Verified.7z', steamAppId: 111 });
+    const idP = await createGame({ entryName: 'Playable.7z', steamAppId: 222 });
+    await createGame({ entryName: 'NonSteam.7z' });
+    await libraryRepository.update(idV, { steamDeckCategory: 3 });
+    await libraryRepository.update(idP, { steamDeckCategory: 2 });
+
+    const res = await app.inject({ method: 'GET', url: '/api/games?deck=3' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].entryName).toBe('Verified.7z');
+  });
+
+  it('filters by Unknown (0) includes null category', async () => {
+    await createGame({ entryName: 'NonSteam.7z' });
+    const idV = await createGame({ entryName: 'Verified.7z', steamAppId: 111 });
+    await libraryRepository.update(idV, { steamDeckCategory: 3 });
+
+    const res = await app.inject({ method: 'GET', url: '/api/games?deck=0' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].entryName).toBe('NonSteam.7z');
+  });
+
+  it('filters by multiple deck categories (OR)', async () => {
+    const idV = await createGame({ entryName: 'Verified.7z', steamAppId: 111 });
+    const idP = await createGame({ entryName: 'Playable.7z', steamAppId: 222 });
+    await createGame({ entryName: 'NonSteam.7z' });
+    await libraryRepository.update(idV, { steamDeckCategory: 3 });
+    await libraryRepository.update(idP, { steamDeckCategory: 2 });
+
+    const res = await app.inject({ method: 'GET', url: '/api/games?deck=3,2' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.items).toHaveLength(2);
+    expect(body.total).toBe(2);
+  });
+});
+
+describe('GET /api/games/genres', () => {
+  it('returns sorted distinct genres', async () => {
+    const idA = await createGame({ entryName: 'A.7z' });
+    const idB = await createGame({ entryName: 'B.7z' });
+    await libraryRepository.update(idA, { genres: ['RPG', 'Action'] });
+    await libraryRepository.update(idB, { genres: ['Action', 'Indie'] });
+
+    const res = await app.inject({ method: 'GET', url: '/api/games/genres' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().genres).toEqual(['Action', 'Indie', 'RPG']);
+  });
+
+  it('returns empty array when no genres exist', async () => {
+    await createGame({ entryName: 'A.7z' });
+    const res = await app.inject({ method: 'GET', url: '/api/games/genres' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().genres).toEqual([]);
+  });
+});
+
 describe('GET/PATCH/DELETE /api/games/:id', () => {
   it('fetches by id', async () => {
     const id = await createGame({ entryName: 'Game.7z' });

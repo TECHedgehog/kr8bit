@@ -44,6 +44,40 @@ describe('parseListFilter', () => {
   it('falls back to default sort on empty value', () => {
     expect(parseListFilter({ sort: '' })).toEqual({ limit: 50, offset: 0, sort: 'title-asc' });
   });
+
+  it('parses single genre', () => {
+    expect(parseListFilter({ genre: 'Action' })).toEqual({ genres: ['Action'], limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('parses multiple genres', () => {
+    expect(parseListFilter({ genre: 'Action,RPG' })).toEqual({ genres: ['Action', 'RPG'], limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('trims and filters empty genre entries', () => {
+    expect(parseListFilter({ genre: ' Action , , RPG ' })).toEqual({ genres: ['Action', 'RPG'], limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('drops empty genre string', () => {
+    expect(parseListFilter({ genre: '   ' })).toEqual({ limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('parses single deck category', () => {
+    expect(parseListFilter({ deck: '3' })).toEqual({ steamDeck: [3], limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('parses multiple deck categories', () => {
+    expect(parseListFilter({ deck: '3,2' })).toEqual({ steamDeck: [3, 2], limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('parses deck category 0 (Unknown)', () => {
+    expect(parseListFilter({ deck: '0' })).toEqual({ steamDeck: [0], limit: 50, offset: 0, sort: 'title-asc' });
+  });
+
+  it('rejects invalid deck values', () => {
+    expect(() => parseListFilter({ deck: '4' })).toThrow(ValidationError);
+    expect(() => parseListFilter({ deck: '-1' })).toThrow(ValidationError);
+    expect(() => parseListFilter({ deck: 'abc' })).toThrow(ValidationError);
+  });
 });
 
 describe('sanitizeGamePatch', () => {

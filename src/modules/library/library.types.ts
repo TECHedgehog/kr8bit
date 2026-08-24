@@ -84,6 +84,8 @@ export function isSortKey(value: unknown): value is SortKey {
 
 export interface GameListFilter {
   search?: string;
+  genres?: string[];
+  steamDeck?: number[];
   limit?: number;
   offset?: number;
   sort?: SortKey;

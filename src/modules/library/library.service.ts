@@ -8,6 +8,8 @@ import type { Game, GameListFilter, GameListResult, GameUpdateInput, SortKey } f
 
 export interface NormalizedListFilter {
   search?: string;
+  genres?: string[];
+  steamDeck?: number[];
   limit: number;
   offset: number;
   sort: SortKey;
@@ -33,7 +35,29 @@ export function parseListFilter(query: Record<string, string | undefined>): Norm
   limit = Math.min(limit, 200);
   const search = query.search?.trim() || undefined;
   const sort: SortKey = isSortKey(query.sort) ? query.sort : DEFAULT_SORT;
-  return { search, limit, offset, sort };
+  const genres = parseGenres(query.genre);
+  const steamDeck = parseDeck(query.deck);
+  return { search, genres, steamDeck, limit, offset, sort };
+}
+
+function parseGenres(raw: string | undefined): string[] | undefined {
+  if (!raw?.trim()) return undefined;
+  const genres = raw.split(',').map((g) => g.trim()).filter(Boolean);
+  return genres.length ? genres : undefined;
+}
+
+function parseDeck(raw: string | undefined): number[] | undefined {
+  if (!raw?.trim()) return undefined;
+  const parts = raw.split(',').map((d) => d.trim()).filter(Boolean);
+  const cats: number[] = [];
+  for (const part of parts) {
+    const n = Number(part);
+    if (!Number.isInteger(n) || n < 0 || n > 3) {
+      throw new ValidationError('deck must be comma-separated integers 0-3');
+    }
+    cats.push(n);
+  }
+  return cats.length ? cats : undefined;
 }
 
 export function sanitizeGamePatch(body: unknown): GameUpdateInput {
@@ -62,6 +86,10 @@ export const libraryService = {
 
   async list(filter: GameListFilter): Promise<GameListResult> {
     return libraryRepository.list(filter);
+  },
+
+  async listGenres(): Promise<string[]> {
+    return libraryRepository.findDistinctGenres();
   },
 
   async getById(id: string): Promise<Game> {

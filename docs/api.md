@@ -68,7 +68,8 @@ Derived from current models and provider contracts. URLs are provisional until i
 
 | Method   | Path                          | Purpose                                              |
 |----------|-------------------------------|------------------------------------------------------|
-| `GET`    | `/api/games`                  | List games. Filters TBD (`genre`, etc.).            |
+| `GET`    | `/api/games`                  | List games. Filters: `?search=`, `?genre=`, `?deck=`, `?sort=`, `?limit=`, `?offset=`. `genre` and `deck` accept comma-separated values (multi-select OR). `deck` values: 0=Unknown, 1=Unsupported, 2=Playable, 3=Verified. |
+| `GET`    | `/api/games/genres`            | List distinct genres (sorted) for filter UI. Returns `{ genres: string[] }`. |
 | `GET`    | `/api/games/:id`              | Get one game.                                        |
 | `PATCH`  | `/api/games/:id`              | Update editable fields (title, metadata, etc.).     |
 | `DELETE` | `/api/games/:id`              | Remove game (and linkages).                          |
