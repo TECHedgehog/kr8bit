@@ -12,13 +12,15 @@ import IconCalendarMonth from '@tabler/icons-react/dist/esm/icons/IconCalendarMo
 import IconDatabase from '@tabler/icons-react/dist/esm/icons/IconDatabase.mjs';
 import IconDatabaseExport from '@tabler/icons-react/dist/esm/icons/IconDatabaseExport.mjs';
 import IconSquareFilled from '@tabler/icons-react/dist/esm/icons/IconSquareFilled.mjs';
+import IconArrowUp from '@tabler/icons-react/dist/esm/icons/IconArrowUp.mjs';
 import { api, ApiError } from '../api/client';
-import type { GameListResult } from '../api/types';
+import type { Game, GameListResult, MatchStatus } from '../api/types';
 import { GameCard } from '../components/GameCard';
 import { IconButton } from '../components/IconButton';
 
 
 type SortKey = 'title-asc' | 'title-desc' | 'newest' | 'oldest' | 'largest' | 'smallest';
+type StatusFilter = '' | MatchStatus;
 type Panel = 'advanced' | 'settings' | null;
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSortAZ }> = [
@@ -30,7 +32,14 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSort
   { value: 'smallest', label: 'Smallest first', icon: IconDatabaseExport },
 ];
 
-const LIMIT_OPTIONS = [10, 25, 50, 100];
+const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
+  { value: '', label: 'All statuses' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'FLAGGED', label: 'Flagged' },
+  { value: 'ACCEPTED', label: 'Accepted' },
+  { value: 'MANUAL', label: 'Manual' },
+  { value: 'REJECTED', label: 'Rejected' },
+];
 
 const GRID_SIZES = [
   { label: 'Small', value: 130, iconSize: 10 },
@@ -39,50 +48,125 @@ const GRID_SIZES = [
 ];
 const GRID_SIZE_DEFAULT = 160;
 
+// Chunk size for infinite scroll. Backend caps limit at 200.
+const PAGE_SIZE = 50;
+
 export function GamesPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const sort = (searchParams.get('sort') as SortKey) ?? 'title-asc';
+  const status = (searchParams.get('status') as StatusFilter) ?? '';
   const search = searchParams.get('search') ?? '';
-  const limit = Number(searchParams.get('limit') ?? 25);
-  const offset = Number(searchParams.get('offset') ?? 0);
   const gridSize = Number(searchParams.get('gridSize') ?? GRID_SIZE_DEFAULT);
 
   const [searchInput, setSearchInput] = useState(search);
   const [searchExpanded, setSearchExpanded] = useState(search !== '');
-  const [data, setData] = useState<GameListResult | null>(null);
+  const [items, setItems] = useState<Game[]>([]);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState<Panel>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const searchRef = useRef<HTMLFormElement>(null);
   useTiltGlow(searchRef);
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
   useGlowFollow(gridSizeToggleRef);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollTopRef = useRef<HTMLButtonElement>(null);
+  useGlowFollow(scrollTopRef);
+
+  // Request token: incremented on each reset so stale fetchMore responses
+  // (from a superseded filter) are ignored before appending.
+  const reqToken = useRef(0);
 
   useEffect(() => {
     setSearchInput(search);
   }, [search]);
 
-  const fetchPage = useCallback(async () => {
+  const fetchInitial = useCallback(async () => {
+    const token = ++reqToken.current;
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
+      if (status) params.set('status', status);
       if (search.trim()) params.set('search', search.trim());
-      params.set('limit', String(limit));
-      params.set('offset', String(offset));
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', '0');
       const res = await api.get<GameListResult>(`/api/games?${params.toString()}`);
-      setData(res);
+      if (reqToken.current !== token) return; // superseded
+      setItems(res.items);
+      setTotal(res.total);
+      setHasMore(res.items.length < res.total);
     } catch (err) {
+      if (reqToken.current !== token) return;
       setError(err instanceof ApiError ? err.message : 'failed to load games');
     } finally {
-      setLoading(false);
+      if (reqToken.current === token) setLoading(false);
     }
-  }, [search, limit, offset]);
+  }, [status, search]);
 
+  const fetchMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    const token = reqToken.current;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (search.trim()) params.set('search', search.trim());
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(items.length));
+      const res = await api.get<GameListResult>(`/api/games?${params.toString()}`);
+      if (reqToken.current !== token) return; // superseded by a reset
+      setItems((prev) => [...prev, ...res.items]);
+      setHasMore(items.length + res.items.length < res.total);
+    } catch (err) {
+      if (reqToken.current !== token) return;
+      setError(err instanceof ApiError ? err.message : 'failed to load more games');
+    } finally {
+      if (reqToken.current === token) setLoadingMore(false);
+    }
+  }, [status, search, items.length, loadingMore, hasMore]);
+
+  // Reset + initial fetch whenever filters change.
   useEffect(() => {
-    void fetchPage();
-  }, [fetchPage]);
+    void fetchInitial();
+  }, [fetchInitial]);
+
+  // Infinite scroll: observe sentinel, load next chunk when it enters view.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) void fetchMore();
+      },
+      { rootMargin: '400px 0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fetchMore]);
+
+  // Scroll-to-top visibility: show once the first row of games scrolls out
+  // the top of the viewport. The first card shares top+height with all
+  // first-row cards in a CSS grid, so its bottom < 0 means the row is gone.
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const firstCard = grid.firstElementChild as HTMLElement | null;
+    if (!firstCard) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowScrollTop(!entry.isIntersecting && entry.boundingClientRect.bottom < 0);
+      },
+      { threshold: 0 },
+    );
+    observer.observe(firstCard);
+    return () => observer.disconnect();
+  }, [items]);
 
   function updateParams(updates: Record<string, string | number>) {
     const next = new URLSearchParams(searchParams);
@@ -98,15 +182,15 @@ export function GamesPage(): JSX.Element {
 
   function onSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
-    updateParams({ search: searchInput.trim(), offset: 0 });
+    updateParams({ search: searchInput.trim() });
   }
 
   function onSortChange(key: SortKey) {
-    updateParams({ sort: key, offset: 0 });
+    updateParams({ sort: key });
   }
 
-  function onLimitChange(value: number) {
-    updateParams({ limit: value, offset: 0 });
+  function onStatusChange(value: StatusFilter) {
+    updateParams({ status: value });
   }
 
   function onGridSizeChange(value: number) {
@@ -117,10 +201,9 @@ export function GamesPage(): JSX.Element {
     setPanelOpen((current) => (current === panel ? null : panel));
   }
 
-  const total = data?.total ?? 0;
-  const items = data?.items ?? [];
-  const hasPrev = offset > 0;
-  const hasNext = offset + items.length < total;
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   return (
     <div className="page">
@@ -156,7 +239,7 @@ export function GamesPage(): JSX.Element {
           <IconButton
             icon={IconAdjustments}
             label="Advanced search"
-            active={panelOpen === 'advanced'}
+            active={panelOpen === 'advanced' || status !== ''}
             onClick={() => togglePanel('advanced')}
             glow
           />
@@ -172,6 +255,20 @@ export function GamesPage(): JSX.Element {
 
         {panelOpen === 'advanced' && (
           <div className="library-panel">
+            <div className="panel-group">
+              <span className="panel-label">Status</span>
+              <div className="panel-chips">
+                {STATUS_OPTIONS.map((o) => (
+                  <button
+                    key={o.value}
+                    className={`panel-chip${status === o.value ? ' active' : ''}`}
+                    onClick={() => onStatusChange(o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="panel-group">
               <span className="panel-label">Sort</span>
               <div className="panel-chips">
@@ -217,46 +314,35 @@ export function GamesPage(): JSX.Element {
       </div>
 
       {error && <div className="error">{error}</div>}
-      {loading && !data && <div className="muted">Loading…</div>}
+      {loading && items.length === 0 && <div className="muted">Loading…</div>}
 
       {!loading && !error && items.length === 0 && (
         <div className="muted">No games found</div>
       )}
 
-      <div className="game-grid" style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}>
+      <div
+        ref={gridRef}
+        className="game-grid"
+        style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
+      >
         {items.map((g) => (
           <GameCard key={g.id} game={g} />
         ))}
       </div>
 
-      {total > 0 && (
-        <div className="pagination">
-          <button
-            disabled={!hasPrev}
-            onClick={() => updateParams({ offset: Math.max(0, offset - limit) })}
-          >
-            Prev
-          </button>
-          <span className="pagination-info">
-            {offset + 1}–{offset + items.length} of {total}
-          </span>
-          <button
-            disabled={!hasNext}
-            onClick={() => updateParams({ offset: offset + limit })}
-          >
-            Next
-          </button>
-          <select
-            value={limit}
-            onChange={(e) => onLimitChange(Number(e.target.value))}
-            style={{ width: 'auto' }}
-          >
-            {LIMIT_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n} per page</option>
-            ))}
-          </select>
-        </div>
-      )}
+      {loadingMore && <div className="muted">Loading more…</div>}
+
+      <div ref={sentinelRef} className="scroll-sentinel" aria-hidden="true" />
+
+      <button
+        ref={scrollTopRef}
+        className={`topbar-pill scroll-top-pill glow-follow${showScrollTop ? ' is-visible' : ''}`}
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+        type="button"
+      >
+        <IconArrowUp size={20} />
+      </button>
 
       <Outlet />
     </div>

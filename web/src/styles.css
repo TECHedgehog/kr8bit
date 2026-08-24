@@ -1254,19 +1254,37 @@ textarea {
   z-index: -1;
 }
 
-/* ===== Pagination ===== */
+/* ===== Infinite scroll sentinel ===== */
 
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  justify-content: center;
-  margin-top: var(--space-4);
+.scroll-sentinel {
+  height: 1px;
+  width: 100%;
 }
 
-.pagination-info {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
+/* ===== Scroll-to-top pill ===== */
+/* Reuses .topbar-pill for the glass surface; this adds fixed bottom-center
+   positioning + a show/hide transition keyed on .is-visible. */
+
+.scroll-top-pill {
+  position: fixed;
+  bottom: var(--space-6);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: 48px;
+  height: 48px;
+  justify-content: center;
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.scroll-top-pill.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 /* ===== Game Detail Page ===== */
