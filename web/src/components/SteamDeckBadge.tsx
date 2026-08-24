@@ -1,14 +1,10 @@
-import { useState } from 'react';
-import IconCheck from '@tabler/icons-react/dist/esm/icons/IconCheck.mjs';
+import { useEffect, useState } from 'react';
 import IconCircleCheckFilled from '@tabler/icons-react/dist/esm/icons/IconCircleCheckFilled.mjs';
-import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
 import IconCircleXFilled from '@tabler/icons-react/dist/esm/icons/IconCircleXFilled.mjs';
 import IconCircleCaretRightFilled from '@tabler/icons-react/dist/esm/icons/IconCircleCaretRightFilled.mjs';
 import IconHelpCircleFilled from '@tabler/icons-react/dist/esm/icons/IconHelpCircleFilled.mjs';
-import IconAlertTriangle from '@tabler/icons-react/dist/esm/icons/IconAlertTriangle.mjs';
 
-import type { Game, SteamDeckCompatItem } from '../api/types';
-import { getDeckTestLabel } from '../data/steamDeckTokens';
+import type { Game } from '../api/types';
 
 type IconComponent = React.ComponentType<{ size?: number | string }>;
 
@@ -46,7 +42,7 @@ const CATEGORY_META: Record<number, CategoryMeta> = {
     icon: IconCircleCheckFilled,
     color: 'var(--success)',
     explanation:
-      'This game is fully compatible with Steam Deck. Default controls, text, and performance meet Valve’s criteria.',
+      'This game is fully compatible with Steam Deck. Default controls, text, and performance meet Valve\u2019s criteria.',
   },
 };
 
@@ -55,37 +51,41 @@ function getCategory(steamAppId: number | null, category: number | null | undefi
   return category ?? 0;
 }
 
-function getCheckMeta(displayType: number) {
-  if (displayType === 4) {
-    return { icon: IconCheck, color: 'var(--success)' };
-  }
-  if (displayType === 2) {
-    return { icon: IconX, color: 'var(--danger)' };
-  }
-  return { icon: IconAlertTriangle, color: 'var(--warning)' };
-}
-
 interface SteamDeckBadgeProps {
   game: Game;
 }
 
 export function SteamDeckBadge({ game }: SteamDeckBadgeProps): JSX.Element {
-  const [expanded, setExpanded] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [coarse, setCoarse] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    const update = () => setCoarse(mq.matches);
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const category = getCategory(game.steamAppId ?? null, game.steamDeckCategory);
   const meta = CATEGORY_META[category] ?? CATEGORY_META[0];
-  const items = game.steamDeckItems ?? [];
   const CategoryIcon = meta.icon;
 
-  return (
-    <button
-      type="button"
-      className={`steam-deck-badge ${expanded ? 'is-expanded' : ''}`}
-      onClick={(e) => {
+  const handleClick = coarse
+    ? (e: React.MouseEvent<HTMLDivElement>) => {
         e.stopPropagation();
-        setExpanded((v) => !v);
-      }}
+        setPinned((v) => !v);
+      }
+    : undefined;
+
+  return (
+    <div
+      role="group"
+      tabIndex={0}
+      className={`steam-deck-badge${pinned ? ' is-pinned' : ''}`}
       aria-label={`Steam Deck compatibility: ${meta.label}`}
-      aria-expanded={expanded}
+      onClick={handleClick}
     >
       <span className="steam-deck-badge__head">
         <span className="steam-deck-badge__icon" style={{ color: meta.color }}>
@@ -95,30 +95,6 @@ export function SteamDeckBadge({ game }: SteamDeckBadgeProps): JSX.Element {
           {meta.label}
         </span>
       </span>
-      <span className="steam-deck-badge__body-wrap" aria-hidden={!expanded}>
-        <span className="steam-deck-badge__body">
-          <span className="steam-deck-badge__explanation">{meta.explanation}</span>
-          {items.length > 0 && (
-            <div className="steam-deck-badge__checks">
-              {items.map((item, index) => (
-                <DeckCheck key={`${item.locToken}-${index}`} item={item} />
-              ))}
-            </div>
-          )}
-        </span>
-      </span>
-    </button>
-  );
-}
-
-function DeckCheck({ item }: { item: SteamDeckCompatItem }): JSX.Element {
-  const { icon: CheckIcon, color } = getCheckMeta(item.displayType);
-  return (
-    <div className="steam-deck-badge__check">
-      <span className="steam-deck-badge__check-icon" style={{ color }}>
-        <CheckIcon size={14} />
-      </span>
-      <span>{getDeckTestLabel(item.locToken)}</span>
     </div>
   );
 }
