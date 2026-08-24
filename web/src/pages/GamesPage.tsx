@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
 import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
 import IconSettings from '@tabler/icons-react/dist/esm/icons/IconSettings.mjs';
@@ -48,6 +49,10 @@ export function GamesPage(): JSX.Element {
   const gridSize = Number(searchParams.get('gridSize') ?? GRID_SIZE_DEFAULT);
 
   const [searchInput, setSearchInput] = useState(search);
+  const debouncedSearch = useDebouncedValue(searchInput, 250);
+  // Set before internal URL writes so the searchInput<-URL sync-back effect
+  // knows to skip (avoid clobbering active typing with the trimmed URL value).
+  const skipSyncRef = useRef(false);
   const [searchExpanded, setSearchExpanded] = useState(search !== '');
   const [items, setItems] = useState<Game[]>([]);
   const [total, setTotal] = useState(0);
@@ -70,9 +75,28 @@ export function GamesPage(): JSX.Element {
   // (from a superseded filter) are ignored before appending.
   const reqToken = useRef(0);
 
+  // Sync searchInput from URL on external navigation (popstate/initial mount).
+  // Skipped after internal debounced/submit writes via skipSyncRef so active
+  // typing isn't clobbered by the trimmed value we just wrote to the URL.
   useEffect(() => {
+    if (skipSyncRef.current) {
+      skipSyncRef.current = false;
+      return;
+    }
     setSearchInput(search);
   }, [search]);
+
+  // Live search: write debounced input to URL (replace => no back-button spam).
+  // Existing fetchInitial effect (:123) reacts to the URL change and fetches.
+  useEffect(() => {
+    const trimmed = debouncedSearch.trim();
+    if (trimmed === search) return; // already in URL, no-op
+    skipSyncRef.current = true;
+    const next = new URLSearchParams(searchParams);
+    if (trimmed) next.set('search', trimmed);
+    else next.delete('search');
+    setSearchParams(next, { replace: true });
+  }, [debouncedSearch, search, searchParams, setSearchParams]);
 
   const fetchInitial = useCallback(async () => {
     const token = ++reqToken.current;
@@ -170,7 +194,13 @@ export function GamesPage(): JSX.Element {
 
   function onSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
-    updateParams({ search: searchInput.trim() });
+    const trimmed = searchInput.trim();
+    if (trimmed === search) return; // already in URL
+    skipSyncRef.current = true;
+    const next = new URLSearchParams(searchParams);
+    if (trimmed) next.set('search', trimmed);
+    else next.delete('search');
+    setSearchParams(next, { replace: true });
   }
 
   function onSortChange(key: SortKey) {
