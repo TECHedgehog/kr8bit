@@ -185,7 +185,7 @@ a {
 
 .app-content {
   min-height: calc(100vh - var(--topbar-flow-offset));
-  padding-top: var(--space-4);
+  padding-top: var(--space-2);
 }
 
 /* ===== TopBar ===== */
