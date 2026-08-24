@@ -21,12 +21,12 @@ const EASE_IN_OUT = cubicBezier(0.42, 0, 0.58, 1);
 // settles back to idle with a slow finish.
 const EASE_OUT = cubicBezier(0.33, 1, 0.68, 1);
 
-// Move spans the whole transit. Raise peaks at ~62% of the move (0.5s / 0.8s)
+// Move spans the whole transit. Raise peaks at ~62% of the move (0.25s / 0.4s)
 // so the lens is almost at the target when the lower begins. Lower settles
-// slowly to 0.9s — the lens lands at 0.8s and finishes shrinking at 0.9s.
-const MOVE_ANIMATION = { duration: 0.8, ease: EASE_IN_OUT };
-const RAISE_ANIMATION = { duration: 0.5, ease: EASE_IN_OUT };
-const LOWER_ANIMATION = { duration: 0.4, ease: EASE_OUT };
+// to ~0.45s — the lens lands at 0.4s and finishes shrinking at ~0.45s.
+const MOVE_ANIMATION = { duration: 0.4, ease: EASE_IN_OUT };
+const RAISE_ANIMATION = { duration: 0.25, ease: EASE_IN_OUT };
+const LOWER_ANIMATION = { duration: 0.2, ease: EASE_OUT };
 
 // Peak vertical grow (px) added to the idle lens height while raised. Splits
 // symmetrically above + below the pill border (center.y = 0.5).
