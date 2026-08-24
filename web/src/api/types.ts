@@ -1,5 +1,3 @@
-export type MatchStatus = 'PENDING' | 'FLAGGED' | 'ACCEPTED' | 'MANUAL' | 'REJECTED';
-
 export type EntryType = 'ARCHIVE' | 'DIRECTORY';
 
 export type ScanStatus = 'RUNNING' | 'DONE' | 'FAILED';
@@ -31,9 +29,6 @@ export interface Game {
   videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
   steamDeckCategory?: number | null;
   steamDeckItems?: SteamDeckCompatItem[];
-  matchStatus: MatchStatus;
-  matchScore: number | null;
-  matchedAt: string | null;
   createdAt: string;
   updatedAt: string;
   tags?: string[];

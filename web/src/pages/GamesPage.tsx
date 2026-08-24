@@ -14,13 +14,12 @@ import IconDatabaseExport from '@tabler/icons-react/dist/esm/icons/IconDatabaseE
 import IconSquareFilled from '@tabler/icons-react/dist/esm/icons/IconSquareFilled.mjs';
 import IconArrowUp from '@tabler/icons-react/dist/esm/icons/IconArrowUp.mjs';
 import { api, ApiError } from '../api/client';
-import type { Game, GameListResult, MatchStatus } from '../api/types';
+import type { Game, GameListResult } from '../api/types';
 import { GameCard } from '../components/GameCard';
 import { IconButton } from '../components/IconButton';
 
 
 type SortKey = 'title-asc' | 'title-desc' | 'newest' | 'oldest' | 'largest' | 'smallest';
-type StatusFilter = '' | MatchStatus;
 type Panel = 'advanced' | 'settings' | null;
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSortAZ }> = [
@@ -30,15 +29,6 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string; icon: typeof IconSort
   { value: 'oldest', label: 'Oldest first', icon: IconCalendarMonth },
   { value: 'largest', label: 'Largest first', icon: IconDatabase },
   { value: 'smallest', label: 'Smallest first', icon: IconDatabaseExport },
-];
-
-const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
-  { value: '', label: 'All statuses' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'FLAGGED', label: 'Flagged' },
-  { value: 'ACCEPTED', label: 'Accepted' },
-  { value: 'MANUAL', label: 'Manual' },
-  { value: 'REJECTED', label: 'Rejected' },
 ];
 
 const GRID_SIZES = [
@@ -55,7 +45,6 @@ export function GamesPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const sort = (searchParams.get('sort') as SortKey) ?? 'title-asc';
-  const status = (searchParams.get('status') as StatusFilter) ?? '';
   const search = searchParams.get('search') ?? '';
   const gridSize = Number(searchParams.get('gridSize') ?? GRID_SIZE_DEFAULT);
 
@@ -92,7 +81,6 @@ export function GamesPage(): JSX.Element {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (status) params.set('status', status);
       if (search.trim()) params.set('search', search.trim());
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', '0');
@@ -107,7 +95,7 @@ export function GamesPage(): JSX.Element {
     } finally {
       if (reqToken.current === token) setLoading(false);
     }
-  }, [status, search]);
+  }, [search]);
 
   const fetchMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -115,7 +103,6 @@ export function GamesPage(): JSX.Element {
     setLoadingMore(true);
     try {
       const params = new URLSearchParams();
-      if (status) params.set('status', status);
       if (search.trim()) params.set('search', search.trim());
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(items.length));
@@ -129,7 +116,7 @@ export function GamesPage(): JSX.Element {
     } finally {
       if (reqToken.current === token) setLoadingMore(false);
     }
-  }, [status, search, items.length, loadingMore, hasMore]);
+  }, [search, items.length, loadingMore, hasMore]);
 
   // Reset + initial fetch whenever filters change.
   useEffect(() => {
@@ -187,10 +174,6 @@ export function GamesPage(): JSX.Element {
 
   function onSortChange(key: SortKey) {
     updateParams({ sort: key });
-  }
-
-  function onStatusChange(value: StatusFilter) {
-    updateParams({ status: value });
   }
 
   function onGridSizeChange(value: number) {
@@ -255,20 +238,6 @@ export function GamesPage(): JSX.Element {
 
         {panelOpen === 'advanced' && (
           <div className="library-panel">
-            <div className="panel-group">
-              <span className="panel-label">Status</span>
-              <div className="panel-chips">
-                {STATUS_OPTIONS.map((o) => (
-                  <button
-                    key={o.value}
-                    className={`panel-chip${status === o.value ? ' active' : ''}`}
-                    onClick={() => onStatusChange(o.value)}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <div className="panel-group">
               <span className="panel-label">Sort</span>
               <div className="panel-chips">

@@ -73,7 +73,7 @@ describe('libraryRepository', () => {
     expect(refetched.genres).toEqual(['Action', 'RPG']);
   });
 
-  it('lists games with status filter and pagination', async () => {
+  it('lists games with pagination', async () => {
     for (let i = 0; i < 3; i++) {
       await libraryRepository.create({
         entryPath: `/games/g${i}.7z`,
@@ -90,10 +90,6 @@ describe('libraryRepository', () => {
       sizeBytes: 1,
       matchStatus: MatchStatus.ACCEPTED,
     });
-
-    const pending = await libraryRepository.list({ matchStatus: MatchStatus.PENDING });
-    expect(pending.items).toHaveLength(3);
-    expect(pending.total).toBe(3);
 
     const all = await libraryRepository.list({ limit: 2 });
     expect(all.items).toHaveLength(2);

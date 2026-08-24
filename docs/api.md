@@ -68,11 +68,10 @@ Derived from current models and provider contracts. URLs are provisional until i
 
 | Method   | Path                          | Purpose                                              |
 |----------|-------------------------------|------------------------------------------------------|
-| `GET`    | `/api/games`                  | List games. Filters TBD (`matchStatus`, `genre`, etc.). |
+| `GET`    | `/api/games`                  | List games. Filters TBD (`genre`, etc.).            |
 | `GET`    | `/api/games/:id`              | Get one game.                                        |
 | `PATCH`  | `/api/games/:id`              | Update editable fields (title, metadata, etc.).     |
 | `DELETE` | `/api/games/:id`              | Remove game (and linkages).                          |
-| `PATCH`  | `/api/games/:id/match`        | Set `matchStatus` (`ACCEPTED` / `MANUAL` / `REJECTED`). |
 
 ### Scans
 

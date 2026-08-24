@@ -35,8 +35,6 @@ Phases are ordered by dependency. No dates.
 - Fuzzy match: scanner entry name → `SteamAppIndex` → `SteamProvider.getGame()`.
 - Apply `matchScore` thresholds: high → `ACCEPTED`, low → `FLAGGED`.
 - `POST /api/games/:id/metadata/search`, `POST /api/games/:id/metadata/apply`.
-- `PATCH /api/games/:id/match` (set `matchStatus` to `ACCEPTED` / `MANUAL` / `REJECTED`).
-- Manual metadata override path (`matchStatus = MANUAL`).
 
 ## Phase 5 — Artwork
 

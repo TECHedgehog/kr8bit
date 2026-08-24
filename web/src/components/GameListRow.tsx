@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
 import { useMarquee } from '../hooks/useMarquee';
-import { StatusBadge } from './StatusBadge';
 
 interface GameListRowProps {
   game: Game;
@@ -47,7 +46,6 @@ export function GameListRow({ game }: GameListRowProps): JSX.Element {
           <span ref={textRef} className="marquee-text">{title}</span>
         </div>
         <div className="game-list-row-meta">
-          <StatusBadge status={game.matchStatus} />
           {game.releaseYear && <span>{game.releaseYear}</span>}
         </div>
       </div>

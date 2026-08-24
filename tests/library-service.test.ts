@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { MatchStatus } from '../src/shared/enums.js';
 import { ValidationError } from '../src/shared/errors.js';
 import { parseListFilter, sanitizeGamePatch } from '../src/modules/library/library.service.js';
 
@@ -14,15 +13,6 @@ describe('parseListFilter', () => {
 
   it('caps limit at 200', () => {
     expect(parseListFilter({ limit: '500' })).toEqual({ limit: 200, offset: 0 });
-  });
-
-  it('accepts valid status and rejects invalid status', () => {
-    expect(parseListFilter({ status: 'ACCEPTED' })).toEqual({
-      matchStatus: MatchStatus.ACCEPTED,
-      limit: 50,
-      offset: 0,
-    });
-    expect(() => parseListFilter({ status: 'NOPE' })).toThrow(ValidationError);
   });
 
   it('rejects invalid limit values', () => {

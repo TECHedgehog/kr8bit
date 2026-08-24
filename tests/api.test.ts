@@ -117,22 +117,6 @@ describe('GET /api/games', () => {
     expect(body.total).toBe(3);
   });
 
-  it('filters by status', async () => {
-    await createGame({ entryName: 'A.7z', status: MatchStatus.PENDING });
-    await createGame({ entryName: 'B.7z', status: MatchStatus.ACCEPTED });
-
-    const res = await app.inject({ method: 'GET', url: '/api/games?status=ACCEPTED' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.total).toBe(1);
-    expect(body.items[0].entryName).toBe('B.7z');
-  });
-
-  it('rejects invalid status filter', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/games?status=NOPE' });
-    expect(res.statusCode).toBe(400);
-  });
-
   it('rejects invalid limit', async () => {
     const zero = await app.inject({ method: 'GET', url: '/api/games?limit=0' });
     expect(zero.statusCode).toBe(400);
