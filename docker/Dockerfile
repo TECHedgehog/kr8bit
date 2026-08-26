@@ -49,11 +49,10 @@ COPY --from=web-builder /web/dist ./web/dist
 COPY docker/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
-RUN useradd -r -u 1000 -g users kr8bit \
-  && mkdir -p /data /games \
-  && chown -R kr8bit:users /app /data /games
+RUN mkdir -p /data /games \
+  && chown -R node:node /app /data /games
 
-USER kr8bit
+USER node
 VOLUME ["/data", "/games"]
 EXPOSE 8080
 

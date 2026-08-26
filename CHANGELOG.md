@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions workflow (`.github/workflows/docker-publish.yml`) publishing the image to GHCR (`linux/amd64`) on push to `main` and version tags
+- Unraid Community Applications template pointing at `ghcr.io/techedgehog/kr8bit`
+
+### Fixed
+
+- Dockerfile `useradd` failed with `UID 1000 is not unique` against `node:20-slim`'s existing `node` user — now reuses the base image `node` user (UID 1000 preserved)
+- O-13 — Static asset serving in Docker verified working (`/assets/*` returns correct `application/javascript` / `text/css` content-type); no code change required
+
 ## [0.1.0] - 2026-07-19
 
 Initial foundation release.
@@ -38,4 +48,3 @@ Initial foundation release.
 - **O-9** — No auth (no User/Session models, unauthenticated endpoints by design)
 - **O-11** — Sort dropdown not wired to backend
 - **O-12** — Scan page layout not reworked
-- **O-13** — Static asset serving broken in Docker (`/assets/` returns `index.html`)

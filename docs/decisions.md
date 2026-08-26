@@ -445,10 +445,10 @@ Track here before they become closed decisions or roadmap tasks.
 
 ### O-13 — Static Asset Serving in Docker
 
-- Backend `@fastify/static` with `wildcard: false` does not serve files under `/assets/` — returns `index.html` for all non-API GET routes (SPA fallback). The JS/CSS bundles at `/assets/index-*.js` return HTML instead of the actual file.
-- Dev server (`:5173`) works fine; issue only affects production/Docker.
-- Fix: likely need `@fastify/static` `wildcard: true` or configure `decorateReply` + prefix properly, or use a separate route for `/assets/`.
-- Owner: blocking for Docker deployment.
+- **Resolved (verified).** Built the production image and confirmed `/assets/index-*.js` returns `200 application/javascript` (real JS bundle) and `/assets/index-*.css` returns `200 text/css`. The `@fastify/static` `wildcard: false` + `prefix: '/'` registration serves real files correctly; the `setNotFoundHandler` SPA fallback only triggers for non-file, non-API GET routes.
+- Earlier report of `/assets/` returning `index.html` was not reproducible against the current `server.ts` static registration. No code change applied.
+- Dev server (`:5173`) unaffected; production/Docker now confirmed working.
+- Owner: closed.
 
 - vitest configured (`package.json`, `tsconfig.json` excludes `tests`). No test files exist.
 - Owner: Phase 12.

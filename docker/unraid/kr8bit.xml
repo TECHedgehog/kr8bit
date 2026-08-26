@@ -1,20 +1,20 @@
 <?xml version="1.0"?>
 <Container>
   <Name>kr8bit</Name>
-  <Repository>kr8bit:latest</Repository>
-  <Registry>https://github.com/eric/kr8bit</Registry>
+  <Repository>ghcr.io/techedgehog/kr8bit:latest</Repository>
+  <Registry>https://github.com/TECHedgehog/kr8bit</Registry>
   <Branch>main</Branch>
   <Network>bridge</Network>
   <Privileged>false</Privileged>
-  <Support>https://github.com/eric/kr8bit/issues</Support>
-  <TemplateURL>https://raw.githubusercontent.com/eric/kr8bit/main/docker/unraid/kr8bit.xml</TemplateURL>
-  <Project>https://github.com/eric/kr8bit</Project>
+  <Support>https://github.com/TECHedgehog/kr8bit/issues</Support>
+  <TemplateURL>https://raw.githubusercontent.com/TECHedgehog/kr8bit/main/docker/unraid/kr8bit.xml</TemplateURL>
+  <Project>https://github.com/TECHedgehog/kr8bit</Project>
   <Overview>
     Self-hosted game library manager. Scans local installer folders, fetches Steam metadata + artwork, and lets you organize your library through a web UI. Kind of like Jellyfin for games.
   </Overview>
   <Category>MediaApp:Other</Category>
   <WebUI>http://[IP]:[PORT:8080]</WebUI>
-  <TemplateSource>https://github.com/eric/kr8bit</TemplateSource>
+  <TemplateSource>https://github.com/TECHedgehog/kr8bit</TemplateSource>
 
   <Config Name="HTTP Port" Target="PORT" Default="8080" Mode="" Description="Web UI port" Type="Port" Display="always" Required="true" Mask="false">8080</Config>
 
