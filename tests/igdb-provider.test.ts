@@ -143,7 +143,7 @@ describe('IgdbProvider.getGame', () => {
         { id: 2, name: 'Action' },
       ],
       themes: [
-        { id: 1, name: '4X' },
+        { id: 1, name: '4X (explore, expand, exploit, and exterminate)' },
         { id: 2, name: 'Survival' },
       ],
       involved_companies: [

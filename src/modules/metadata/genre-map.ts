@@ -32,7 +32,10 @@ export const IGDB_GENRE_MAP: Record<string, string> = {
 };
 
 // Maps IGDB theme names to canonical (Steam-based) genre names
+// Note: IGDB returns the full string "4X (explore, expand, exploit, and exterminate)"
+// as the theme name, not the short "4X". Both keys are kept for safety.
 export const IGDB_THEME_MAP: Record<string, string> = {
+  '4X (explore, expand, exploit, and exterminate)': 'Strategy',
   '4X': 'Strategy',
   'Survival': 'Survival',
   'Stealth': 'Stealth',

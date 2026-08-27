@@ -26,6 +26,8 @@ describe('IGDB_GENRE_MAP', () => {
 
 describe('IGDB_THEME_MAP', () => {
   it('maps IGDB themes to canonical names', () => {
+    // IGDB returns the full theme name, not the short "4X".
+    expect(IGDB_THEME_MAP['4X (explore, expand, exploit, and exterminate)']).toBe('Strategy');
     expect(IGDB_THEME_MAP['4X']).toBe('Strategy');
     expect(IGDB_THEME_MAP['Survival']).toBe('Survival');
     expect(IGDB_THEME_MAP['Educational']).toBe('Education');
@@ -62,14 +64,14 @@ describe('normalizeGenres', () => {
   describe('igdb', () => {
     it('maps genres and themes to canonical names', () => {
       const genres = ['Role-playing (RPG)', 'Action'];
-      const themes = ['4X', 'Survival'];
+      const themes = ['4X (explore, expand, exploit, and exterminate)', 'Survival'];
       const result = normalizeGenres('igdb', genres, themes);
       expect(result).toEqual(['RPG', 'Action', 'Strategy', 'Survival']);
     });
 
     it('deduplicates when genre+theme map to same canonical', () => {
       const genres = ['Strategy', 'Turn-based strategy (TBS)', 'Real Time Strategy (RTS)'];
-      const themes = ['4X'];
+      const themes = ['4X (explore, expand, exploit, and exterminate)'];
       const result = normalizeGenres('igdb', genres, themes);
       expect(result).toEqual(['Strategy']);
     });
