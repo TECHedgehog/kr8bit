@@ -39,17 +39,26 @@ export interface OpticSection {
 // a pill; these values keep a glassy rim + edge-light without a heavy body
 // dome. Reference: SLIDER_BASE in GlassSlider.tsx (thin-control precedent).
 //
-// `strength` is the TRANSIT PEAK refraction: the lens has zero refraction
-// at rest (plain frosted chip) and ramps 0 → strength → 0 while it raises,
-// slides to the new active entry, and lowers back. The Strength slider
-// therefore controls the magnification seen only during the move.
+// Values sourced from dev-instance tuning (localStorage kr8bit-glass-pill)
+// so every origin/device gets the same refraction without per-origin
+// localStorage. Previously frost=1.5 frosted over the subtle transit
+// displacement (LENS_SCALE_PEAK=0.05 in TopBar) and masked refraction —
+// the "only blur, no bend" symptom on NAS/prod builds. frost=0 lets the
+// displacement show; the pill surface blur still comes from .topbar-pill's
+// own backdrop-filter (styles.css), so the glass look is preserved.
+//
+// `strength` is overridden by TopBar's `scale` prop (library resolves
+// scale ?? strength), so its value here is a no-op for the pill — kept at
+// 0 only to match the dev tuning. The Strength slider in /glass-test
+// therefore has no effect on the actual pill; transit bend is controlled
+// by LENS_SCALE_PEAK in TopBar.tsx.
 export const PILL_DEFAULT: Partial<GlassOptics> = {
-  curvature: 0.4,
-  depth: 0.5,
-  dispersion: 0.4,
-  strength: 0.5,
-  bend: 0.12,
-  bendWidth: 0.1,
+  curvature: 0.38,
+  depth: 0.19,
+  dispersion: 0,
+  strength: 0,
+  bend: 0.2,
+  bendWidth: 0.2,
   sheen: 0.5,
   sheenWidth: 2,
   sheenAngle: 135,
@@ -57,7 +66,7 @@ export const PILL_DEFAULT: Partial<GlassOptics> = {
   glow: 0.2,
   glowSpread: 0.5,
   glowFalloff: 1.5,
-  frost: 1.5,
+  frost: 0,
   brightness: 0.04,
   clipToShape: true,
   softEdge: true,
