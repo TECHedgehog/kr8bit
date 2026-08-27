@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useAutoAnimate } from '@formkit/auto-animate/react';
 import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
 import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
 import IconSettings from '@tabler/icons-react/dist/esm/icons/IconSettings.mjs';
@@ -76,16 +77,31 @@ export function GamesPage(): JSX.Element {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState<Panel>(null);
+  // Fades the grid opacity during advanced-panel open/close to mask the card
+  // row-drops that happen as the grid column resizes (auto-animate can't FLIP
+  // CSS layout resizes). Cleared after the panel transition completes.
+  const [gridFading, setGridFading] = useState(false);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [genres, setGenres] = useState<string[]>([]);
   const searchRef = useRef<HTMLFormElement>(null);
   useTiltGlow(searchRef);
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
   useGlowFollow(gridSizeToggleRef);
-  const gridRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  // FLIP-animated grid reflow on filter/sort changes. Merged with gridRef so
+  // the scroll-top IntersectionObserver (reads gridRef.current.firstElementChild)
+  // keeps working alongside auto-animate's own ref.
+  const [autoAnimateRef] = useAutoAnimate<HTMLDivElement>();
+  const setGridRef = useCallback((node: HTMLDivElement | null) => {
+    gridRef.current = node;
+    if (typeof autoAnimateRef === 'function') autoAnimateRef(node);
+  }, [autoAnimateRef]);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef<HTMLButtonElement>(null);
   useGlowFollow(scrollTopRef);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
 
   // Request token: incremented on each reset so stale fetchMore responses
   // (from a superseded filter) are ignored before appending.
@@ -209,6 +225,57 @@ export function GamesPage(): JSX.Element {
     return () => observer.disconnect();
   }, [items]);
 
+  // Panel height: dynamically set --panel-height so the panel's bottom edge
+  // stays 12px from the viewport bottom at all times. While the library header
+  // is visible the panel sits below it (shorter); as the header scrolls away
+  // the panel grows upward until it reaches the sticky top (12px or 74px below
+  // nav pill). useLayoutEffect sets the value before paint to avoid a flash of
+  // the CSS fallback height when opening at the top of the page.
+  useLayoutEffect(() => {
+    if (panelOpen !== 'advanced') return;
+    const panel = panelRef.current;
+    const header = headerRef.current;
+    if (!panel || !header) return;
+
+    const root = document.documentElement;
+    const css = getComputedStyle(root);
+    const topGap = parseFloat(css.getPropertyValue('--topbar-top-gap')) || 12;
+    const flowOffset = parseFloat(css.getPropertyValue('--topbar-flow-offset')) || 74;
+    const mq = window.matchMedia('(max-width: 1200px)');
+
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const headerBottom = header.getBoundingClientRect().bottom;
+      const minTop = mq.matches ? flowOffset : topGap;
+      const top = Math.max(headerBottom, minTop);
+      panel.style.setProperty('--panel-height', `calc(100vh - ${top}px - ${topGap}px)`);
+    };
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(update);
+    };
+
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    mq.addEventListener('change', update);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      mq.removeEventListener('change', update);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [panelOpen]);
+
+  // Clear any pending grid-fade timer on unmount to avoid a stuck-faded grid
+  // or a setState-after-unmount warning.
+  useEffect(() => {
+    return () => {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, []);
+
   function updateParams(updates: Record<string, string | number>) {
     const next = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(updates)) {
@@ -256,6 +323,15 @@ export function GamesPage(): JSX.Element {
 
   function togglePanel(panel: 'advanced' | 'settings') {
     setPanelOpen((current) => (current === panel ? null : panel));
+    // Only the advanced sidebar resizes the grid column; fade it to mask the
+    // reflow. Settings panel doesn't push the grid, so no fade needed.
+    if (panel === 'advanced') {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      setGridFading(true);
+      // 320ms = panel transition (0.3s) + small buffer; grid fades back in
+      // via its own 0.15s opacity transition once the class is removed.
+      fadeTimerRef.current = setTimeout(() => setGridFading(false), 320);
+    }
   }
 
   function scrollToTop() {
@@ -264,7 +340,7 @@ export function GamesPage(): JSX.Element {
 
   return (
     <div className="page">
-      <div className="library-header">
+      <div ref={headerRef} className="library-header">
         <div className="library-toolbar">
           <div className="library-title-block">
             <div className="library-title">Library</div>
@@ -310,63 +386,6 @@ export function GamesPage(): JSX.Element {
           />
         </div>
 
-        {panelOpen === 'advanced' && (
-          <div className="library-panel">
-            <div className="panel-group">
-              <span className="panel-label">Sort</span>
-              <div className="panel-chips">
-                {SORT_OPTIONS.map((o) => {
-                  const Icon = o.icon;
-                  return (
-                    <button
-                      key={o.value}
-                      className={`panel-chip${sort === o.value ? ' active' : ''}`}
-                      onClick={() => onSortChange(o.value)}
-                    >
-                      <Icon size={14} />
-                      {o.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {genres.length > 0 && (
-              <div className="panel-group">
-                <span className="panel-label">Genre</span>
-                <div className="panel-chips panel-chips--wrap">
-                  {genres.map((g) => (
-                    <button
-                      key={g}
-                      className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
-                      onClick={() => toggleGenre(g)}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="panel-group">
-              <span className="panel-label">Steam Deck</span>
-              <div className="panel-chips">
-                {DECK_OPTIONS.map((o) => {
-                  const Icon = o.icon;
-                  return (
-                    <button
-                      key={o.value}
-                      className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
-                      onClick={() => toggleDeck(o.value)}
-                    >
-                      <Icon size={14} />
-                      {o.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
         {panelOpen === 'settings' && (
           <div className="library-panel">
             <div className="panel-group">
@@ -397,14 +416,74 @@ export function GamesPage(): JSX.Element {
         <div className="muted">No games found</div>
       )}
 
-      <div
-        ref={gridRef}
-        className="game-grid"
-        style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
-      >
-        {items.map((g) => (
-          <GameCard key={g.id} game={g} />
-        ))}
+      <div className="library-content">
+        <div
+          ref={setGridRef}
+          className={`game-grid${gridFading ? ' grid-fading' : ''}`}
+          style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
+        >
+          {items.map((g) => (
+            <GameCard key={g.id} game={g} />
+          ))}
+        </div>
+        <aside
+          ref={panelRef}
+          className={`library-panel library-panel--sidebar${panelOpen === 'advanced' ? ' is-visible' : ''}`}
+          aria-hidden={panelOpen !== 'advanced'}
+        >
+          <div className="panel-group">
+            <span className="panel-label">Sort</span>
+            <div className="panel-chips">
+              {SORT_OPTIONS.map((o) => {
+                const Icon = o.icon;
+                return (
+                  <button
+                    key={o.value}
+                    className={`panel-chip${sort === o.value ? ' active' : ''}`}
+                    onClick={() => onSortChange(o.value)}
+                  >
+                    <Icon size={14} />
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {genres.length > 0 && (
+            <div className="panel-group">
+              <span className="panel-label">Genre</span>
+              <div className="panel-chips panel-chips--wrap">
+                {genres.map((g) => (
+                  <button
+                    key={g}
+                    className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
+                    onClick={() => toggleGenre(g)}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="panel-group">
+            <span className="panel-label">Steam Deck</span>
+            <div className="panel-chips">
+              {DECK_OPTIONS.map((o) => {
+                const Icon = o.icon;
+                return (
+                  <button
+                    key={o.value}
+                    className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
+                    onClick={() => toggleDeck(o.value)}
+                  >
+                    <Icon size={14} />
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
       </div>
 
       {loadingMore && <div className="muted">Loading more…</div>}

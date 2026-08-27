@@ -820,6 +820,81 @@ textarea {
   padding: var(--space-3);
 }
 
+/* Advanced search sidebar — in-flow right column, pill glass surface.
+   Open/close animate width + margin-left + opacity + transform on a single
+   unified 0.3s timeline so close is the mirror of open (no mismatched
+   durations). Sticky positions it below the nav pill while scrolling;
+   height: 0 when closed collapses the flex row, .is-visible swaps in
+   --panel-height (set dynamically by useLayoutEffect in GamesPage). */
+.library-panel--sidebar {
+  flex: none;
+  width: 0;
+  max-width: 320px;
+  overflow: hidden auto;
+  position: sticky;
+  top: var(--topbar-top-gap);
+  height: 0;
+  margin-left: 0;
+  /* Nav-pill glass surface (overrides .library-panel base) */
+  background: var(--pill-bg);
+  -webkit-backdrop-filter: var(--pill-blur);
+  backdrop-filter: var(--pill-blur);
+  border: 1px solid var(--pill-border-color);
+  box-shadow: var(--pill-shadow);
+  border-radius: 20px;
+  /* Hidden state — pointer-events + aria-hidden handle a11y.
+     visibility omitted: transitioning it alongside opacity requires
+     changing transition-delay per-state, which restarts the opacity
+     transition in some browsers. */
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.library-panel--sidebar.is-visible {
+  width: 320px;
+  height: var(--panel-height, calc(100vh - var(--topbar-top-gap) * 2));
+  margin-left: var(--space-4);
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Narrow desktop: drop panel below the fixed nav pill so the two never
+   overlap horizontally (nav pill centered, panel right-aligned). */
+@media (max-width: 1200px) {
+  .library-panel--sidebar {
+    top: var(--topbar-flow-offset);
+  }
+  .library-panel--sidebar.is-visible {
+    height: var(--panel-height, calc(100vh - var(--topbar-flow-offset) - var(--topbar-top-gap)));
+  }
+}
+
+@media (max-width: 900px) {
+  .library-content {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  .library-panel--sidebar {
+    position: static;
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    padding: var(--space-3);
+    border-width: 1px;
+  }
+  .library-panel--sidebar.is-visible {
+    width: 100%;
+    height: auto;
+    margin-left: 0;
+  }
+}
+
 .panel-group {
   display: flex;
   align-items: center;
@@ -877,10 +952,26 @@ textarea {
 
 /* ===== Game Grid ===== */
 
+.library-content {
+  display: flex;
+  align-items: flex-start;
+}
+
 .game-grid {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-size, 160px), 1fr));
   gap: var(--space-6) var(--space-4);
+  /* Fade out during panel open/close to mask the card row-drops that happen
+     as this column resizes (auto-animate can't FLIP CSS layout resizes, only
+     DOM mutations). Held low for the panel transition duration, then restored
+     by JS clearing the .grid-fading class. */
+  transition: opacity 0.15s ease-out;
+}
+
+.game-grid.grid-fading {
+  opacity: 0.15;
 }
 
 .game-card {
