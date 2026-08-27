@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dockerfile `useradd` failed with `UID 1000 is not unique` against `node:20-slim`'s existing `node` user — now reuses the base image `node` user (UID 1000 preserved)
 - O-13 — Static asset serving in Docker verified working (`/assets/*` returns correct `application/javascript` / `text/css` content-type); no code change required
+- Prisma engine mismatch in Docker — `prisma generate` produced the `debian-openssl-1.1.x` engine but `node:20-slim` (Bookworm) runtime requires `debian-openssl-3.0.x`; added explicit `binaryTargets` to `schema.prisma` (image crashed at boot with `PrismaClientInitializationError`)
 
 ## [0.1.0] - 2026-07-19
 
