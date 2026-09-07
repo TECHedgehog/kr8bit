@@ -53,16 +53,51 @@ const GRID_SIZE_DEFAULT = 160;
 // Chunk size for infinite scroll. Backend caps limit at 200.
 const PAGE_SIZE = 50;
 
+interface GameQueryFilters {
+  search: string;
+  selectedGenres: string[];
+  selectedDeck: number[];
+  sort: SortKey;
+}
+
+function buildGameQuery(filters: GameQueryFilters, offset: number): string {
+  const params = new URLSearchParams();
+  if (filters.search.trim()) params.set('search', filters.search.trim());
+  if (filters.selectedGenres.length) params.set('genre', filters.selectedGenres.join(','));
+  if (filters.selectedDeck.length) params.set('deck', filters.selectedDeck.join(','));
+  params.set('sort', filters.sort);
+  params.set('limit', String(PAGE_SIZE));
+  params.set('offset', String(offset));
+  return params.toString();
+}
+
 export function GamesPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const sort = (searchParams.get('sort') as SortKey) ?? 'title-asc';
+  // Clamp URL params to known values so hand-edited or stale URLs can't
+  // produce an invalid sort key, an off-grid card size, or unknown deck ids.
+  const rawSort = searchParams.get('sort');
+  const sort: SortKey =
+    rawSort !== null && SORT_OPTIONS.some((o) => o.value === rawSort)
+      ? (rawSort as SortKey)
+      : 'title-asc';
   const search = searchParams.get('search') ?? '';
-  const gridSize = Number(searchParams.get('gridSize') ?? GRID_SIZE_DEFAULT);
+  const rawGridSize = Number(searchParams.get('gridSize') ?? GRID_SIZE_DEFAULT);
+  const gridSize = GRID_SIZES.some((g) => g.value === rawGridSize) ? rawGridSize : GRID_SIZE_DEFAULT;
   const genreParam = searchParams.get('genre') ?? '';
   const deckParam = searchParams.get('deck') ?? '';
   const selectedGenres = useMemo(() => genreParam ? genreParam.split(',').filter(Boolean) : [], [genreParam]);
-  const selectedDeck = useMemo(() => deckParam ? deckParam.split(',').filter(Boolean).map(Number) : [], [deckParam]);
+  const selectedDeck = useMemo(
+    () =>
+      deckParam
+        ? deckParam
+            .split(',')
+            .filter(Boolean)
+            .map(Number)
+            .filter((n) => DECK_OPTIONS.some((o) => o.value === n))
+        : [],
+    [deckParam],
+  );
 
   const [searchInput, setSearchInput] = useState(search);
   const debouncedSearch = useDebouncedValue(searchInput, 250);
@@ -84,6 +119,7 @@ export function GamesPage(): JSX.Element {
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [genres, setGenres] = useState<string[]>([]);
+  const [genresError, setGenresError] = useState(false);
   const searchRef = useRef<HTMLFormElement>(null);
   useTiltGlow(searchRef);
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
@@ -121,9 +157,10 @@ export function GamesPage(): JSX.Element {
   // Fetch distinct genres list once on mount for the genre filter chips.
   useEffect(() => {
     let cancelled = false;
+    setGenresError(false);
     api.get<GenresResult>('/api/games/genres')
       .then((res) => { if (!cancelled) setGenres(res.genres); })
-      .catch(() => {});
+      .catch(() => { if (!cancelled) setGenresError(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -144,14 +181,9 @@ export function GamesPage(): JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (search.trim()) params.set('search', search.trim());
-      if (selectedGenres.length) params.set('genre', selectedGenres.join(','));
-      if (selectedDeck.length) params.set('deck', selectedDeck.join(','));
-      params.set('sort', sort);
-      params.set('limit', String(PAGE_SIZE));
-      params.set('offset', '0');
-      const res = await api.get<GameListResult>(`/api/games?${params.toString()}`);
+      const res = await api.get<GameListResult>(
+        `/api/games?${buildGameQuery({ search, selectedGenres, selectedDeck, sort }, 0)}`,
+      );
       if (reqToken.current !== token) return; // superseded
       setItems(res.items);
       setTotal(res.total);
@@ -169,14 +201,9 @@ export function GamesPage(): JSX.Element {
     const token = reqToken.current;
     setLoadingMore(true);
     try {
-      const params = new URLSearchParams();
-      if (search.trim()) params.set('search', search.trim());
-      if (selectedGenres.length) params.set('genre', selectedGenres.join(','));
-      if (selectedDeck.length) params.set('deck', selectedDeck.join(','));
-      params.set('sort', sort);
-      params.set('limit', String(PAGE_SIZE));
-      params.set('offset', String(items.length));
-      const res = await api.get<GameListResult>(`/api/games?${params.toString()}`);
+      const res = await api.get<GameListResult>(
+        `/api/games?${buildGameQuery({ search, selectedGenres, selectedDeck, sort }, items.length)}`,
+      );
       if (reqToken.current !== token) return; // superseded by a reset
       setItems((prev) => [...prev, ...res.items]);
       setHasMore(items.length + res.items.length < res.total);
@@ -366,6 +393,7 @@ export function GamesPage(): JSX.Element {
               onFocus={() => setSearchExpanded(true)}
               onBlur={() => { if (!searchInput.trim()) setSearchExpanded(false); }}
               placeholder={searchExpanded ? 'Search title or entry name…' : 'Search'}
+              aria-label="Search games"
             />
           </form>
 
@@ -398,6 +426,9 @@ export function GamesPage(): JSX.Element {
                       className={`size-button${gridSize === s.value ? ' active' : ''}`}
                       onClick={() => onGridSizeChange(s.value)}
                       title={s.label}
+                      aria-label={`Grid size: ${s.label}`}
+                      aria-pressed={gridSize === s.value}
+                      type="button"
                     >
                       <IconSquareFilled size={s.iconSize} />
                     </button>
@@ -441,6 +472,8 @@ export function GamesPage(): JSX.Element {
                     key={o.value}
                     className={`panel-chip${sort === o.value ? ' active' : ''}`}
                     onClick={() => onSortChange(o.value)}
+                    aria-pressed={sort === o.value}
+                    type="button"
                   >
                     <Icon size={14} />
                     {o.label}
@@ -449,6 +482,12 @@ export function GamesPage(): JSX.Element {
               })}
             </div>
           </div>
+          {genresError && (
+            <div className="panel-group">
+              <span className="panel-label">Genre</span>
+              <div className="muted">failed to load genres</div>
+            </div>
+          )}
           {genres.length > 0 && (
             <div className="panel-group">
               <span className="panel-label">Genre</span>
@@ -458,6 +497,8 @@ export function GamesPage(): JSX.Element {
                     key={g}
                     className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
                     onClick={() => toggleGenre(g)}
+                    aria-pressed={selectedGenres.includes(g)}
+                    type="button"
                   >
                     {g}
                   </button>
@@ -475,6 +516,8 @@ export function GamesPage(): JSX.Element {
                     key={o.value}
                     className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
                     onClick={() => toggleDeck(o.value)}
+                    aria-pressed={selectedDeck.includes(o.value)}
+                    type="button"
                   >
                     <Icon size={14} />
                     {o.label}

@@ -52,7 +52,7 @@ export interface OpticSection {
 // 0 only to match the dev tuning. The Strength slider in /glass-test
 // therefore has no effect on the actual pill; transit bend is controlled
 // by LENS_SCALE_PEAK in TopBar.tsx.
-export const PILL_DEFAULT: Partial<GlassOptics> = {
+const PILL_DEFAULT: Partial<GlassOptics> = {
   curvature: 0.38,
   depth: 0.19,
   dispersion: 0,
@@ -72,7 +72,7 @@ export const PILL_DEFAULT: Partial<GlassOptics> = {
   softEdge: true,
 };
 
-export const DEFAULT_PILL_GEOMETRY: LensGeometry = {
+const DEFAULT_PILL_GEOMETRY: LensGeometry = {
   width: 80,
   height: 44,
   radius: 25,
@@ -129,12 +129,6 @@ export const OPTIC_SECTIONS: OpticSection[] = [
     ],
   },
 ];
-
-// Optic sliders hidden for the pill target. Empty now — the pill's width is
-// dynamic (driven by the active nav entry, no slider) and sheenAngle is back to
-// a static value. This set is the forward shape for locking more pill sliders
-// to defaults when that step comes.
-export const PILL_HIDDEN_OPTICS: ReadonlySet<OpticKey> = new Set<OpticKey>();
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

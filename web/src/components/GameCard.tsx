@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import IconPhotoOff from '@tabler/icons-react/dist/esm/icons/IconPhotoOff.mjs';
 import type { Game } from '../api/types';
@@ -9,7 +9,7 @@ interface GameCardProps {
   game: Game;
 }
 
-export function GameCard({ game }: GameCardProps): JSX.Element {
+export const GameCard = memo(function GameCard({ game }: GameCardProps): JSX.Element {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const title = game.displayName;
@@ -49,4 +49,4 @@ export function GameCard({ game }: GameCardProps): JSX.Element {
       </div>
     </button>
   );
-}
+});

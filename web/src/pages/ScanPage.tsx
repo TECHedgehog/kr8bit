@@ -1,6 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import type { ScanRun, ScannerStatus, JobState } from '../api/types';
+import type {
+  JobStartResponse,
+  JobStatusResponse,
+  ScanRun,
+  ScannerStatus,
+  JobState,
+} from '../api/types';
 import { PageHeader } from '../components/PageHeader';
 import { ScanProgress } from '../components/ScanProgress';
 import { formatDateTime } from '../format';
@@ -17,26 +23,31 @@ export function ScanPage(): JSX.Element {
   const [retryState, setRetryState] = useState<JobState | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
 
+  // Request token: a slow status response that resolves after a newer one
+  // (e.g. startScan's refresh racing the mount fetch) must not overwrite
+  // the fresher state.
+  const statusToken = useRef(0);
+
   const fetchStatus = useCallback(async () => {
+    const token = ++statusToken.current;
     setStatusError(null);
     try {
       const s = await api.get<ScannerStatus>('/api/scanner/status');
+      if (statusToken.current !== token) return; // superseded
       setStatus(s);
-      if (s.isRunning && s.running) {
-        setActiveScanRunId(s.running.id);
+      if (s.isRunning && s.runningRun) {
+        setActiveScanRunId(s.runningRun.id);
       }
     } catch (err) {
+      if (statusToken.current !== token) return;
       setStatusError(err instanceof ApiError ? err.message : 'failed to load status');
     }
   }, []);
 
   const fetchRefreshStatus = useCallback(async () => {
     try {
-      const res = await api.get<{ running: boolean; state: JobState }>('/api/metadata/refresh-all/status');
-      setRefreshState(res.state);
-      if (!res.running) {
-        setRefreshState(null);
-      }
+      const res = await api.get<JobStatusResponse>('/api/metadata/refresh-all/status');
+      setRefreshState(res.running ? res.state : null);
     } catch {
       // ignore polling errors
     }
@@ -44,11 +55,8 @@ export function ScanPage(): JSX.Element {
 
   const fetchRetryStatus = useCallback(async () => {
     try {
-      const res = await api.get<{ running: boolean; state: JobState }>('/api/metadata/retry-matches/status');
-      setRetryState(res.state);
-      if (!res.running) {
-        setRetryState(null);
-      }
+      const res = await api.get<JobStatusResponse>('/api/metadata/retry-matches/status');
+      setRetryState(res.running ? res.state : null);
     } catch {
       // ignore polling errors
     }
@@ -94,7 +102,7 @@ export function ScanPage(): JSX.Element {
   async function handleRetryMatches() {
     setRetryError(null);
     try {
-      await api.post('/api/metadata/retry-matches');
+      await api.post<JobStartResponse>('/api/metadata/retry-matches');
       setRetryState({ running: true, processed: 0, failed: 0 });
     } catch (err) {
       setRetryError(err instanceof ApiError ? err.message : 'failed to start retry');
@@ -104,7 +112,7 @@ export function ScanPage(): JSX.Element {
   async function handleRefreshAll() {
     setRefreshError(null);
     try {
-      await api.post('/api/metadata/refresh-all');
+      await api.post<JobStartResponse>('/api/metadata/refresh-all');
       setRefreshState({ running: true, processed: 0, failed: 0 });
     } catch (err) {
       setRefreshError(err instanceof ApiError ? err.message : 'failed to start refresh');
@@ -113,7 +121,7 @@ export function ScanPage(): JSX.Element {
 
   const isRunning = status?.isRunning ?? false;
   const latest = status?.latest ?? null;
-  const running = status?.running ?? null;
+  const running = status?.runningRun ?? null;
 
   return (
     <div className="page">

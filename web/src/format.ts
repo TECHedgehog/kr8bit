@@ -4,7 +4,13 @@ export function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+  return d.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export function formatBytes(bytes: number): string {
@@ -19,19 +25,6 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(1)} ${units[i]}`;
 }
 
-export function parseStringList(value: string): string[] {
-  return value
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-}
-
 export function joinStringList(values: string[]): string {
   return values.join(', ');
-}
-
-const ARCHIVE_EXTENSION_PATTERN = /\.(7z|zip|rar|r\d{2,3}|tar(\.gz)?|gz|bz2|xz|iso|exe|msi|bin)$/i;
-
-export function stripArchiveExtension(name: string): string {
-  return name.replace(ARCHIVE_EXTENSION_PATTERN, '');
 }

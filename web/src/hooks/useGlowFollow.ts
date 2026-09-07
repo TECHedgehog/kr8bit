@@ -6,6 +6,10 @@ export function useGlowFollow(ref: React.RefObject<HTMLElement | null>, enabled:
     const el = ref.current;
     if (!el) return;
 
+    // Decorative pointer-tracking effect — skip entirely when the user
+    // prefers reduced motion (or is on a touch device).
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
     const coarse = matchMedia('(pointer: coarse)').matches;
     if (coarse) return;
 

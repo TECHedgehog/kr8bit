@@ -33,7 +33,7 @@ import {
 const EXPAND_ANIM = { ease: cubicBezier(0.34, 1.36, 0.42, 1), duration: 0.27 };
 const COLLAPSE_ANIM = { ease: cubicBezier(0.36, 0, 0.18, 1), duration: 0.46 };
 
-export const SLIDER_BASE: Partial<GlassOptics> = {
+const SLIDER_BASE: Partial<GlassOptics> = {
   mapSize: 256,
   // depth/curvature are 0..1 fractions of the thumb's expanded half-extent (~16.5px):
   // depth ≈ 0.12 is a ~1.3–2px refractive rim; curvature ≈ 0.30 shapes the rim BEND

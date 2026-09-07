@@ -53,15 +53,6 @@ export interface GenresResult {
   genres: string[];
 }
 
-export interface GameUpdateInput {
-  title?: string | null;
-  releaseYear?: number | null;
-  description?: string | null;
-  developers?: string[];
-  publishers?: string[];
-  genres?: string[];
-}
-
 export interface ScanRun {
   id: string;
   rootPath: string;
@@ -76,7 +67,7 @@ export interface ScanRun {
 }
 
 export interface ScannerStatus {
-  running: ScanRun | null;
+  runningRun: ScanRun | null;
   latest: ScanRun | null;
   isRunning: boolean;
 }
@@ -92,20 +83,6 @@ export interface ScanProgressEvent {
   message?: string;
 }
 
-export interface SearchResult {
-  providerName: string;
-  remoteId: string;
-  title: string;
-  releaseYear?: number;
-  coverUrl?: string;
-  score?: number;
-}
-
-export interface MetadataSearchResponse {
-  gameId: string;
-  results: SearchResult[];
-}
-
 export interface ApiErrorEnvelope {
   statusCode: number;
   code: string;
@@ -119,14 +96,11 @@ export interface JobState {
   failed: number;
 }
 
-export interface RefreshJobResponse {
+export interface JobStatusResponse {
   running: boolean;
-  state?: JobState;
-  started?: boolean;
+  state: JobState;
 }
 
-export interface RetryMatchResponse {
-  running: boolean;
-  state?: JobState;
-  started?: boolean;
+export interface JobStartResponse {
+  started: boolean;
 }

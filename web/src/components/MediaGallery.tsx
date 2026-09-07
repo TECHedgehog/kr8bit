@@ -35,11 +35,18 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
     return [...v, ...s];
   }, [videos, screenshots]);
 
+  // Reset selection when the media list changes (game switch): if the
+  // current selection is no longer part of the list, fall back to the
+  // first item.
   useEffect(() => {
-    if (media.length > 0 && !selectedMedia) {
-      setSelectedMedia(media[0]);
+    if (media.length === 0) {
+      setSelectedMedia(null);
+      return;
     }
-  }, [media, selectedMedia]);
+    setSelectedMedia((current) =>
+      current && media.some((m) => m.url === current.url) ? current : media[0],
+    );
+  }, [media]);
 
   const isVideo = (selectedMedia?.type || media[0]?.type || 'screenshot') === 'video';
 
@@ -89,7 +96,7 @@ export function MediaGallery({ screenshots = [], videos = [] }: MediaGalleryProp
               onClick={() => handleThumbnailClick(item)}
               aria-label={`Select ${item.type} ${idx + 1}`}
             >
-              <img src={item.thumbnailUrl} alt="" />
+              <img src={item.thumbnailUrl} alt="" loading="lazy" />
             </button>
           ))}
         </div>

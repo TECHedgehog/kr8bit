@@ -43,12 +43,10 @@ export function VideoPlayer({
       poster={poster}
       muted={defaultMuted}
       volume={1}
-      autoPlay
-      loop
       playsInline
       streamType="on-demand"
       currentTime={startTime}
-      load="eager"
+      load="idle"
       onProviderChange={handleProviderChange}
     >
       <MediaProvider />

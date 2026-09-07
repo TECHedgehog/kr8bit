@@ -8,15 +8,18 @@ interface ScanProgressProps {
 
 export function ScanProgress({ scanRunId, onDone }: ScanProgressProps) {
   const [event, setEvent] = useState<ScanProgressEvent | null>(null);
+  const [connError, setConnError] = useState(false);
   const doneFiredRef = useRef(false);
 
   useEffect(() => {
     if (!scanRunId) {
       setEvent(null);
+      setConnError(false);
       doneFiredRef.current = false;
       return;
     }
     doneFiredRef.current = false;
+    setConnError(false);
     let doneTimer: number | undefined;
     const source = new EventSource('/api/scanner/progress');
     source.onmessage = (msg) => {
@@ -26,6 +29,7 @@ export function ScanProgress({ scanRunId, onDone }: ScanProgressProps) {
         const parsed = JSON.parse(data) as ScanProgressEvent;
         if (parsed.scanRunId !== scanRunId) return;
         setEvent(parsed);
+        setConnError(false);
         if (parsed.phase === 'done' && !doneFiredRef.current) {
           doneFiredRef.current = true;
           doneTimer = window.setTimeout(onDone, 500);
@@ -35,7 +39,9 @@ export function ScanProgress({ scanRunId, onDone }: ScanProgressProps) {
       }
     };
     source.onerror = () => {
-      // EventSource auto-reconnects; ignore transient errors
+      // EventSource auto-reconnects; surface the outage instead of failing
+      // silently so a stuck scan doesn't look like a frozen UI.
+      setConnError(true);
     };
     return () => {
       if (doneTimer !== undefined) window.clearTimeout(doneTimer);
@@ -51,6 +57,9 @@ export function ScanProgress({ scanRunId, onDone }: ScanProgressProps) {
   return (
     <div className="scan-progress">
       <div className="scan-progress-phase">phase: {event.phase}</div>
+      {connError && (
+        <div className="scan-progress-message error">connection lost — reconnecting…</div>
+      )}
       {event.currentEntry && (
         <div className="scan-progress-entry" title={event.currentEntry}>
           entry: {event.currentEntry}

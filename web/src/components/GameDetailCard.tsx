@@ -21,6 +21,8 @@ export function GameDetailCard(): JSX.Element {
   const cancelledRef = useRef(false);
   const { viewportRef, textRef } = useMarquee(game?.displayName ?? '');
   const colLeftRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
@@ -34,15 +36,14 @@ export function GameDetailCard(): JSX.Element {
   useEffect(() => {
     const el = colLeftRef.current;
     if (!el) return;
-    function onScroll() {
-      setIsScrolled(el!.scrollTop > 0);
-    }
-    el.addEventListener('scroll', onScroll);
-    return () => el!.removeEventListener('scroll', onScroll);
-  }, []);
+    const onScroll = () => setIsScrolled(el.scrollTop > 0);
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [game?.id]);
 
   useEffect(() => {
     cancelledRef.current = false;
+    setHeroError(false);
     async function load() {
       if (!id) return;
       setLoading(true);
@@ -68,10 +69,38 @@ export function GameDetailCard(): JSX.Element {
     };
   }, [id]);
 
+  // Dialog semantics: move focus into the dialog when it opens or switches
+  // game, and trap Tab focus within the card while it is open.
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, [id]);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         navigate('/games');
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const card = cardRef.current;
+      if (!card) return;
+      const focusables = Array.from(
+        card.querySelectorAll<HTMLElement>(
+          'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute('disabled'));
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (active === first || !card.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !card.contains(active)) {
+        e.preventDefault();
+        first.focus();
       }
     }
     document.addEventListener('keydown', onKeyDown);
@@ -89,8 +118,16 @@ export function GameDetailCard(): JSX.Element {
 
   return (
     <div className="game-detail-backdrop" onClick={onClose}>
-      <div className="game-detail-card" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={cardRef}
+        className="game-detail-card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={game?.displayName ?? 'Game details'}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
+          ref={closeRef}
           className="game-detail-close"
           onClick={onClose}
           aria-label="Close"

@@ -12,7 +12,6 @@ interface CategoryMeta {
   label: string;
   icon: IconComponent;
   color: string;
-  explanation: string;
 }
 
 const CATEGORY_META: Record<number, CategoryMeta> = {
@@ -20,29 +19,21 @@ const CATEGORY_META: Record<number, CategoryMeta> = {
     label: 'Unknown',
     icon: IconHelpCircleFilled,
     color: 'var(--text-muted)',
-    explanation:
-      'This game has not been reviewed for Steam Deck compatibility. Performance and controls are unknown.',
   },
   1: {
     label: 'Unsupported',
     icon: IconCircleXFilled,
     color: 'var(--danger)',
-    explanation:
-      'This game is currently not functional on Steam Deck. It may use unsupported anti-cheat, a third-party launcher, or be Windows-only.',
   },
   2: {
     label: 'Playable',
     icon: IconCircleCaretRightFilled,
     color: 'var(--warning)',
-    explanation:
-      'This game runs on Steam Deck but may require manual configuration, use small text, or show non-Deck controller icons.',
   },
   3: {
     label: 'Verified',
     icon: IconCircleCheckFilled,
     color: 'var(--success)',
-    explanation:
-      'This game is fully compatible with Steam Deck. Default controls, text, and performance meet Valve\u2019s criteria.',
   },
 };
 
@@ -81,8 +72,6 @@ export function SteamDeckBadge({ game }: SteamDeckBadgeProps): JSX.Element {
 
   return (
     <div
-      role="group"
-      tabIndex={0}
       className={`steam-deck-badge${pinned ? ' is-pinned' : ''}`}
       aria-label={`Steam Deck compatibility: ${meta.label}`}
       onClick={handleClick}
