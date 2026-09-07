@@ -13,11 +13,10 @@ v1 (minimal). Built for Unraid, Docker Compose, Portainer, Proxmox, TrueNAS SCAL
 - Scans a library root for:
   - `.7z` files (one game per archive)
   - Directories containing `setup.exe` (unpacked installers)
-- Fuzzy-matches folder/archive names against the Steam app list
-- Auto-accepts matches scored ≥ 90, flags 70-89, leaves < 70 pending for manual review
+- Fuzzy-matches folder/archive names against the Steam app list (IGDB as a second provider when configured)
+- Auto-accepts matches scored ≥ 85, flags 70-84, leaves < 70 pending
 - Downloads metadata + artwork (cached locally on disk)
-- Lets you manually search Steam and assign metadata to any unmatched game
-- Serves a minimal web UI
+- Serves a web UI for browsing, filtering, and searching your library
 
 ## Quick start (Docker)
 
@@ -27,7 +26,7 @@ docker run -d \
   -p 8080:8080 \
   -v /path/to/your/games:/games:ro \
   -v ./kr8bit-data:/data \
-  kr8bit:latest
+  ghcr.io/techedgehog/kr8bit:latest
 ```
 
 Open `http://localhost:8080` and click **Start scan**.
@@ -37,9 +36,9 @@ Open `http://localhost:8080` and click **Start scan**.
 1. Install the kr8bit template via Community Applications (or paste the GitHub URL into `Apps → Install from URL`).
 2. Configure:
    - **HTTP Port**: defaults to `8080`
-   - **Library Path**: path to your games folder (read-only is fine for v1)
+   - **Library Path**: path to your games folder (read-only is fine)
    - **Data Path**: persistent storage for DB + artwork cache
-3. Start the container, open the WebUI, scan, review matched games, manually pick unmatched ones.
+3. Start the container, open the WebUI, and scan.
 
 ## Docker Compose
 
@@ -59,21 +58,22 @@ All settings are environment variables. Defaults shown.
 |---|---|---|
 | `LIBRARY_ROOT` | `/games` | Path to scan for installer archives/folders |
 | `CACHE_DIR` | `/data/cache` | Where artwork + Steam index live |
-| `DB_PATH` | `/data/kr8bit.db` | SQLite database file |
-| `DATABASE_URL` | `file:/data/kr8bit.db` | Prisma datasource URL |
+| `DB_PATH` | `/data/kr8bit.db` | SQLite database file (the Prisma URL is derived from this) |
 | `PORT` | `8080` | HTTP server port |
 | `HOST` | `0.0.0.0` | HTTP server bind host |
 | `LOG_LEVEL` | `info` | `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` |
-| `STEAM_INDEX_REFRESH_INTERVAL_HOURS` | `168` | Steam app list refresh interval in hours |
+| `STEAM_INDEX_REFRESH_INTERVAL_HOURS` | `24` | Steam app list refresh interval in hours |
+
+Optional provider keys (`STEAM_API_KEY`, `STEAMGRIDDB_API_KEY`, `IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET`) and further tuning knobs are listed in [`.env.example`](./.env.example).
 
 ## Match workflow
 
 | Score | Status | Behaviour |
 |---|---|---|
-| ≥ 90 | `ACCEPTED` | Auto-accepted, metadata + artwork fetched |
-| 70-89 | `FLAGGED` | Auto-accepted but flagged for manual review |
-| < 70 | `PENDING` | Waits for manual search + assign |
-| (manual pick) | `MANUAL` | User picked the game from search results |
+| ≥ 85 | `ACCEPTED` | Auto-accepted, metadata + artwork fetched |
+| 70-84 | `FLAGGED` | Auto-accepted but flagged for review |
+| < 70 | `PENDING` | Picked up by the periodic retry-match job |
+| (assign via API) | `MANUAL` | Match set explicitly through the assign endpoint |
 | (explicit unlink) | `REJECTED` | Cleared back to `PENDING` |
 
 ## API
@@ -84,10 +84,10 @@ All endpoints under `/api/*`:
 GET    /api/health
 GET    /api/settings
 PUT    /api/settings
-POST   /api/scanner/run
+POST   /api/scanner/run                       (202; 409 if already running)
 GET    /api/scanner/status
-GET    /api/scanner/progress          (SSE)
-GET    /api/games                     (?search=, ?genre=, ?deck=, ?sort=, ?limit=, ?offset=)
+GET    /api/scanner/progress                  (SSE)
+GET    /api/games                             (?search=, ?genre=, ?deck=, ?sort=, ?limit=, ?offset=)
 GET    /api/games/genres
 GET    /api/games/:id
 PATCH  /api/games/:id
@@ -96,7 +96,15 @@ POST   /api/games/:id/metadata/search
 POST   /api/games/:id/metadata/assign
 POST   /api/games/:id/metadata/refresh
 DELETE /api/games/:id/metadata
-GET    /api/games/:id/artwork/:kind   (kind = header \\| cover)
+GET    /api/games/:id/artwork/:kind            (kind = header | cover | hero | logo)
+POST   /api/metadata/refresh-all               (202; 409 if already running)
+GET    /api/metadata/refresh-all/status
+POST   /api/metadata/retry-matches             (202; 409 if already running)
+GET    /api/metadata/retry-matches/status
+POST   /api/metadata/index/refresh
+GET    /api/metadata/search-steam?q=
+POST   /api/database/reset
+POST   /api/database/cleanup
 ```
 
 Error envelope:
@@ -159,17 +167,16 @@ Route → Controller → Service → Repository / Provider → Database
 
 - **Services** own business logic.
 - **Repositories** only persist data.
-- **Providers** normalize external APIs (Steam for v1). Adding a new provider = new file.
-- **Scanner** walks the library, normalizes names, matches via provider, applies match policy.
-- **ArtworkService** keeps binaries cached at `CACHE_DIR/artwork/{steamAppId}/{header|cover}.jpg`.
-- Originals on disk are never modified in v1.
+- **Providers** normalize external APIs (Steam, IGDB, SteamGridDB). Adding a new provider = new file.
+- **Scanner** walks the library, normalizes names, matches via providers, applies match policy.
+- **ArtworkService** keeps binaries cached under `CACHE_DIR/artwork/` (kinds: `header`, `cover`, `hero`, `logo`).
+- Originals on disk are never modified.
 
 ## Roadmap (later milestones)
 
-- Background metadata refresh
+- Manual match-assign UI (search + pick from results in the web UI)
 - Collections
 - Multi-user / authentication
-- Multiple metadata providers (IGDB, TGDB, GiantBomb)
 - Decompression / "normalize library" (rename from metadata)
 - Downloadable installer discovery sources
 

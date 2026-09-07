@@ -13,12 +13,14 @@ interface MetadataProvider {
   readonly name: string;
   search(query: string): Promise<SearchResult[]>;
   getGame(remoteId: string): Promise<GameMetadata | null>;
+  resolveByStoreSearch?(query: string): Promise<SearchResult[]>;
 }
 ```
 
 - `getGame` is nullable — a remote may return no match.
 - `remoteId` is a stringified handle; provider-specific IDs (e.g. Steam `appId: number`) are stringified at the provider boundary.
-- Artwork URLs ride inside `GameMetadata` (`coverUrl`, `headerUrl`); a separate `getImages` method was originally described here but was never implemented — the metadata fetch returns URLs which `ArtworkService` downloads.
+- `resolveByStoreSearch` is optional (Steam implements it): a fallback search path that queries the provider's storefront instead of the local index.
+- Artwork URLs ride inside `GameMetadata` (`coverUrl`, `headerUrl`, `heroUrl`, `logoUrl`, `screenshots`, `videos`); `ArtworkService` downloads and caches them.
 
 ### DownloadSource
 
@@ -63,11 +65,11 @@ Two providers ship today:
 ### Steam (`src/modules/metadata/steam/`)
 
 - `Game.steamAppId Int?` — Steam's linkage column (interim single-provider storage, kept for backward compatibility; see ADR-017).
-- `SteamAppIndex` Prisma model — cached Steam app list, indexed on `name`.
-- `STEAM_INDEX_REFRESH_INTERVAL_HOURS` env — app index refresh cadence (default 168h = 7 days).
-- HTTP client: `undici`.
+- `SteamAppIndex` Prisma model — cached Steam app list (`appId` + `name`).
+- `STEAM_INDEX_REFRESH_INTERVAL_HOURS` env — app index refresh cadence (default 24h).
+- HTTP client: shared `undici` wrapper (`src/shared/http-client.ts`) with retry + typed errors; `USER_AGENT` derived from the app version.
 - Deck compatibility: `fetchDeckCompatibility(appId)` scrapes the Steam store page HTML and extracts the JSON from `#application_config[data-hardwarecompatibility]`. It HTML-decodes the attribute, validates the shape, and returns a category (`0` Unknown, `1` Unsupported, `2` Playable, `3` Verified) plus `resolved_items` (`display_type` + `loc_token`). This fetch runs in parallel with `appdetails` inside `SteamProvider.getGame` and is merged into `GameMetadata.steamDeckCompat`.
-- Fuzzy: `fuse.js` to match scanner entry names to `SteamAppIndex.name`.
+- Fuzzy: `fuse.js` to match scanner entry names to `SteamAppIndex.name`; falls back to live storesearch (`resolveByStoreSearch`) when the index is stale or missing.
 - Steam assignments do **not** write a `ProviderMatch` row — `Game.steamAppId` remains the source of truth.
 
 ### IGDB (`src/modules/metadata/igdb/`)

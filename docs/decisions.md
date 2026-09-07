@@ -377,47 +377,34 @@ Tier 3 preserves the visual language (translucency + edge highlights + hairline 
 
 Track here before they become closed decisions or roadmap tasks.
 
-### O-1 — Incorrect Import Paths
+### O-1 — Incorrect Import Paths (resolved)
 
-- `src/http/server.ts` imports `'./config/index.js'` — resolves to `src/http/config/` (does not exist). Should be `'../config/index.js'` (matches `health.routes.ts`).
-- `src/prisma-client.ts` imports `'../logger/index.js'` — from `src/`, resolves to `/logger/` (project root). Should be `'./logger/index.js'`.
-- Symptom: build (`tsc`) would fail; dev (`tsx`) would fail at runtime on first import.
-- Owner: Phase 1.
+- Closed: import paths corrected (`server.ts` → `../config/index.js`, `prisma-client.ts` → `./logger/index.js`). Build + typecheck green since.
 
-### O-2 — `DATABASE_URL` Not Seeded in Entrypoint
+### O-2 — `DATABASE_URL` Not Seeded in Entrypoint (resolved by ADR-030)
 
-- `prisma/schema.prisma` reads `env("DATABASE_URL")`. `src/prisma-env.ts` exports `DATABASE_URL` programmatically, but Prisma CLI (`npx prisma migrate deploy` in `docker-entrypoint.sh`) reads `process.env.DATABASE_URL` — never set.
-- Dockerfile sets `ENV DB_PATH` only; `DATABASE_URL` is not derived in the entry script.
-- Symptom: first container start will fail at the `migrate deploy` step.
-- Fix: `export DATABASE_URL="file:${DB_PATH}"` in `docker-entrypoint.sh` before `prisma migrate deploy`.
-- Owner: Phase 1.
+- Closed: `docker-entrypoint.sh` exports `DATABASE_URL="file:${DB_PATH}"` before `prisma migrate deploy`; the app itself derives the datasource from `DB_PATH` in `src/prisma-client.ts`. `DATABASE_URL` is no longer a user-facing variable.
 
-### O-3 — `web/` Referenced but Absent
+### O-3 — `web/` Referenced but Absent (resolved)
 
-- `Dockerfile` `COPY web/ web/` and `package.json` scripts `web:dev` / `web:build` reference a `web/` directory that does not exist.
-- Symptom: production image build fails at `web-builder` stage.
-- Decision needed: scaffold `web/` now or guard the `COPY web/` until scaffolding lands.
-- Owner: Phase 11, but Dockerfile must not break in the interim — Phase 1 mitigation.
+- Closed: `web/` scaffolded (Vite + React), built in CI (`web:build`) and in the Docker `web-builder` stage.
 
 ### O-4 — Version Hardcoded in `health.routes.ts` (resolved by ADR-021)
 
 - Closed: `health.routes.ts` now imports version from `src/app-version.ts`, which reads `package.json` at runtime. Single source of truth established. `web/package.json` version field removed.
 
-### O-5 — `BigInt` Serialization
+### O-5 — `BigInt` Serialization (resolved)
 
-- `Game.sizeBytes` is `BigInt`. `JSON.stringify` throws on BigInt. Services must `.toString()` or use a custom replacer before responses.
-- Not a bug yet (no game endpoints implemented), but the contract is in place.
-- Owner: surfaced at first game route (Phase 2 / Phase 4).
+- Closed: `BigInt.prototype.toJSON` patch in `src/shared/bigint.ts` (imported once at server bootstrap) serializes BigInt as string. Covered by `tests/bigint.test.ts`.
 
 ### O-6 — `DownloadSource` Returns `unknown[]`
 
 - Contract in `src/shared/types.ts` left as `unknown[]`. Must be modeled before any concrete download source is implemented.
 - Owner: Phase 7 (Download Sources).
 
-### O-7 — `ImageSet.screenshots` Has No Storage
+### O-7 — `ImageSet.screenshots` Has No Storage (resolved)
 
-- Type exists; no Prisma model for screenshot rows.
-- Owner: Phase 5 (Artwork).
+- Closed: screenshots + videos stored as JSON string arrays on `Game.screenshots` / `Game.videos` (`String @default("[]")`). No separate model needed at current scale.
 
 ### O-8 — Single-Provider Schema (resolved by ADR-017)
 
@@ -428,10 +415,9 @@ Track here before they become closed decisions or roadmap tasks.
 - `shared/errors.ts` lacks `UnauthorizedError` / `ForbiddenError`. No User/Session models. Endpoints are unauthenticated by design today.
 - Owner: Phase 10.
 
-### O-10 — No Tests
+### O-10 — No Tests (resolved)
 
-- vitest configured (`package.json`, `tsconfig.json` excludes `tests`). No test files exist.
-- Owner: Phase 12.
+- Closed: 392 vitest tests across 20+ files (API routes, services, providers, jobs, repositories, scanner, artwork, http-client). CI runs them on every PR and before image publish (ADR-032).
 
 ### O-11 — Sort Dropdown Not Wired to Backend (resolved)
 
@@ -449,9 +435,6 @@ Track here before they become closed decisions or roadmap tasks.
 - Earlier report of `/assets/` returning `index.html` was not reproducible against the current `server.ts` static registration. No code change applied.
 - Dev server (`:5173`) unaffected; production/Docker now confirmed working.
 - Owner: closed.
-
-- vitest configured (`package.json`, `tsconfig.json` excludes `tests`). No test files exist.
-- Owner: Phase 12.
 
 ---
 
@@ -658,3 +641,55 @@ Steam does not expose an official API for Steam Deck compatibility. The status i
 - HTML entities in the attribute must be decoded before JSON parsing.
 - The category enum and `display_type` values are hardcoded based on observed store pages; Valve could change them.
 - Existing games need a metadata refresh to populate the new fields; the migration only adds columns.
+---
+
+## ADR-030 — Single-Source Database Path (`DB_PATH` only)
+
+**Status:** Accepted (2026-09-07)
+
+### Context
+Two variables described the same file: `DB_PATH` (app config) and `DATABASE_URL` (Prisma). `DATABASE_URL` leaked into compose files, Unraid templates, and `.env.example`, and users could set them inconsistently (`DB_PATH=/a`, `DATABASE_URL=file:/b`) with no error — the app and the Prisma CLI would silently use different databases.
+
+### Decision
+- `DB_PATH` is the only user-facing database variable.
+- App runtime: `src/prisma-client.ts` passes `datasources: { db: { url: config.databaseUrl } }` to `PrismaClient`, where `config.databaseUrl = 'file:' + DB_PATH`. The `env("DATABASE_URL")` attribute in `schema.prisma` is only a CLI fallback.
+- Container entrypoint: `docker-entrypoint.sh` exports `DATABASE_URL="file:${DB_PATH}"` purely so the Prisma CLI (`migrate deploy`) sees the same file, then runs migrations and the idempotent `scripts/migrate-video-urls.js` data migration.
+- `DATABASE_URL` removed from `docker-compose.example.yml`, Unraid template, `.env.example`, and Dockerfile.
+
+### Consequences
+- **Breaking** for deployments that set `DATABASE_URL` to a non-default path: they must set `DB_PATH` instead. Default-path deployments are unaffected.
+- Local dev keeps `DATABASE_URL` in `.env` (gitignored) because the Prisma CLI has no `--datasource-url` on every command; documented as dev-only.
+- One variable, one truth; misconfiguration class eliminated.
+
+## ADR-031 — Unified Job-Start Envelope (202/409) and `runningRun` Status Field
+
+**Status:** Accepted (2026-09-07)
+
+### Context
+Job-start endpoints (`/api/scanner/run`, `/api/metadata/refresh-all`, `/api/metadata/retry-matches`) returned different shapes (200 with the resource, or ad-hoc conflict bodies), and `GET /api/scanner/status` exposed an in-memory `running` flag that could disagree with the DB after a crash.
+
+### Decision
+- All job-start endpoints: `202 { "started": true }` on start; `409` with the existing error envelope (`SCAN_RUNNING` / `CONFLICT`) when the job is already active.
+- `GET /api/scanner/status` returns `runningRun` (most recent `RUNNING` `ScanRun` row from the DB, or `null`) alongside the in-memory `isRunning` flag. The stale-row recovery at boot marks orphaned `RUNNING` rows failed, so `runningRun` is authoritative.
+- Frontend `ScanPage` consumes `runningRun` (renamed from `running`).
+
+### Consequences
+- **Breaking** for API consumers: status field renamed `running` → `runningRun`; job starts now 202 instead of 200.
+- One predictable contract for every background job; the frontend disables start buttons from a single field.
+- Future jobs (collections reindex, etc.) follow the same envelope.
+
+## ADR-032 — CI Gate for Publishes
+
+**Status:** Accepted (2026-09-07)
+
+### Context
+`docker-publish.yml` built and pushed images on every `main` push with zero verification — lint, typecheck, and 392 tests never ran in CI; a broken `main` shipped a broken image.
+
+### Decision
+- New `.github/workflows/ci.yml`: on `pull_request` and reusable via `workflow_call`. Single `verify` job: `npm ci` (root + `web/`), `lint`, `web:lint`, `typecheck`, `web typecheck`, `test`, `web:build`.
+- `docker-publish.yml` gains a `ci` job that `uses: ./.github/workflows/ci.yml`; `build-and-push` declares `needs: ci` — images publish only after the full suite is green.
+
+### Consequences
+- Every PR and every published image runs the complete verification suite.
+- Publish latency increases by the CI duration (acceptable; correctness over speed).
+- Local docker builds remain unverified by CI (image build itself only runs in the publish workflow).
