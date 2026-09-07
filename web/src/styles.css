@@ -1019,24 +1019,50 @@ textarea {
   text-align: left;
 }
 
-/* Static fade mask: edges always softened while marquee is active.
-   No alpha animation — animating mask-image (via @property vars) forces a
-   main-thread repaint every frame for the whole animation lifetime. */
+/* Per-edge fade alpha. Registered so --fade-l/--fade-r transition smoothly;
+   mask repaint stays bounded to the short fade windows, not every frame. */
+@property --fade-l {
+  syntax: '<number>';
+  initial-value: 1;
+  inherits: false;
+}
+
+@property --fade-r {
+  syntax: '<number>';
+  initial-value: 1;
+  inherits: false;
+}
+
+/* Edge fade mask. useMarquee toggles marquee-fade-l/-r at the
+   marquee-scroll phase boundaries; the registered vars transition over
+   --marquee-fade-time (~5% of the cycle) so edges fade in and out smoothly.
+   An edge is clear only while the text rests at that edge. */
 .marquee-active.marquee-viewport {
   mask-image: linear-gradient(
     to right,
-    transparent 0,
+    rgba(0, 0, 0, var(--fade-l, 1)) 0,
     #000 12px,
     #000 calc(100% - 12px),
-    transparent 100%
+    rgba(0, 0, 0, var(--fade-r, 1)) 100%
   );
   -webkit-mask-image: linear-gradient(
     to right,
-    transparent 0,
+    rgba(0, 0, 0, var(--fade-l, 1)) 0,
     #000 12px,
     #000 calc(100% - 12px),
-    transparent 100%
+    rgba(0, 0, 0, var(--fade-r, 1)) 100%
   );
+  transition:
+    --fade-l var(--marquee-fade-time, 400ms) ease-in-out,
+    --fade-r var(--marquee-fade-time, 400ms) ease-in-out;
+}
+
+.marquee-fade-l {
+  --fade-l: 0;
+}
+
+.marquee-fade-r {
+  --fade-r: 0;
 }
 
 /* Hover-gated: animations off by default for cards */
