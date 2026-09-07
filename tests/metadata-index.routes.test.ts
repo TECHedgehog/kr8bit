@@ -46,11 +46,11 @@ describe('GET /api/metadata/search-steam with indexed data', () => {
   beforeEach(async () => {
     await prisma.steamAppIndex.createMany({
       data: [
-        { appId: 72850, name: 'The Elder Scrolls V: Skyrim', indexedAt: new Date() },
-        { appId: 489830, name: 'The Elder Scrolls V: Skyrim Special Edition', indexedAt: new Date() },
-        { appId: 1746860, name: 'The Elder Scrolls V: Skyrim Anniversary Upgrade', indexedAt: new Date() },
-        { appId: 620, name: 'Portal 2', indexedAt: new Date() },
-        { appId: 570, name: "Counter-Strike: Global Offensive", indexedAt: new Date() },
+        { appId: 72850, name: 'The Elder Scrolls V: Skyrim' },
+        { appId: 489830, name: 'The Elder Scrolls V: Skyrim Special Edition' },
+        { appId: 1746860, name: 'The Elder Scrolls V: Skyrim Anniversary Upgrade' },
+        { appId: 620, name: 'Portal 2' },
+        { appId: 570, name: "Counter-Strike: Global Offensive" },
       ],
     });
     await steamIndexService.rebuildIndex();
@@ -87,7 +87,6 @@ describe('GET /api/metadata/search-steam with indexed data', () => {
     const entries = Array.from({ length: 30 }, (_, i) => ({
       appId: 100000 + i,
       name: `Skyrim Variant ${i}`,
-      indexedAt: new Date(),
     }));
     await prisma.steamAppIndex.createMany({ data: entries });
     await steamIndexService.rebuildIndex();

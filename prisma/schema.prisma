@@ -79,9 +79,6 @@ model ScanRun {
 }
 
 model SteamAppIndex {
-  appId      Int     @id
-  name       String
-  indexedAt  DateTime @default(now())
-
-  @@index([name])
+  appId Int    @id
+  name  String
 }
