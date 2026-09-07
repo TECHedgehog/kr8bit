@@ -7,8 +7,14 @@ data
 *.log
 .DS_Store
 .git
+.github
 .opencode
+.openchamber
+var
+scripts/*
+!scripts/migrate-video-urls.js
+docker/*
+!docker/docker-entrypoint.sh
 docs
 tests
 *.md
-!AGENTS.md

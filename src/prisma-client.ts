@@ -13,6 +13,11 @@ if (config.logLevel === 'debug') {
 
 export const prisma = new PrismaClient({
   log: logConfig,
+  // Single DB source: the connection string is derived from DB_PATH in
+  // config, so the runtime never depends on a separate DATABASE_URL env.
+  datasources: {
+    db: { url: config.databaseUrl },
+  },
 });
 
 prisma.$on('warn', (e) => logger.warn({ prisma: e.message }));

@@ -1,7 +1,19 @@
 import { PrismaClient } from '@prisma/client';
+import { config as loadEnv } from 'dotenv';
 
-const prisma = new PrismaClient();
+loadEnv();
 
+// Single DB source: prefer an explicit DATABASE_URL (set by the docker
+// entrypoint), otherwise derive it from DB_PATH like the app does.
+const databaseUrl =
+  process.env.DATABASE_URL ?? `file:${process.env.DB_PATH ?? './data/kr8bit.db'}`;
+
+const prisma = new PrismaClient({
+  datasources: { db: { url: databaseUrl } },
+});
+
+// Idempotent by construction: only games whose .m3u8 video url lacks an
+// hlsUrl are rewritten, so a second run finds nothing to change.
 async function migrate() {
   const games = await prisma.game.findMany({
     where: { videos: { contains: '.m3u8' } },

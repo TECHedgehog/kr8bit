@@ -34,7 +34,6 @@ ENV HOST=0.0.0.0
 ENV DB_PATH=/data/kr8bit.db
 ENV CACHE_DIR=/data/cache
 ENV LIBRARY_ROOT=/games
-ENV DATABASE_URL=file:/data/kr8bit.db
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
@@ -46,6 +45,7 @@ COPY --from=server-builder /app/node_modules/.bin/prisma ./node_modules/.bin/pri
 COPY --from=server-builder /app/dist ./dist
 COPY --from=server-builder /app/prisma ./prisma
 COPY --from=web-builder /web/dist ./web/dist
+COPY scripts/migrate-video-urls.js ./scripts/migrate-video-urls.js
 COPY docker/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 

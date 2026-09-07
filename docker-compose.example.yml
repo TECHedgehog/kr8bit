@@ -1,6 +1,6 @@
 services:
   kr8bit:
-    image: kr8bit:latest
+    image: ghcr.io/techedgehog/kr8bit:latest
     container_name: kr8bit
     restart: unless-stopped
     ports:
@@ -9,10 +9,10 @@ services:
       LIBRARY_ROOT: /games
       CACHE_DIR: /data/cache
       DB_PATH: /data/kr8bit.db
-      DATABASE_URL: file:/data/kr8bit.db
       PORT: "8080"
       HOST: "0.0.0.0"
       LOG_LEVEL: info
+      STEAM_INDEX_REFRESH_INTERVAL_HOURS: "24"
     volumes:
       - /path/to/your/games:/games:ro
       - ./kr8bit-data:/data

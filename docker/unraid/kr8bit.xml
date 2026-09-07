@@ -24,7 +24,7 @@
 
   <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="fatal | error | warn | info | debug | trace" Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
 
-  <Config Name="Steam Index Refresh (hours)" Target="STEAM_INDEX_REFRESH_INTERVAL_HOURS" Default="168" Mode="" Description="How often to refresh the local Steam app list cache" Type="Variable" Display="advanced" Required="false" Mask="false">168</Config>
+  <Config Name="Steam Index Refresh (hours)" Target="STEAM_INDEX_REFRESH_INTERVAL_HOURS" Default="24" Mode="" Description="How often to refresh the local Steam app list cache" Type="Variable" Display="advanced" Required="false" Mask="false">24</Config>
 
   <Config Name="Scan Max Depth" Target="SCAN_MAX_DEPTH" Default="1" Mode="" Description="Directory depth when scanning library root (1 = flat scan)" Type="Variable" Display="advanced" Required="false" Mask="false">1</Config>
 </Container>
