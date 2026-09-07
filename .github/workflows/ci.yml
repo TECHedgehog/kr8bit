@@ -1,0 +1,46 @@
+name: ci
+
+# Runs on PRs directly, and on main-branch pushes via the docker-publish
+# workflow (which calls this workflow before building the image), so every
+# commit that can reach users is gated on lint + typecheck + tests.
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install web dependencies
+        run: npm --prefix web ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Web lint
+        run: npm run web:lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Web typecheck
+        run: npm --prefix web run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Web build
+        run: npm run web:build

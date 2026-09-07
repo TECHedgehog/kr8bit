@@ -14,7 +14,13 @@ env:
   IMAGE: ghcr.io/techedgehog/kr8bit
 
 jobs:
+  # Gate image publishing on the full CI suite (lint, typecheck, tests,
+  # web build) — a red check never ships an image.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
