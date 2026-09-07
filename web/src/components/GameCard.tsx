@@ -15,8 +15,18 @@ export const GameCard = memo(function GameCard({ game }: GameCardProps): JSX.Ele
   const title = game.displayName;
   const [imgError, setImgError] = useState(false);
   const cardRef = useRef<HTMLButtonElement>(null);
+  const detailChunkPrefetched = useRef(false);
   useTiltGlow(cardRef);
   const { viewportRef, textRef } = useMarquee(title);
+
+  // Warm the detail-dialog chunk (vidstack + hls.js) on hover so the first
+  // open doesn't pay the network + parse cost. Same module as the lazy route
+  // in App.tsx — bundler dedupes to one chunk.
+  function onPointerEnter() {
+    if (detailChunkPrefetched.current) return;
+    detailChunkPrefetched.current = true;
+    void import('./GameDetailCard');
+  }
 
   function onClick() {
     const next = new URLSearchParams(searchParams);
@@ -24,7 +34,7 @@ export const GameCard = memo(function GameCard({ game }: GameCardProps): JSX.Ele
   }
 
   return (
-    <button ref={cardRef} className="game-card" onClick={onClick}>
+    <button ref={cardRef} className="game-card" onClick={onClick} onPointerEnter={onPointerEnter}>
       <div className="game-card-tilt tilt-glow">
         <div className="game-card-cover">
           {imgError ? (

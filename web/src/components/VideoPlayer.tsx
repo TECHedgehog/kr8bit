@@ -46,7 +46,7 @@ export function VideoPlayer({
       playsInline
       streamType="on-demand"
       currentTime={startTime}
-      load="idle"
+      load="play"
       onProviderChange={handleProviderChange}
     >
       <MediaProvider />

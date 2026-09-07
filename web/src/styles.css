@@ -996,18 +996,6 @@ textarea {
 
 /* Marquee scroll for overflowing titles */
 
-@property --fade-l {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 1;
-}
-
-@property --fade-r {
-  syntax: '<number>';
-  inherits: false;
-  initial-value: 1;
-}
-
 @keyframes marquee-scroll {
   0%    { transform: translateX(0); }
   15%   { transform: translateX(0); }
@@ -1015,25 +1003,6 @@ textarea {
   75%   { transform: translateX(calc(var(--marquee-distance) * -1)); }
   90%   { transform: translateX(0); }
   100%  { transform: translateX(0); }
-}
-
-/* Mask alpha: per-edge fade mapped to text rest positions.
-   Left fade ON anytime text is away from begin-position (translateX 0);
-   OFF only at begin-position rest.
-   Right fade ON anytime text is away from end-position (translateX -distance);
-   OFF only at end-position rest.
-   5% ramps soften transitions between phases. */
-@keyframes marquee-mask-alpha {
-  0%    { --fade-l: 1; --fade-r: 0; }
-  15%   { --fade-l: 1; --fade-r: 0; }
-  20%   { --fade-l: 0; --fade-r: 0; }
-  60%   { --fade-l: 0; --fade-r: 0; }
-  65%   { --fade-l: 0; --fade-r: 1; }
-  75%   { --fade-l: 0; --fade-r: 1; }
-  80%   { --fade-l: 0; --fade-r: 0; }
-  90%   { --fade-l: 0; --fade-r: 0; }
-  95%   { --fade-l: 1; --fade-r: 0; }
-  100%  { --fade-l: 1; --fade-r: 0; }
 }
 
 .marquee-viewport {
@@ -1050,27 +1019,28 @@ textarea {
   text-align: left;
 }
 
-/* Animated alpha mask: text edges fade only during scroll phases. */
+/* Static fade mask: edges always softened while marquee is active.
+   No alpha animation — animating mask-image (via @property vars) forces a
+   main-thread repaint every frame for the whole animation lifetime. */
 .marquee-active.marquee-viewport {
   mask-image: linear-gradient(
     to right,
-    rgba(0, 0, 0, var(--fade-l, 1)) 0,
+    transparent 0,
     #000 12px,
     #000 calc(100% - 12px),
-    rgba(0, 0, 0, var(--fade-r, 1)) 100%
+    transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to right,
-    rgba(0, 0, 0, var(--fade-l, 1)) 0,
+    transparent 0,
     #000 12px,
     #000 calc(100% - 12px),
-    rgba(0, 0, 0, var(--fade-r, 1)) 100%
+    transparent 100%
   );
 }
 
 /* Hover-gated: animations off by default for cards */
-.game-card .marquee-active .marquee-text,
-.game-card .marquee-active.marquee-viewport {
+.game-card .marquee-active .marquee-text {
   animation: none;
 }
 
@@ -1078,17 +1048,9 @@ textarea {
   animation: marquee-scroll var(--marquee-duration) ease-in-out infinite;
 }
 
-.game-card:hover .marquee-active.marquee-viewport {
-  animation: marquee-mask-alpha var(--marquee-duration) ease-in-out infinite;
-}
-
 /* Detail title runs continuously (no hover gate) */
 .game-detail-title.marquee-active .marquee-text {
   animation: marquee-scroll var(--marquee-duration) ease-in-out infinite;
-}
-
-.game-detail-title.marquee-active.marquee-viewport {
-  animation: marquee-mask-alpha var(--marquee-duration) ease-in-out infinite;
 }
 
 /* ===== 3D tilt + specular glow (JS-driven via useTiltGlow.ts) ===== */
@@ -1406,12 +1368,13 @@ textarea {
   to { opacity: 1; transform: scale(1); }
 }
 
+/* No backdrop-filter here: full-screen blur re-rasterizes every frame the
+   detail card (which carries its own 32px glass blur) animates or scrolls,
+   and competes with video decode. Plain dim overlay only. */
 .game-detail-backdrop {
   position: fixed;
   inset: 0;
   background: var(--overlay);
-  backdrop-filter: blur(8px) saturate(120%);
-  -webkit-backdrop-filter: blur(8px) saturate(120%);
   display: flex;
   align-items: center;
   justify-content: center;
