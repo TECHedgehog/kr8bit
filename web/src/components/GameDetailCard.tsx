@@ -133,7 +133,10 @@ export function GameDetailCard(): JSX.Element {
           aria-label="Close"
           type="button"
         >
-          <IconX size={20} />
+          <span className="game-detail-close__icon">
+            <IconX size={20} />
+          </span>
+          <span className="game-detail-close__label">Close</span>
         </button>
 
         {loading && !game && (

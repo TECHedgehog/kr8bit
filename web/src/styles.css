@@ -1401,30 +1401,81 @@ textarea {
   overflow: hidden;
 }
 
+/* Mirrors the Steam Deck badge surface: 48px capsule, pill glass tokens.
+   Rest = icon only; hover/focus reveals the "Close" label. No hover tint,
+   no focus outline — the expansion itself is the focus indicator. */
 .game-detail-close {
   position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
+  top: var(--space-4);
+  right: var(--space-4);
   z-index: 10;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border-subtle);
-  color: #ffffff;
-  padding: var(--space-2);
+  gap: 0;
+  height: 48px;
+  padding: 3px;
+  background: var(--pill-bg);
+  -webkit-backdrop-filter: var(--pill-blur);
+  backdrop-filter: var(--pill-blur);
+  border: 1px solid var(--pill-border-color);
+  color: var(--text);
   cursor: pointer;
   border-radius: var(--radius-full);
-  width: 36px;
-  height: 36px;
-  box-shadow: var(--glass-edge);
+  box-shadow: var(--pill-shadow);
+  overflow: hidden;
+  transition: gap 0.2s ease, padding 0.2s ease;
 }
 
-.game-detail-close:hover {
-  background: var(--glass-tint-hover-bg);
-  color: #ffffff;
+/* Neutralize the global `button:hover:not(:disabled)` accent border + tint
+   (0,2,1) — same pattern as `button.topbar-link:hover`. Surface stays
+   pill-steady; the label reveal is the only hover change. */
+button.game-detail-close:hover:not(:disabled) {
+  border-color: var(--pill-border-color);
+  background: var(--pill-bg);
+}
+
+.game-detail-close__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.game-detail-close__label {
+  font-size: var(--text-base);
+  font-weight: 500;
+  white-space: nowrap;
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 0.2s ease, opacity 0.15s ease;
+}
+
+/* Keyboard focus reveals the label. */
+.game-detail-close:focus-visible {
+  gap: 6px;
+  padding-right: 13px;
+}
+
+.game-detail-close:focus-visible .game-detail-close__label {
+  width: auto;
+  opacity: 1;
+}
+
+/* Desktop hover reveal (scoped to fine pointers so touch sticky-hover
+   doesn't leave the button stuck open). */
+@media (hover: hover) and (pointer: fine) {
+  .game-detail-close:hover {
+    gap: 6px;
+    padding-right: 13px;
+  }
+
+  .game-detail-close:hover .game-detail-close__label {
+    width: auto;
+    opacity: 1;
+  }
 }
 
 .game-detail-hero {
