@@ -724,11 +724,14 @@ textarea {
 }
 
 /* Advanced search sidebar — in-flow right column, pill glass surface.
-   Open/close animate width + margin-left + opacity + transform on a single
-   unified 0.3s timeline so close is the mirror of open (no mismatched
-   durations). Sticky positions it below the nav pill while scrolling;
-   height: 0 when closed collapses the flex row, .is-visible swaps in
-   --panel-height (set dynamically by useLayoutEffect in GamesPage). */
+   Open/close animate width + margin-left + padding + border-width + opacity
+   + transform on a single unified 0.3s timeline so close is the mirror of
+   open (no mismatched durations). Sticky positions it below the nav pill
+   while scrolling; height: 0 when closed collapses the flex row,
+   .is-visible swaps in --panel-height (set dynamically by useLayoutEffect in
+   GamesPage). Closed state also zeroes padding + border-width: global
+   border-box floors width: 0 at padding + border, which would permanently
+   steal 26px from the grid column. */
 .library-panel--sidebar {
   flex: none;
   width: 0;
@@ -738,11 +741,13 @@ textarea {
   top: var(--topbar-top-gap);
   height: 0;
   margin-left: 0;
+  padding: 0;
   /* Nav-pill glass surface (overrides .library-panel base) */
   background: var(--pill-bg);
   -webkit-backdrop-filter: var(--pill-blur);
   backdrop-filter: var(--pill-blur);
   border: 1px solid var(--pill-border-color);
+  border-width: 0;
   box-shadow: var(--pill-shadow);
   border-radius: 20px;
   /* Hidden state — pointer-events + aria-hidden handle a11y.
@@ -754,6 +759,8 @@ textarea {
   transform: translateY(10px);
   transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
               margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              padding 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              border-width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
               opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
               transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -762,6 +769,8 @@ textarea {
   width: 320px;
   height: var(--panel-height, calc(100vh - var(--topbar-top-gap) * 2));
   margin-left: var(--space-4);
+  padding: var(--space-3);
+  border-width: 1px;
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
@@ -788,13 +797,13 @@ textarea {
     width: 100%;
     max-width: none;
     margin-left: 0;
-    padding: var(--space-3);
-    border-width: 1px;
   }
   .library-panel--sidebar.is-visible {
     width: 100%;
     height: auto;
     margin-left: 0;
+    padding: var(--space-3);
+    border-width: 1px;
   }
 }
 
@@ -858,6 +867,16 @@ textarea {
 .library-content {
   display: flex;
   align-items: flex-start;
+}
+
+/* Left column: header + status messages + grid. Toolbar lives here so its
+   width tracks the grid while the sidebar opens/closes beside both. */
+.library-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .game-grid {

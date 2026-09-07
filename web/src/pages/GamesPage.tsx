@@ -367,95 +367,97 @@ export function GamesPage(): JSX.Element {
 
   return (
     <div className="page">
-      <div ref={headerRef} className="library-header">
-        <div className="library-toolbar">
-          <div className="library-title-block">
-            <div className="library-title">Library</div>
-            <div className="library-subtitle">{total} {total === 1 ? 'game' : 'games'}</div>
-          </div>
+      <div className="library-content">
+        <div className="library-main">
+          <div ref={headerRef} className="library-header">
+            <div className="library-toolbar">
+              <div className="library-title-block">
+                <div className="library-title">Library</div>
+                <div className="library-subtitle">{total} {total === 1 ? 'game' : 'games'}</div>
+              </div>
 
-          <div className="toolbar-spacer" />
+              <div className="toolbar-spacer" />
 
-          <form
-            ref={searchRef}
-            className={`library-search tilt-glow${searchExpanded ? ' is-expanded' : ''}`}
-            onSubmit={onSearchSubmit}
-            onClick={() => {
-              const input = searchRef.current?.querySelector('input');
-              input?.focus();
-            }}
-          >
-            <IconSearch size={16} />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onFocus={() => setSearchExpanded(true)}
-              onBlur={() => { if (!searchInput.trim()) setSearchExpanded(false); }}
-              placeholder={searchExpanded ? 'Search title or entry name…' : 'Search'}
-              aria-label="Search games"
-            />
-          </form>
+              <form
+                ref={searchRef}
+                className={`library-search tilt-glow${searchExpanded ? ' is-expanded' : ''}`}
+                onSubmit={onSearchSubmit}
+                onClick={() => {
+                  const input = searchRef.current?.querySelector('input');
+                  input?.focus();
+                }}
+              >
+                <IconSearch size={16} />
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onFocus={() => setSearchExpanded(true)}
+                  onBlur={() => { if (!searchInput.trim()) setSearchExpanded(false); }}
+                  placeholder={searchExpanded ? 'Search title or entry name…' : 'Search'}
+                  aria-label="Search games"
+                />
+              </form>
 
-          <IconButton
-            icon={IconAdjustments}
-            label="Advanced search"
-            active={panelOpen === 'advanced'}
-            onClick={() => togglePanel('advanced')}
-            glow
-          />
+              <IconButton
+                icon={IconAdjustments}
+                label="Advanced search"
+                active={panelOpen === 'advanced'}
+                onClick={() => togglePanel('advanced')}
+                glow
+              />
 
-          <IconButton
-            icon={IconSettings}
-            label="Settings"
-            active={panelOpen === 'settings'}
-            onClick={() => togglePanel('settings')}
-            glow
-          />
-        </div>
+              <IconButton
+                icon={IconSettings}
+                label="Settings"
+                active={panelOpen === 'settings'}
+                onClick={() => togglePanel('settings')}
+                glow
+              />
+            </div>
 
-        {panelOpen === 'settings' && (
-          <div className="library-panel">
-            <div className="panel-group">
-              <span className="panel-label">Grid size</span>
-              <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
-                <div className="view-toggle-lens">
-                  {GRID_SIZES.map((s) => (
-                    <button
-                      key={s.value}
-                      className={`size-button${gridSize === s.value ? ' active' : ''}`}
-                      onClick={() => onGridSizeChange(s.value)}
-                      title={s.label}
-                      aria-label={`Grid size: ${s.label}`}
-                      aria-pressed={gridSize === s.value}
-                      type="button"
-                    >
-                      <IconSquareFilled size={s.iconSize} />
-                    </button>
-                  ))}
+            {panelOpen === 'settings' && (
+              <div className="library-panel">
+                <div className="panel-group">
+                  <span className="panel-label">Grid size</span>
+                  <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
+                    <div className="view-toggle-lens">
+                      {GRID_SIZES.map((s) => (
+                        <button
+                          key={s.value}
+                          className={`size-button${gridSize === s.value ? ' active' : ''}`}
+                          onClick={() => onGridSizeChange(s.value)}
+                          title={s.label}
+                          aria-label={`Grid size: ${s.label}`}
+                          aria-pressed={gridSize === s.value}
+                          type="button"
+                        >
+                          <IconSquareFilled size={s.iconSize} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {error && <div className="error">{error}</div>}
-      {loading && items.length === 0 && <div className="muted">Loading…</div>}
+          {error && <div className="error">{error}</div>}
+          {loading && items.length === 0 && <div className="muted">Loading…</div>}
 
-      {!loading && !error && items.length === 0 && (
-        <div className="muted">No games found</div>
-      )}
+          {!loading && !error && items.length === 0 && (
+            <div className="muted">No games found</div>
+          )}
 
-      <div className="library-content">
-        <div
-          ref={setGridRef}
-          className={`game-grid${gridFading ? ' grid-fading' : ''}`}
-          style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
-        >
-          {items.map((g) => (
-            <GameCard key={g.id} game={g} />
-          ))}
+          <div
+            ref={setGridRef}
+            className={`game-grid${gridFading ? ' grid-fading' : ''}`}
+            style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
+          >
+            {items.map((g) => (
+              <GameCard key={g.id} game={g} />
+            ))}
+          </div>
         </div>
         <aside
           ref={panelRef}
