@@ -6,7 +6,6 @@ data
 .env
 *.log
 .DS_Store
-prisma/migrations/dev.db*
 var/
 .opencode/
 .openchamber/

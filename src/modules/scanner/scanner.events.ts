@@ -12,7 +12,9 @@ export interface ScanProgressEvent {
 }
 
 export const scannerEvents = new EventEmitter();
-scannerEvents.setMaxListeners(50);
+// One listener per SSE client; client count is unbounded by design.
+// 0 disables the MaxListenersExceeded warning.
+scannerEvents.setMaxListeners(0);
 
 export function emitProgress(event: ScanProgressEvent): void {
   scannerEvents.emit('progress', event);

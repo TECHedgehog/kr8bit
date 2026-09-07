@@ -8,12 +8,10 @@ import { providerMatchRepository } from '../metadata/provider-match.repository.j
 import type { ProviderRegistry } from '../metadata/provider-registry.js';
 import { providerRegistry as defaultRegistry } from '../metadata/provider-registry.js';
 import { artworkService, type ArtworkService, type ArtworkKind } from '../artwork/artwork.service.js';
-import { steamGridDbHttpClient } from '../artwork/steamgriddb/steamgriddb.http.js';
+import { steamGridDbHttpClient, type SteamGridDbHttpClient } from '../artwork/steamgriddb/steamgriddb.http.js';
 import type { SteamGridDbImage, SteamGridDbImageQuery } from '../artwork/steamgriddb/steamgriddb.http.types.js';
 import { normalizeGameName } from '../../shared/normalize.js';
-import { SteamProvider } from './steam/steam.provider.js';
 
-export { STEAM_PROVIDER_NAME };
 function selectBestImage(images: SteamGridDbImage[]): SteamGridDbImage | undefined {
   if (images.length === 0) return undefined;
   const safe = images.filter((img) => !img.humor && !img.nsfw);
@@ -26,16 +24,22 @@ function selectBestImage(images: SteamGridDbImage[]): SteamGridDbImage | undefin
     return best;
   });
 }
+
+const MANUAL_MATCH_SCORE = 100;
+
 export interface MetadataDeps {
   providers: ProviderRegistry;
   artwork: ArtworkService;
   now: () => Date;
+  /** SteamGridDB enrichment client; null/undefined disables enrichment. */
+  steamGridDb?: Pick<SteamGridDbHttpClient, 'getGridsBySteamAppId' | 'getHeroesBySteamAppId' | 'getLogosBySteamAppId'> | null;
 }
 
 export const defaultMetadataDeps: MetadataDeps = {
   providers: defaultRegistry,
   artwork: artworkService,
   now: () => new Date(),
+  steamGridDb: steamGridDbHttpClient,
 };
 
 export interface AssignedMetadata {
@@ -48,6 +52,10 @@ export interface ValidationResult {
   gameId: string;
   results: SearchResult[];
 }
+
+export type ArtworkLookup =
+  | { kind: 'cached'; bytes: Buffer; contentType: string }
+  | { kind: 'remote'; url: string };
 
 export class MetadataService {
   constructor(private readonly deps: MetadataDeps = defaultMetadataDeps) {}
@@ -169,6 +177,36 @@ export class MetadataService {
     return this.deps.providers.names();
   }
 
+  /**
+   * Resolve artwork for HTTP serving: cached bytes when available,
+   * otherwise the remote URL for a redirect. Throws NotFoundError when
+   * the game has no artwork of that kind.
+   */
+  async artworkFor(gameId: string, kind: ArtworkKind): Promise<ArtworkLookup> {
+    const game = await libraryRepository.findById(gameId);
+    const primary = await providerMatchRepository.findPrimaryByGame(gameId);
+
+    if (primary && primary.providerName !== STEAM_PROVIDER_NAME) {
+      const remoteUrl = remoteUrlFor(game, kind);
+      if (!remoteUrl) throw new NotFoundError('Artwork', `${gameId}/${kind}`);
+      const cached = await this.deps.artwork.readWithContentTypeGeneric(
+        primary.providerName,
+        primary.remoteId,
+        kind,
+      );
+      if (cached) return { kind: 'cached', bytes: cached.bytes, contentType: cached.contentType };
+      return { kind: 'remote', url: remoteUrl };
+    }
+
+    if (!game.steamAppId) throw new NotFoundError('Artwork', `${gameId}/${kind}`);
+    const remoteUrl = remoteUrlFor(game, kind);
+    if (!remoteUrl) throw new NotFoundError('Artwork', `${gameId}/${kind}`);
+
+    const cached = await this.deps.artwork.readWithContentType(game.steamAppId, kind);
+    if (cached) return { kind: 'cached', bytes: cached.bytes, contentType: cached.contentType };
+    return { kind: 'remote', url: remoteUrl };
+  }
+
   private selectProviders(providerName?: string): MetadataProvider[] {
     if (!providerName) return this.deps.providers.order();
     const resolved = this.deps.providers.resolve(providerName);
@@ -218,8 +256,10 @@ export class MetadataService {
       return null;
     }
 
-    const steamProvider = provider as SteamProvider;
-    const fallbackResults = await steamProvider.resolveByStoreSearch(game.entryName);
+    // Optional provider capability: live search fallback to correct a
+    // stale appId (no interface cast to a concrete provider).
+    if (!provider.resolveByStoreSearch) return null;
+    const fallbackResults = await provider.resolveByStoreSearch(game.entryName);
     for (const candidate of fallbackResults) {
       const fallbackMetadata = await provider.getGame(candidate.remoteId);
       if (!fallbackMetadata) continue;
@@ -246,42 +286,10 @@ export class MetadataService {
     options: { isManual: boolean; now: Date },
   ): Promise<{ game: Game; fetchedArtwork: { header: boolean; cover: boolean } }> {
     const isSteam = provider.name === STEAM_PROVIDER_NAME;
-    let headerCached: string | null = null;
-    let coverCached: string | null = null;
-    let heroCached: string | null = null;
-    let sgdb = { gridUrl: null as string | null, heroUrl: null as string | null, logoUrl: null as string | null };
-    let steamHeroCached = false;
 
-    if (isSteam) {
-      const appId = Number(metadata.remoteId);
-      coverCached = await this.deps.artwork.downloadToCache(appId, 'cover', metadata.coverUrl);
-      const heroResult = await this.deps.artwork.downloadToCache(appId, 'header', metadata.heroUrl);
-      steamHeroCached = !!heroResult;
-      sgdb = await this.enrichWithSteamGridDb(appId, !!coverCached, steamHeroCached);
-      headerCached = heroResult;
-      if (!steamHeroCached && sgdb.heroUrl) {
-        headerCached = await this.deps.artwork.downloadToCache(appId, 'header', sgdb.heroUrl);
-      }
-    } else {
-      headerCached = await this.deps.artwork.downloadToCacheGeneric(
-        provider.name,
-        metadata.remoteId,
-        'header',
-        metadata.headerUrl,
-      );
-      coverCached = await this.deps.artwork.downloadToCacheGeneric(
-        provider.name,
-        metadata.remoteId,
-        'cover',
-        metadata.coverUrl,
-      );
-      heroCached = await this.deps.artwork.downloadToCacheGeneric(
-        provider.name,
-        metadata.remoteId,
-        'hero',
-        metadata.heroUrl,
-      );
-    }
+    const artworkState = isSteam
+      ? await this.cacheSteamArtwork(metadata)
+      : await this.cacheGenericArtwork(provider.name, metadata);
 
     const updatePayload: GameUpdateInput = {
       title: metadata.title,
@@ -290,12 +298,10 @@ export class MetadataService {
       developers: metadata.developers,
       publishers: metadata.publishers,
       genres: [...new Set([...game.genres, ...metadata.genres])],
-      coverUrl: coverCached ? (metadata.coverUrl ?? null) : (sgdb.gridUrl ?? metadata.coverUrl ?? null),
-      headerUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? metadata.headerUrl ?? null),
-      heroUrl: isSteam
-        ? (steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? null))
-        : (heroCached ? (metadata.heroUrl ?? null) : null),
-      logoUrl: sgdb.logoUrl,
+      coverUrl: artworkState.coverUrl,
+      headerUrl: artworkState.headerUrl,
+      heroUrl: artworkState.heroUrl,
+      logoUrl: artworkState.logoUrl,
       screenshots: metadata.screenshots ?? [],
       videos: metadata.videos ?? [],
       steamDeckCategory: metadata.steamDeckCompat?.category ?? null,
@@ -306,7 +312,7 @@ export class MetadataService {
     if (options.isManual) {
       updatePayload.steamAppId = isSteam ? Number(metadata.remoteId) : null;
       updatePayload.matchStatus = MatchStatus.MANUAL;
-      updatePayload.matchScore = 100;
+      updatePayload.matchScore = MANUAL_MATCH_SCORE;
     }
 
     const updated = await libraryRepository.update(game.id, updatePayload);
@@ -316,7 +322,7 @@ export class MetadataService {
         gameId: game.id,
         providerName: provider.name,
         remoteId: metadata.remoteId,
-        matchScore: 100,
+        matchScore: MANUAL_MATCH_SCORE,
         isPrimary: true,
         matchedAt: options.now,
       });
@@ -324,7 +330,61 @@ export class MetadataService {
 
     return {
       game: updated,
-      fetchedArtwork: { header: !!headerCached, cover: !!coverCached },
+      fetchedArtwork: { header: artworkState.headerCached, cover: artworkState.coverCached },
+    };
+  }
+
+  private async cacheSteamArtwork(
+    metadata: GameMetadata,
+  ): Promise<ArtworkUrls> {
+    const appId = Number(metadata.remoteId);
+    const coverCached = await this.deps.artwork.downloadToCache(appId, 'cover', metadata.coverUrl);
+    const heroResult = await this.deps.artwork.downloadToCache(appId, 'header', metadata.heroUrl);
+    const steamHeroCached = !!heroResult;
+    const sgdb = await this.enrichWithSteamGridDb(appId, !!coverCached, steamHeroCached);
+    let headerCached = heroResult;
+    if (!steamHeroCached && sgdb.heroUrl) {
+      headerCached = await this.deps.artwork.downloadToCache(appId, 'header', sgdb.heroUrl);
+    }
+    return {
+      coverCached: !!coverCached,
+      headerCached: !!headerCached,
+      coverUrl: coverCached ? (metadata.coverUrl ?? null) : (sgdb.gridUrl ?? metadata.coverUrl ?? null),
+      headerUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? metadata.headerUrl ?? null),
+      heroUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? null),
+      logoUrl: sgdb.logoUrl,
+    };
+  }
+
+  private async cacheGenericArtwork(
+    providerName: string,
+    metadata: GameMetadata,
+  ): Promise<ArtworkUrls> {
+    const headerCached = await this.deps.artwork.downloadToCacheGeneric(
+      providerName,
+      metadata.remoteId,
+      'header',
+      metadata.headerUrl,
+    );
+    const coverCached = await this.deps.artwork.downloadToCacheGeneric(
+      providerName,
+      metadata.remoteId,
+      'cover',
+      metadata.coverUrl,
+    );
+    const heroCached = await this.deps.artwork.downloadToCacheGeneric(
+      providerName,
+      metadata.remoteId,
+      'hero',
+      metadata.heroUrl,
+    );
+    return {
+      coverCached: !!coverCached,
+      headerCached: !!headerCached,
+      coverUrl: metadata.coverUrl ?? null,
+      headerUrl: metadata.headerUrl ?? null,
+      heroUrl: heroCached ? (metadata.heroUrl ?? null) : null,
+      logoUrl: null,
     };
   }
 
@@ -333,7 +393,8 @@ export class MetadataService {
     coverDownloaded = false,
     heroDownloaded = false,
   ): Promise<{ gridUrl: string | null; heroUrl: string | null; logoUrl: string | null }> {
-    if (!steamGridDbHttpClient) return { gridUrl: null, heroUrl: null, logoUrl: null };
+    const client = this.deps.steamGridDb ?? null;
+    if (!client) return { gridUrl: null, heroUrl: null, logoUrl: null };
     const baseQuery: SteamGridDbImageQuery = {
       types: ['static'],
       nsfw: 'false',
@@ -342,17 +403,17 @@ export class MetadataService {
     const [grids, heroes, logos] = await Promise.all([
       coverDownloaded
         ? Promise.resolve([])
-        : steamGridDbHttpClient.getGridsBySteamAppId(steamAppId, {
+        : client.getGridsBySteamAppId(steamAppId, {
             ...baseQuery,
             styles: ['alternate', 'blurred'],
           }),
       heroDownloaded
         ? Promise.resolve([])
-        : steamGridDbHttpClient.getHeroesBySteamAppId(steamAppId, {
+        : client.getHeroesBySteamAppId(steamAppId, {
             ...baseQuery,
             styles: ['alternate', 'blurred'],
           }),
-      steamGridDbHttpClient.getLogosBySteamAppId(steamAppId, {
+      client.getLogosBySteamAppId(steamAppId, {
         ...baseQuery,
         styles: ['official', 'white', 'black', 'transparent'],
       }),
@@ -366,4 +427,27 @@ export class MetadataService {
     return { gridUrl, heroUrl, logoUrl };
   }
 }
+
+interface ArtworkUrls {
+  coverCached: boolean;
+  headerCached: boolean;
+  coverUrl: string | null;
+  headerUrl: string | null;
+  heroUrl: string | null;
+  logoUrl: string | null;
+}
+
+function remoteUrlFor(game: Game, kind: ArtworkKind): string | null {
+  switch (kind) {
+    case 'cover':
+      return game.coverUrl;
+    case 'header':
+      return game.headerUrl;
+    case 'hero':
+      return game.heroUrl;
+    case 'logo':
+      return game.logoUrl;
+  }
+}
+
 export const metadataService = new MetadataService();

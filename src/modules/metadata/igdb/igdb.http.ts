@@ -1,12 +1,10 @@
-import { request } from 'undici';
-import { logger } from '../../../logger/index.js';
 import { config } from '../../../config/index.js';
 import type { IgdbGame, IgdbTokenResponse } from './igdb.http.types.js';
 import {
+  requestJson,
   withRetry,
-  RetryableHttpError,
-  isRetryableStatus,
-} from '../../../shared/http-retry.js';
+  HttpError,
+} from '../../../shared/http-client.js';
 
 export interface IgdbCredentials {
   clientId: string;
@@ -65,36 +63,21 @@ export class IgdbTokenManager implements IgdbTokenProvider {
     if (this.cached && Date.now() < this.cached.expiresAt - TOKEN_REFRESH_MARGIN_MS) {
       return this.cached.token;
     }
-    return withRetry(
-      async () => {
-        const { clientId, clientSecret } = this.credentials;
-        const url = `${this.tokenBase}/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=client_credentials`;
-        const res = await request(url, {
-          method: 'POST',
-          headersTimeout: this.timeoutMs,
-          bodyTimeout: this.timeoutMs,
-          headers: { 'Accept': 'application/json', 'User-Agent': 'kr8bit/0.1' },
-        });
-        if (isRetryableStatus(res.statusCode)) {
-          throw new RetryableHttpError(`igdb token http ${res.statusCode}`);
-        }
-        if (res.statusCode >= 400) {
-          const text = await res.body.text();
-          logger.warn(
-            { statusCode: res.statusCode, text: text.slice(0, 200) },
-            'igdb token request failed',
-          );
-          throw new Error(`igdb token http ${res.statusCode}`);
-        }
-        const body = (await res.body.json()) as IgdbTokenResponse;
-        this.cached = {
-          token: body.access_token,
-          expiresAt: Date.now() + body.expires_in * 1000,
-        };
-        return this.cached.token;
-      },
-      { retries: config.httpRetry.count, baseDelayMs: config.httpRetry.baseDelayMs },
-    );
+    // client_secret travels in the URL query; the shared client strips
+    // queries from logs and error messages.
+    const { clientId, clientSecret } = this.credentials;
+    const url = `${this.tokenBase}/token?client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&grant_type=client_credentials`;
+    const body = await requestJson<IgdbTokenResponse>(url, {
+      label: 'igdb token',
+      method: 'POST',
+      headersTimeoutMs: this.timeoutMs,
+      bodyTimeoutMs: this.timeoutMs,
+    });
+    this.cached = {
+      token: body.access_token,
+      expiresAt: Date.now() + body.expires_in * 1000,
+    };
+    return this.cached.token;
   }
 }
 
@@ -128,7 +111,8 @@ export class IgdbHttpClientImpl implements IgdbHttpClient {
     try {
       return await this.makeGamesRequest(queryBody);
     } catch (err) {
-      if (err instanceof Error && err.message.includes('401')) {
+      // Typed 401 detection: expired tokens are refreshed once per attempt.
+      if (err instanceof HttpError && err.statusCode === 401) {
         this.token.invalidate();
         return this.makeGamesRequest(queryBody);
       }
@@ -138,31 +122,18 @@ export class IgdbHttpClientImpl implements IgdbHttpClient {
 
   private async makeGamesRequest(queryBody: string): Promise<IgdbGame[]> {
     const token = await this.token.getAccessToken();
-    const res = await request(`${this.apiBase}/games`, {
+    return requestJson<IgdbGame[]>(`${this.apiBase}/games`, {
+      label: 'igdb',
       method: 'POST',
-      headersTimeout: this.timeoutMs,
-      bodyTimeout: this.timeoutMs,
       headers: {
-        'Accept': 'application/json',
         'Client-ID': this.credentials.clientId,
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'text/plain',
-        'User-Agent': 'kr8bit/0.1',
       },
       body: queryBody,
+      headersTimeoutMs: this.timeoutMs,
+      bodyTimeoutMs: this.timeoutMs,
     });
-    if (isRetryableStatus(res.statusCode)) {
-      throw new RetryableHttpError(`igdb http ${res.statusCode}`);
-    }
-    if (res.statusCode >= 400) {
-      const text = await res.body.text();
-      logger.warn(
-        { statusCode: res.statusCode, text: text.slice(0, 200), queryBody },
-        'igdb games request failed',
-      );
-      throw new Error(`igdb http ${res.statusCode}`);
-    }
-    return (await res.body.json()) as IgdbGame[];
   }
 }
 

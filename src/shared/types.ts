@@ -38,4 +38,6 @@ export interface MetadataProvider {
   readonly name: string;
   search(query: string): Promise<SearchResult[]>;
   getGame(remoteId: string): Promise<GameMetadata | null>;
+  /** Optional capability: live search fallback bypassing any cached index. */
+  resolveByStoreSearch?(query: string): Promise<SearchResult[]>;
 }

@@ -21,3 +21,11 @@ export const ScanStatus = {
 export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];
 
 export const STEAM_PROVIDER_NAME = 'steam';
+export const IGDB_PROVIDER_NAME = 'igdb';
+
+/** Statuses eligible for re-matching during scans and retry-match runs. */
+export const RE_MATCHABLE_STATUSES: MatchStatus[] = [
+  MatchStatus.PENDING,
+  MatchStatus.FLAGGED,
+  MatchStatus.REJECTED,
+];

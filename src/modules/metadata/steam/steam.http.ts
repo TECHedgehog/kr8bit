@@ -1,5 +1,3 @@
-import { request } from 'undici';
-import { logger } from '../../../logger/index.js';
 import { config } from '../../../config/index.js';
 import {
   STEAM_STORE_BASE,
@@ -8,10 +6,11 @@ import {
   type SteamDeckCompatibility,
 } from './steam.http.types.js';
 import {
+  requestJson,
+  requestText,
   withRetry,
   RetryableHttpError,
-  isRetryableStatus,
-} from '../../../shared/http-retry.js';
+} from '../../../shared/http-client.js';
 
 export interface SteamHttpClient {
   searchStore(term: string): Promise<SteamStoreSearchResponse>;
@@ -19,58 +18,12 @@ export interface SteamHttpClient {
   fetchDeckCompatibility(appId: number): Promise<SteamDeckCompatibility | null>;
 }
 
-async function getJson(url: string): Promise<unknown> {
-  return withRetry(
-    async () => {
-      const res = await request(url, {
-        method: 'GET',
-        headersTimeout: config.steam.httpTimeoutMs,
-        bodyTimeout: config.steam.httpTimeoutMs,
-        headers: { 'Accept': 'application/json', 'User-Agent': 'kr8bit/0.1' },
-      });
-      if (isRetryableStatus(res.statusCode)) {
-        throw new RetryableHttpError(`steam http ${res.statusCode} for ${url}`);
-      }
-      if (res.statusCode >= 400) {
-        const text = await res.body.text();
-        logger.warn({ url, statusCode: res.statusCode, text: text.slice(0, 200) }, 'steam http non-2xx');
-        throw new Error(`steam http ${res.statusCode} for ${url}`);
-      }
-      return res.body.json();
-    },
-    {
-      retries: config.httpRetry.count,
-      baseDelayMs: config.httpRetry.baseDelayMs,
-      retryOn: (err) => err instanceof RetryableHttpError,
-    },
-  );
-}
-
-async function getText(url: string): Promise<string> {
-  return withRetry(
-    async () => {
-      const res = await request(url, {
-        method: 'GET',
-        headersTimeout: config.steam.httpTimeoutMs,
-        bodyTimeout: config.steam.httpTimeoutMs,
-        headers: { 'Accept': 'text/html', 'User-Agent': 'kr8bit/0.1' },
-      });
-      if (isRetryableStatus(res.statusCode)) {
-        throw new RetryableHttpError(`steam http ${res.statusCode} for ${url}`);
-      }
-      if (res.statusCode >= 400) {
-        const text = await res.body.text();
-        logger.warn({ url, statusCode: res.statusCode, text: text.slice(0, 200) }, 'steam http non-2xx');
-        throw new Error(`steam http ${res.statusCode} for ${url}`);
-      }
-      return res.body.text();
-    },
-    {
-      retries: config.httpRetry.count,
-      baseDelayMs: config.httpRetry.baseDelayMs,
-      retryOn: (err) => err instanceof RetryableHttpError,
-    },
-  );
+function steamOptions() {
+  return {
+    label: 'steam',
+    headersTimeoutMs: config.steam.httpTimeoutMs,
+    bodyTimeoutMs: config.steam.httpTimeoutMs,
+  };
 }
 
 function decodeHtmlEntities(input: string): string {
@@ -104,29 +57,31 @@ function parseDeckCompatibility(jsonText: string): SteamDeckCompatibility | null
 export const steamHttpClient: SteamHttpClient = {
   async searchStore(term: string): Promise<SteamStoreSearchResponse> {
     const url = `${STEAM_STORE_BASE}/api/storesearch/?term=${encodeURIComponent(term)}&l=en&cc=us`;
-    const body = await getJson(url);
-    return body as SteamStoreSearchResponse;
+    return requestJson<SteamStoreSearchResponse>(url, steamOptions());
   },
 
   async fetchAppDetails(appId: number): Promise<SteamAppDetailsResponse> {
     const url = `${STEAM_STORE_BASE}/api/appdetails?appids=${appId}&l=en`;
     let lastBody: unknown;
     try {
+      // Single retry layer: transport errors AND Steam's transient
+      // success:false responses share one small retry budget (bad appIds
+      // fail fast, transient hiccups usually resolve on the first retry).
       return await withRetry(
         async () => {
-          const body = await getJson(url);
+          const body = await requestJson<SteamAppDetailsResponse>(url, {
+            ...steamOptions(),
+            label: 'steam appdetails',
+            retries: 0,
+          });
           lastBody = body;
-          const response = body as SteamAppDetailsResponse;
-          const entry = response[String(appId)];
+          const entry = body[String(appId)];
           if (!entry?.success) {
             throw new RetryableHttpError(`steam appdetails success:false for ${appId}`);
           }
-          return response;
+          return body;
         },
         {
-          // Steam appdetails returns success:false transiently (rate limits,
-          // cache misses). Keep this small: bad appIds fail fast, transient
-          // hiccups usually resolve on the first retry.
           retries: 2,
           baseDelayMs: 500,
         },
@@ -141,7 +96,7 @@ export const steamHttpClient: SteamHttpClient = {
 
   async fetchDeckCompatibility(appId: number): Promise<SteamDeckCompatibility | null> {
     const url = `${STEAM_STORE_BASE}/app/${appId}/?l=en`;
-    const html = await getText(url);
+    const html = await requestText(url, steamOptions());
     const match = html.match(/data-hardwarecompatibility="([^"]*)"/);
     if (!match) return null;
     const decoded = decodeHtmlEntities(match[1]);

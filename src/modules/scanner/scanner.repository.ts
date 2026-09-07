@@ -33,18 +33,26 @@ export const scannerRepository = {
   },
 
   async findLatest(): Promise<ScanRun | null> {
-    const row = await prisma.scanRun.findFirst({
-      orderBy: { startedAt: 'desc' },
-    });
-    return row ? toDomain(row) : null;
+    try {
+      const row = await prisma.scanRun.findFirst({
+        orderBy: { startedAt: 'desc' },
+      });
+      return row ? toDomain(row) : null;
+    } catch (err) {
+      throw mapPrismaError(err, 'ScanRun', 'findLatest');
+    }
   },
 
   async findRunning(): Promise<ScanRun | null> {
-    const row = await prisma.scanRun.findFirst({
-      where: { status: ScanStatus.RUNNING },
-      orderBy: { startedAt: 'desc' },
-    });
-    return row ? toDomain(row) : null;
+    try {
+      const row = await prisma.scanRun.findFirst({
+        where: { status: ScanStatus.RUNNING },
+        orderBy: { startedAt: 'desc' },
+      });
+      return row ? toDomain(row) : null;
+    } catch (err) {
+      throw mapPrismaError(err, 'ScanRun', 'findRunning');
+    }
   },
 
   async update(id: string, input: ScanRunUpdateInput): Promise<ScanRun> {

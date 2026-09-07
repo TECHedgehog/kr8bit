@@ -11,6 +11,15 @@ export interface SettingsEnvSnapshot {
   logLevel: string;
 }
 
+// Keys the app writes itself (not user configuration). Rejecting them via
+// PUT /api/settings stops clients from corrupting internal bookkeeping —
+// e.g. setting steamIndexLastRefresh far in the future would suppress
+// Steam index refreshes indefinitely.
+const RESERVED_KEYS = new Set(['steamIndexLastRefresh']);
+
+const MAX_KEY_LENGTH = 100;
+const MAX_VALUE_LENGTH = 10_000;
+
 export function parseSettingsUpsert(body: unknown): { key: string; value: string }[] {
   if (body === null || typeof body !== 'object') {
     throw new ValidationError('settings payload must be a JSON object');
@@ -18,8 +27,17 @@ export function parseSettingsUpsert(body: unknown): { key: string; value: string
   const raw = body as Record<string, unknown>;
   const entries: { key: string; value: string }[] = [];
   for (const [key, value] of Object.entries(raw)) {
+    if (RESERVED_KEYS.has(key)) {
+      throw new ValidationError(`key is internal and cannot be set: ${key}`);
+    }
+    if (key.length > MAX_KEY_LENGTH) {
+      throw new ValidationError(`key too long (max ${MAX_KEY_LENGTH}): ${key}`);
+    }
     if (typeof value !== 'string') {
       throw new ValidationError(`invalid value for ${key}: expected string`);
+    }
+    if (value.length > MAX_VALUE_LENGTH) {
+      throw new ValidationError(`value too long (max ${MAX_VALUE_LENGTH}) for ${key}`);
     }
     entries.push({ key, value });
   }
@@ -44,11 +62,9 @@ export const settingsService = {
   },
 
   async upsert(entries: { key: string; value: string }[]): Promise<number> {
-    let count = 0;
-    for (const entry of entries) {
-      await settingsRepository.set(entry.key, entry.value);
-      count += 1;
-    }
-    return count;
+    if (entries.length === 0) return 0;
+    // Single transaction: a failure mid-batch must not leave a partially
+    // applied settings update.
+    return settingsRepository.setMany(entries);
   },
 };

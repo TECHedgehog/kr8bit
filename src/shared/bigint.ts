@@ -2,10 +2,6 @@
 // columns (e.g. Game.sizeBytes) serialize as numbers in API responses.
 // Import once at process entry (src/main.ts).
 
-// Side-effect import: installs a BigInt JSON serializer so Prisma BigInt
-// columns (e.g. Game.sizeBytes) serialize as numbers in API responses.
-// Import once at process entry (src/main.ts).
-
 interface BigIntWithToJSON {
   toJSON(): number;
   valueOf(): bigint;

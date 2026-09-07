@@ -69,6 +69,9 @@ export type SortKey =
 
 export const DEFAULT_SORT: SortKey = 'title-asc';
 
+/** Upper bound for list page size, enforced in service and repository. */
+export const MAX_PAGE_SIZE = 200;
+
 export const SORT_KEYS: readonly SortKey[] = [
   'title-asc',
   'title-desc',

@@ -3,8 +3,7 @@ import { metadataService } from '../../modules/metadata/metadata.service.js';
 import { metadataRefreshJob } from '../../modules/metadata/metadata-refresh.job.js';
 import { retryMatchJob } from '../../modules/metadata/retry-match.job.js';
 import { steamIndexService } from '../../modules/metadata/steam-index/steam-index.service.js';
-import { config } from '../../config/index.js';
-import { ConflictError, ValidationError } from '../../shared/errors.js';
+import { AppError, ConflictError, ValidationError } from '../../shared/errors.js';
 
 export const metadataController = {
   async search(req: FastifyRequest, _reply: FastifyReply) {
@@ -37,34 +36,35 @@ export const metadataController = {
     return metadataService.refresh(id);
   },
 
-  async refreshAll(_req: FastifyRequest, _reply: FastifyReply) {
+  async refreshAll(_req: FastifyRequest, reply: FastifyReply) {
     if (metadataRefreshJob.isRunning()) {
-      return { running: true, state: metadataRefreshJob.state() };
+      throw new ConflictError('metadata refresh already running');
     }
     void metadataRefreshJob.start();
-    return { running: true, started: true };
+    reply.status(202);
+    return { started: true };
   },
 
   async refreshAllStatus(_req: FastifyRequest, _reply: FastifyReply) {
     return { running: metadataRefreshJob.isRunning(), state: metadataRefreshJob.state() };
   },
 
-  async retryMatches(_req: FastifyRequest, _reply: FastifyReply) {
+  async retryMatches(_req: FastifyRequest, reply: FastifyReply) {
     if (retryMatchJob.isRunning()) {
-      return { running: true, state: retryMatchJob.state() };
+      throw new ConflictError('retry-match already running');
     }
     void retryMatchJob.start();
-    return { running: true, started: true };
+    reply.status(202);
+    return { started: true };
   },
 
   async retryMatchesStatus(_req: FastifyRequest, _reply: FastifyReply) {
     return { running: retryMatchJob.isRunning(), state: retryMatchJob.state() };
   },
 
-  async refreshIndex(_req: FastifyRequest, reply: FastifyReply) {
-    if (!config.steamIndex.enabled) {
-      reply.status(503);
-      return { ok: false, reason: 'steam-index-disabled', message: 'STEAM_API_KEY not set' };
+  async refreshIndex(_req: FastifyRequest, _reply: FastifyReply) {
+    if (!steamIndexService.isEnabled()) {
+      throw new AppError(503, 'STEAM_API_KEY not set', 'STEAM_INDEX_DISABLED');
     }
     if (steamIndexService.isRefreshing()) {
       throw new ConflictError('steam index refresh already in progress');
@@ -74,8 +74,11 @@ export const metadataController = {
       if (result.reason === 'in-progress') {
         throw new ConflictError('steam index refresh already in progress');
       }
-      reply.status(502);
-      return { ok: false, reason: result.reason };
+      throw new AppError(
+        502,
+        `steam index refresh failed: ${result.reason}`,
+        'STEAM_INDEX_REFRESH_FAILED',
+      );
     }
     return { ok: true, rows: result.rows, refreshedAt: result.refreshedAt };
   },

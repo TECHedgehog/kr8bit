@@ -3,15 +3,9 @@ import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
 import { mapPrismaError } from '../../shared/prisma-errors.js';
 import { NotFoundError } from '../../shared/errors.js';
-import { MatchStatus } from '../../shared/enums.js';
+import { MatchStatus, RE_MATCHABLE_STATUSES } from '../../shared/enums.js';
 import { encodeArray, decodeArray } from '../../shared/json.js';
 import { toDomain } from './library.mapper.js';
-import {
-  findOrphanedProviderMatches as findOrphanedProviderMatchesDb,
-  cleanOrphanedProviderMatches as cleanOrphanedProviderMatchesDb,
-  findStaleSteamAppIds as findStaleSteamAppIdsDb,
-  cleanStaleSteamAppIds as cleanStaleSteamAppIdsDb,
-} from '../database/orphan-cleanup.js';
 import type {
   Game,
   GameCreateInput,
@@ -20,7 +14,7 @@ import type {
   GameListResult,
   SortKey,
 } from './library.types.js';
-import { DEFAULT_SORT } from './library.types.js';
+import { DEFAULT_SORT, MAX_PAGE_SIZE } from './library.types.js';
 
 export const REFRESH_BATCH_SIZE = 500;
 export const PENDING_BATCH_SIZE = 500;
@@ -79,12 +73,16 @@ export const libraryRepository = {
   },
 
   async findByEntryPath(entryPath: string): Promise<Game | null> {
-    const row = await prisma.game.findUnique({ where: { entryPath } });
-    return row ? toDomain(row) : null;
+    try {
+      const row = await prisma.game.findUnique({ where: { entryPath } });
+      return row ? toDomain(row) : null;
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', entryPath);
+    }
   },
 
   async list(filter: GameListFilter = {}): Promise<GameListResult> {
-    const limit = Math.min(filter.limit ?? 50, 200);
+    const limit = Math.min(filter.limit ?? 50, MAX_PAGE_SIZE);
     const offset = Math.max(filter.offset ?? 0, 0);
     const orderBy = sortToOrderBy(filter.sort ?? DEFAULT_SORT);
 
@@ -139,15 +137,15 @@ export const libraryRepository = {
       if (input.developers !== undefined) data.developers = encodeArray(input.developers);
       if (input.publishers !== undefined) data.publishers = encodeArray(input.publishers);
       if (input.genres !== undefined) data.genres = encodeArray(input.genres);
-    if (input.coverUrl !== undefined) data.coverUrl = input.coverUrl;
-    if (input.headerUrl !== undefined) data.headerUrl = input.headerUrl;
-    if (input.heroUrl !== undefined) data.heroUrl = input.heroUrl;
-    if (input.logoUrl !== undefined) data.logoUrl = input.logoUrl;
-    if (input.screenshots !== undefined) data.screenshots = JSON.stringify(input.screenshots);
-    if (input.videos !== undefined) data.videos = JSON.stringify(input.videos);
-    if (input.steamDeckCategory !== undefined) data.steamDeckCategory = input.steamDeckCategory;
-    if (input.steamDeckItems !== undefined) data.steamDeckItems = JSON.stringify(input.steamDeckItems);
-    if (input.matchStatus !== undefined) data.matchStatus = input.matchStatus;
+      if (input.coverUrl !== undefined) data.coverUrl = input.coverUrl;
+      if (input.headerUrl !== undefined) data.headerUrl = input.headerUrl;
+      if (input.heroUrl !== undefined) data.heroUrl = input.heroUrl;
+      if (input.logoUrl !== undefined) data.logoUrl = input.logoUrl;
+      if (input.screenshots !== undefined) data.screenshots = JSON.stringify(input.screenshots);
+      if (input.videos !== undefined) data.videos = JSON.stringify(input.videos);
+      if (input.steamDeckCategory !== undefined) data.steamDeckCategory = input.steamDeckCategory;
+      if (input.steamDeckItems !== undefined) data.steamDeckItems = JSON.stringify(input.steamDeckItems);
+      if (input.matchStatus !== undefined) data.matchStatus = input.matchStatus;
       if (input.matchScore !== undefined) data.matchScore = input.matchScore;
       if (input.matchedAt !== undefined) data.matchedAt = input.matchedAt;
 
@@ -168,66 +166,64 @@ export const libraryRepository = {
   },
 
   async count(): Promise<number> {
-    return prisma.game.count();
+    try {
+      return prisma.game.count();
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', 'count');
+    }
   },
 
   async findDistinctGenres(): Promise<string[]> {
-    const rows = await prisma.game.findMany({ select: { genres: true } });
-    const set = new Set<string>();
-    for (const row of rows) {
-      for (const g of decodeArray(row.genres)) {
-        set.add(g);
+    try {
+      const rows = await prisma.game.findMany({ select: { genres: true } });
+      const set = new Set<string>();
+      for (const row of rows) {
+        for (const g of decodeArray(row.genres)) {
+          set.add(g);
+        }
       }
+      return [...set].sort();
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', 'genres');
     }
-    return [...set].sort();
   },
 
   async findEligibleForRefresh(): Promise<Game[]> {
     const minAgeMs = config.metadata.refreshMinAgeMs;
     const cutoff = new Date(Date.now() - minAgeMs);
-    const rows = await prisma.game.findMany({
-      where: {
-        matchStatus: { in: [MatchStatus.ACCEPTED, MatchStatus.FLAGGED, MatchStatus.MANUAL] },
-        matchedAt: { lt: cutoff },
-        OR: [
-          { description: null },
-          { coverUrl: null },
-          { headerUrl: null },
-          { steamAppId: { not: null }, heroUrl: null },
-        ],
-      },
-      orderBy: { createdAt: 'asc' },
-      take: REFRESH_BATCH_SIZE,
-    });
-    return rows.map(toDomain);
+    try {
+      const rows = await prisma.game.findMany({
+        where: {
+          matchStatus: { in: [MatchStatus.ACCEPTED, MatchStatus.FLAGGED, MatchStatus.MANUAL] },
+          matchedAt: { lt: cutoff },
+          OR: [
+            { description: null },
+            { coverUrl: null },
+            { headerUrl: null },
+            { steamAppId: { not: null }, heroUrl: null },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+        take: REFRESH_BATCH_SIZE,
+      });
+      return rows.map(toDomain);
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', 'refresh-eligible');
+    }
   },
 
   async findPendingGames(): Promise<Game[]> {
-    const rows = await prisma.game.findMany({
-      where: {
-        matchStatus: { in: [MatchStatus.PENDING, MatchStatus.FLAGGED, MatchStatus.REJECTED] },
-      },
-      orderBy: { createdAt: 'asc' },
-      take: PENDING_BATCH_SIZE,
-    });
-    return rows.map(toDomain);
-  },
-
-  async findOrphanedProviderMatches(): Promise<string[]> {
-    return findOrphanedProviderMatchesDb();
-  },
-
-  async cleanOrphanedProviderMatches(): Promise<number> {
-    return cleanOrphanedProviderMatchesDb();
-  },
-
-  async findStaleSteamAppIds(): Promise<
-    { id: string; entryName: string; steamAppId: number }[]
-  > {
-    return findStaleSteamAppIdsDb();
-  },
-
-  async cleanStaleSteamAppIds(): Promise<number> {
-    return cleanStaleSteamAppIdsDb();
+    try {
+      const rows = await prisma.game.findMany({
+        where: {
+          matchStatus: { in: RE_MATCHABLE_STATUSES },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: PENDING_BATCH_SIZE,
+      });
+      return rows.map(toDomain);
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', 'pending');
+    }
   },
 };

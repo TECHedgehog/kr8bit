@@ -4,8 +4,12 @@ import type { Setting } from './settings.types.js';
 
 export const settingsRepository = {
   async get(key: string): Promise<string | null> {
-    const row = await prisma.setting.findUnique({ where: { key } });
-    return row?.value ?? null;
+    try {
+      const row = await prisma.setting.findUnique({ where: { key } });
+      return row?.value ?? null;
+    } catch (err) {
+      throw mapPrismaError(err, 'Setting', key);
+    }
   },
 
   async set(key: string, value: string): Promise<Setting> {
@@ -21,8 +25,30 @@ export const settingsRepository = {
     }
   },
 
+  async setMany(entries: { key: string; value: string }[]): Promise<number> {
+    try {
+      await prisma.$transaction(
+        entries.map((e) =>
+          prisma.setting.upsert({
+            where: { key: e.key },
+            create: { key: e.key, value: e.value },
+            update: { value: e.value },
+          }),
+        ),
+      );
+      return entries.length;
+    } catch (err) {
+      const first = entries[0]?.key ?? '';
+      throw mapPrismaError(err, 'Setting', first);
+    }
+  },
+
   async list(): Promise<Setting[]> {
-    return prisma.setting.findMany({ orderBy: { key: 'asc' } });
+    try {
+      return await prisma.setting.findMany({ orderBy: { key: 'asc' } });
+    } catch (err) {
+      throw mapPrismaError(err, 'Setting', 'list');
+    }
   },
 
   async delete(key: string): Promise<void> {

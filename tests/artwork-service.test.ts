@@ -312,7 +312,7 @@ describe('ArtworkService', () => {
       expect(await fileExists(path)).toBe(true);
     });
 
-    it('re-downloads when cache-bust token changes', async () => {
+    it('re-downloads when cache-bust token changes and prunes the old variant', async () => {
       const client = { download: vi.fn(async () => new Uint8Array([1])) };
       const svc = new ArtworkService(tmpDir, client);
 
@@ -324,8 +324,21 @@ describe('ArtworkService', () => {
       expect(path1).toBe(join(tmpDir, 'artwork', '620', 'cover-1'));
       expect(path2).toBe(join(tmpDir, 'artwork', '620', 'cover-2'));
       expect(client.download).toHaveBeenCalledTimes(1);
-      expect(await fileExists(path1)).toBe(true);
+      // superseded variant is pruned so versioned caches cannot grow forever
+      expect(await fileExists(path1)).toBe(false);
       expect(await fileExists(path2)).toBe(true);
+    });
+
+    it('hashes hostile cache-bust tokens so they cannot escape the cache dir', async () => {
+      const client = { download: vi.fn(async () => new Uint8Array([1])) };
+      const svc = new ArtworkService(tmpDir, client);
+
+      const path = await svc.downloadToCache(620, 'cover', 'https://x/cover.jpg?t=../../evil');
+
+      const dir = join(tmpDir, 'artwork', '620');
+      expect(path.startsWith(dir)).toBe(true);
+      expect(path).not.toContain('..');
+      expect(await fileExists(path)).toBe(true);
     });
 
     it('readWithContentType finds versioned cached file', async () => {
@@ -375,7 +388,7 @@ describe('ArtworkService', () => {
       expect(await fileExists(path)).toBe(true);
     });
 
-    it('generic path re-downloads when token changes', async () => {
+    it('generic path re-downloads when token changes and prunes the old variant', async () => {
       const client = { download: vi.fn(async () => new Uint8Array([1])) };
       const svc = new ArtworkService(tmpDir, client);
 
@@ -387,7 +400,7 @@ describe('ArtworkService', () => {
       expect(path1).toBe(join(tmpDir, 'artwork', 'igdb', 'abc', 'cover-a'));
       expect(path2).toBe(join(tmpDir, 'artwork', 'igdb', 'abc', 'cover-b'));
       expect(client.download).toHaveBeenCalledTimes(1);
-      expect(await fileExists(path1)).toBe(true);
+      expect(await fileExists(path1)).toBe(false);
       expect(await fileExists(path2)).toBe(true);
     });
 

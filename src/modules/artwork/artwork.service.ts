@@ -1,8 +1,9 @@
 import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
-import { request } from 'undici';
+import { createHash } from 'node:crypto';
+import { basename, join } from 'node:path';
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
+import { requestBytes } from '../../shared/http-client.js';
 
 export type ArtworkKind = 'header' | 'cover' | 'hero' | 'logo';
 
@@ -21,17 +22,11 @@ export interface ArtworkClient {
 
 export const defaultArtworkClient: ArtworkClient = {
   async download(url) {
-    const res = await request(url, {
-      method: 'GET',
-      headersTimeout: config.artwork.headerTimeoutMs,
-      bodyTimeout: config.artwork.bodyTimeoutMs,
-      headers: { 'User-Agent': 'kr8bit/0.1' },
+    return requestBytes(url, {
+      label: 'artwork',
+      headersTimeoutMs: config.artwork.headerTimeoutMs,
+      bodyTimeoutMs: config.artwork.bodyTimeoutMs,
     });
-    if (res.statusCode >= 400) {
-      throw new Error(`artwork http ${res.statusCode} for ${url}`);
-    }
-    const buf = await res.body.arrayBuffer();
-    return new Uint8Array(buf);
   },
 };
 
@@ -97,8 +92,10 @@ export class ArtworkService {
     }
     try {
       const bytes = await this.client.download(remoteUrl);
-      await fs.mkdir(join(this.cacheDir, 'artwork', String(steamAppId)), { recursive: true });
+      const dir = join(this.cacheDir, 'artwork', String(steamAppId));
+      await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(target, bytes);
+      await this.pruneSupersededVariants(dir, kind, basename(target));
       logger.info(
         { steamAppId, kind, bytes: bytes.byteLength, contentType: detectContentType(bytes) },
         'artwork cached',
@@ -173,8 +170,10 @@ export class ArtworkService {
     }
     try {
       const bytes = await this.client.download(remoteUrl);
-      await fs.mkdir(join(this.cacheDir, 'artwork', provider, remoteId), { recursive: true });
+      const dir = join(this.cacheDir, 'artwork', provider, remoteId);
+      await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(target, bytes);
+      await this.pruneSupersededVariants(dir, kind, basename(target));
       logger.info(
         { provider, remoteId, kind, bytes: bytes.byteLength, contentType: detectContentType(bytes) },
         'artwork cached (generic)',
@@ -222,7 +221,13 @@ export class ArtworkService {
     try {
       const parsed = new URL(url);
       const token = parsed.searchParams.get('t') ?? parsed.searchParams.get('v');
-      if (token) return `-${token}`;
+      if (!token) return '';
+      // The token becomes part of a filename. Only a conservative charset
+      // is used verbatim; anything else (path separators, '..', unicode,
+      // oversized tokens) is replaced with a short deterministic hash so a
+      // hostile URL can never escape the cache directory.
+      if (/^[\w-]{1,64}$/.test(token)) return `-${token}`;
+      return `-${createHash('sha256').update(token).digest('hex').slice(0, 12)}`;
     } catch {
       // ignore invalid URL
     }
@@ -255,6 +260,24 @@ export class ArtworkService {
       return ageMs > this.deps.cacheTtlMs;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Remove other cached variants of the same artwork kind (e.g. old
+   * `cover-1` after writing `cover-2`). Without this, URL-versioned
+   * artwork accumulates superseded files forever.
+   */
+  private async pruneSupersededVariants(dir: string, kind: ArtworkKind, keepName: string): Promise<void> {
+    try {
+      const entries = await fs.readdir(dir);
+      for (const entry of entries) {
+        if (entry !== keepName && (entry === kind || entry.startsWith(`${kind}-`))) {
+          await fs.unlink(join(dir, entry)).catch(() => { /* best effort */ });
+        }
+      }
+    } catch {
+      // missing directory or read error — nothing to prune
     }
   }
 

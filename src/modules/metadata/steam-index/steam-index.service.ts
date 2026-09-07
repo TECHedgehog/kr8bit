@@ -63,7 +63,14 @@ export class SteamIndexService implements SteamIndexSearcher {
       logger.info('steam index disabled (no STEAM_API_KEY) — search will use live storesearch');
       return;
     }
-    const stale = await this.isStale();
+    // A DB error while reading the staleness setting must not be fatal to
+    // boot: skip the boot refresh and rely on the scheduled interval.
+    let stale = false;
+    try {
+      stale = await this.isStale();
+    } catch (err) {
+      logger.warn({ err: (err as Error).message }, 'steam index staleness check failed at boot');
+    }
     if (stale) {
       this.refresh().catch((err) => {
         logger.error({ err: (err as Error).message }, 'steam index boot refresh failed');
@@ -95,6 +102,10 @@ export class SteamIndexService implements SteamIndexSearcher {
     return this.refreshing;
   }
 
+  isEnabled(): boolean {
+    return this.deps.enabled;
+  }
+
   async rebuildIndex(): Promise<void> {
     await this.rebuildFuse();
   }
@@ -119,20 +130,26 @@ export class SteamIndexService implements SteamIndexSearcher {
     }
     this.refreshing = true;
     try {
-      const entries = await this.deps.appListClient.fetchAppList();
-      const inserted = await steamIndexRepository.replaceAll(entries);
-      await this.rebuildFuse();
-      const refreshedAt = this.deps.now().toISOString();
-      await settingsRepository.set(SETTING_LAST_REFRESH, refreshedAt);
-      logger.info({ rows: inserted, refreshedAt }, 'steam index refreshed');
-      return { ok: true, rows: inserted, refreshedAt };
-    } catch (err) {
-      const message = (err as Error).message;
-      const reason = message.includes('persist')
-        ? 'persist-failed'
-        : 'fetch-failed';
-      logger.error({ err: message, reason }, 'steam index refresh failed');
-      return { ok: false, reason };
+      // Classify failures by phase (fetch vs persist) instead of sniffing
+      // error messages.
+      let entries;
+      try {
+        entries = await this.deps.appListClient.fetchAppList();
+      } catch (err) {
+        logger.error({ err: (err as Error).message, reason: 'fetch-failed' }, 'steam index refresh failed');
+        return { ok: false, reason: 'fetch-failed' };
+      }
+      try {
+        const inserted = await steamIndexRepository.replaceAll(entries);
+        await this.rebuildFuse();
+        const refreshedAt = this.deps.now().toISOString();
+        await settingsRepository.set(SETTING_LAST_REFRESH, refreshedAt);
+        logger.info({ rows: inserted, refreshedAt }, 'steam index refreshed');
+        return { ok: true, rows: inserted, refreshedAt };
+      } catch (err) {
+        logger.error({ err: (err as Error).message, reason: 'persist-failed' }, 'steam index refresh failed');
+        return { ok: false, reason: 'persist-failed' };
+      }
     } finally {
       this.refreshing = false;
     }

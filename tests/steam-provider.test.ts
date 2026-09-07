@@ -38,6 +38,7 @@ function makeMockClient(
       if (!entry) return {};
       return { [String(appId)]: entry };
     }),
+    fetchDeckCompatibility: vi.fn(async () => null),
   };
 }
 
@@ -86,6 +87,7 @@ describe('SteamProvider.search', () => {
     const client: SteamHttpClient = {
       searchStore: vi.fn(async () => { throw new Error('bad gateway'); }),
       fetchAppDetails: vi.fn(),
+      fetchDeckCompatibility: vi.fn(async () => null),
     };
     const provider = new SteamProvider(client);
     expect(await provider.search('Anything')).toEqual([]);
@@ -148,6 +150,7 @@ describe('SteamProvider.resolveByStoreSearch', () => {
     const client: SteamHttpClient = {
       searchStore: vi.fn(async () => { throw new Error('bad gateway'); }),
       fetchAppDetails: vi.fn(),
+      fetchDeckCompatibility: vi.fn(async () => null),
     };
     const provider = new SteamProvider(client, null);
     expect(await provider.resolveByStoreSearch('Anything')).toEqual([]);
@@ -206,6 +209,7 @@ describe('SteamProvider.getGame', () => {
     const client: SteamHttpClient = {
       searchStore: vi.fn(),
       fetchAppDetails: vi.fn(async () => { throw new Error('steam http 429'); }),
+      fetchDeckCompatibility: vi.fn(async () => null),
     };
     const provider = new SteamProvider(client);
     expect(await provider.getGame('620')).toBeNull();

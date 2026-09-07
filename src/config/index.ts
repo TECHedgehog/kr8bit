@@ -4,6 +4,7 @@ import { config as loadEnv } from 'dotenv';
 loadEnv();
 
 const schema = z.object({
+  NODE_ENV: z.string().default('development'),
   LIBRARY_ROOT: z.string().min(1),
   CACHE_DIR: z.string().min(1),
   DB_PATH: z.string().min(1),
@@ -50,6 +51,7 @@ if (!parsed.success) {
 }
 
 export const config = {
+  nodeEnv: parsed.data.NODE_ENV,
   libraryRoot: parsed.data.LIBRARY_ROOT,
   cacheDir: parsed.data.CACHE_DIR,
   dbPath: parsed.data.DB_PATH,
@@ -65,7 +67,7 @@ export const config = {
     httpTimeoutMs: parsed.data.IGDB_HTTP_TIMEOUT_MS,
     enabled: Boolean(parsed.data.IGDB_CLIENT_ID && parsed.data.IGDB_CLIENT_SECRET),
   },
-    steamIndex: {
+  steamIndex: {
     refreshIntervalHours: parsed.data.STEAM_INDEX_REFRESH_INTERVAL_HOURS,
     appListHttpTimeoutMs: parsed.data.STEAM_APP_LIST_HTTP_TIMEOUT_MS,
     apiKey: parsed.data.STEAM_API_KEY ?? null,
@@ -106,5 +108,3 @@ export const config = {
     refreshMinAgeMs: parsed.data.METADATA_REFRESH_MIN_AGE_MS,
   },
 } as const;
-
-export type Config = typeof config;

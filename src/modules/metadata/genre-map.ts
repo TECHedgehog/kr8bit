@@ -1,3 +1,5 @@
+import { STEAM_PROVIDER_NAME, IGDB_PROVIDER_NAME } from '../../shared/enums.js';
+
 // Steam genres that are not actual genres (game modes, features, etc.)
 // These are filtered out from the genres array.
 export const STEAM_GENRE_BLOCKLIST = new Set([
@@ -67,12 +69,12 @@ export function normalizeGenres(
   genres: string[],
   themes?: string[],
 ): string[] {
-  if (providerName === 'steam') {
+  if (providerName === STEAM_PROVIDER_NAME) {
     const filtered = genres.filter((g) => !STEAM_GENRE_BLOCKLIST.has(g));
     return [...new Set(filtered)];
   }
 
-  if (providerName === 'igdb') {
+  if (providerName === IGDB_PROVIDER_NAME) {
     const mappedGenres = genres.map((g) => IGDB_GENRE_MAP[g] ?? g);
     const mappedThemes = themes?.map((t) => IGDB_THEME_MAP[t] ?? t) ?? [];
     const combined = [...mappedGenres, ...mappedThemes];

@@ -7,6 +7,7 @@ import { config } from '../src/config/index.js';
 import { prisma } from '../src/prisma-client.js';
 import { libraryRepository } from '../src/modules/library/library.repository.js';
 import { scannerService } from '../src/modules/scanner/scanner.service.js';
+import { AppError } from '../src/shared/errors.js';
 import { MatchStatus } from '../src/shared/enums.js';
 import type { FastifyInstance } from 'fastify';
 
@@ -273,7 +274,7 @@ describe('Scanner endpoints', () => {
     const res = await app.inject({ method: 'GET', url: '/api/scanner/status' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.running).toBeNull();
+    expect(body.runningRun).toBeNull();
     expect(body.latest).toBeNull();
     expect(body.isRunning).toBe(false);
   });
@@ -296,12 +297,15 @@ describe('Scanner endpoints', () => {
   });
 
   it('rejects run when scanner is already running', async () => {
-    vi.spyOn(scannerService, 'isRunning').mockReturnValueOnce(true);
+    const startSpy = vi.spyOn(scannerService, 'start').mockImplementationOnce(async () => {
+      throw new AppError(409, 'scan already running', 'SCAN_RUNNING');
+    });
 
     const res = await app.inject({ method: 'POST', url: '/api/scanner/run' });
 
     expect(res.statusCode).toBe(409);
     expect(res.json().code).toBe('SCAN_RUNNING');
+    startSpy.mockRestore();
   });
 });
 

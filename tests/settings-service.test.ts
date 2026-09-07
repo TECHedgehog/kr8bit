@@ -8,6 +8,7 @@ vi.mock('../src/modules/settings/settings.repository.js', () => ({
   settingsRepository: {
     list: vi.fn(),
     set: vi.fn(),
+    setMany: vi.fn(),
   },
 }));
 
@@ -43,6 +44,15 @@ describe('parseSettingsUpsert', () => {
       { key: 'c', value: '3' },
     ]);
   });
+
+  it('rejects internal keys', () => {
+    expect(() => parseSettingsUpsert({ steamIndexLastRefresh: '2030-01-01' })).toThrow(ValidationError);
+  });
+
+  it('rejects oversized keys and values', () => {
+    expect(() => parseSettingsUpsert({ ['k'.repeat(101)]: 'v' })).toThrow(ValidationError);
+    expect(() => parseSettingsUpsert({ k: 'v'.repeat(10_001) })).toThrow(ValidationError);
+  });
 });
 
 describe('settingsService.list', () => {
@@ -68,17 +78,25 @@ describe('settingsService.upsert', () => {
     vi.clearAllMocks();
   });
 
-  it('calls set for each entry and returns count', async () => {
-    vi.mocked(settingsRepository.set).mockResolvedValue({ key: 'x', value: 'y' });
+  it('writes all entries in one transaction and returns count', async () => {
+    vi.mocked(settingsRepository.setMany).mockResolvedValue(2);
 
     const count = await settingsService.upsert([
       { key: 'a', value: '1' },
       { key: 'b', value: '2' },
     ]);
 
-    expect(settingsRepository.set).toHaveBeenCalledTimes(2);
-    expect(settingsRepository.set).toHaveBeenNthCalledWith(1, 'a', '1');
-    expect(settingsRepository.set).toHaveBeenNthCalledWith(2, 'b', '2');
+    expect(settingsRepository.setMany).toHaveBeenCalledTimes(1);
+    expect(settingsRepository.setMany).toHaveBeenCalledWith([
+      { key: 'a', value: '1' },
+      { key: 'b', value: '2' },
+    ]);
     expect(count).toBe(2);
+  });
+
+  it('returns 0 for empty entries without touching the repository', async () => {
+    const count = await settingsService.upsert([]);
+    expect(count).toBe(0);
+    expect(settingsRepository.setMany).not.toHaveBeenCalled();
   });
 });

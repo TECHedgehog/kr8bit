@@ -2,6 +2,7 @@ import { ValidationError } from '../../shared/errors.js';
 import { libraryRepository } from '../library/library.repository.js';
 import {
   DEFAULT_SORT,
+  MAX_PAGE_SIZE,
   isSortKey,
 } from './library.types.js';
 import type { Game, GameListFilter, GameListResult, GameUpdateInput, SortKey } from './library.types.js';
@@ -32,7 +33,7 @@ export function parseListFilter(query: Record<string, string | undefined>): Norm
     }
     offset = parsed;
   }
-  limit = Math.min(limit, 200);
+  limit = Math.min(limit, MAX_PAGE_SIZE);
   const search = query.search?.trim() || undefined;
   const sort: SortKey = isSortKey(query.sort) ? query.sort : DEFAULT_SORT;
   const genres = parseGenres(query.genre);
@@ -102,13 +103,5 @@ export const libraryService = {
 
   async delete(id: string): Promise<void> {
     return libraryRepository.delete(id);
-  },
-
-  async cleanOrphans(): Promise<{ orphanedProviderMatches: number; staleSteamAppIds: number }> {
-    const [orphanedProviderMatches, staleSteamAppIds] = await Promise.all([
-      libraryRepository.cleanOrphanedProviderMatches(),
-      libraryRepository.cleanStaleSteamAppIds(),
-    ]);
-    return { orphanedProviderMatches, staleSteamAppIds };
   },
 };

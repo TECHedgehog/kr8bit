@@ -1,7 +1,7 @@
 import pino from 'pino';
 import { config } from '../config/index.js';
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = config.nodeEnv !== 'production';
 
 export const logger = pino({
   level: config.logLevel,
@@ -14,5 +14,3 @@ export const logger = pino({
       }
     : {}),
 });
-
-export type Logger = typeof logger;

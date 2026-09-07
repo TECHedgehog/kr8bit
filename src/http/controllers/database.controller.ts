@@ -1,6 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { databaseService } from '../../modules/database/database.service.js';
-import { libraryService } from '../../modules/library/library.service.js';
 import { ValidationError } from '../../shared/errors.js';
 export const databaseController = {
   async reset(req: FastifyRequest, reply: FastifyReply) {
@@ -13,6 +12,6 @@ export const databaseController = {
   },
 
   async cleanup(_req: FastifyRequest, _reply: FastifyReply) {
-    return libraryService.cleanOrphans();
+    return databaseService.cleanup();
   },
 };

@@ -1,16 +1,10 @@
-import { request } from 'undici';
-import { logger } from '../../../logger/index.js';
 import { config } from '../../../config/index.js';
 import type {
   SteamGridDbImage,
   SteamGridDbImageQuery,
   SteamGridDbImageResponse,
 } from './steamgriddb.http.types.js';
-import {
-  withRetry,
-  RetryableHttpError,
-  isRetryableStatus,
-} from '../../../shared/http-retry.js';
+import { requestJson } from '../../../shared/http-client.js';
 
 export interface SteamGridDbHttpClient {
   getGridsBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
@@ -52,43 +46,20 @@ export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
     }
 
     try {
-      return await withRetry(
-        async () => {
-          const res = await request(url.toString(), {
-            method: 'GET',
-            headersTimeout: this.timeoutMs,
-            bodyTimeout: this.timeoutMs,
-            headers: {
-              'Authorization': `Bearer ${this.apiKey}`,
-              'Accept': 'application/json',
-              'User-Agent': 'kr8bit/0.1',
-            },
-          });
-          if (isRetryableStatus(res.statusCode)) {
-            throw new RetryableHttpError(`steamgriddb http ${res.statusCode} for ${path}`);
-          }
-          if (res.statusCode >= 400) {
-            const text = await res.body.text();
-            logger.warn(
-              { statusCode: res.statusCode, text: text.slice(0, 200), path },
-              'steamgriddb images request failed',
-            );
-            return [];
-          }
-          const body = (await res.body.json()) as SteamGridDbImageResponse;
-          if (!body.success) {
-            logger.warn({ path, errors: body.errors }, 'steamgriddb images request unsuccessful');
-            return [];
-          }
-          return body.data;
-        },
-        {
-          retries: config.httpRetry.count,
-          baseDelayMs: config.httpRetry.baseDelayMs,
-          retryOn: (err) => err instanceof RetryableHttpError,
-        },
-      );
+      const body = await requestJson<SteamGridDbImageResponse>(url.toString(), {
+        label: 'steamgriddb',
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+        headersTimeoutMs: this.timeoutMs,
+        bodyTimeoutMs: this.timeoutMs,
+      });
+      if (!body.success) {
+        return [];
+      }
+      return body.data;
     } catch {
+      // Artwork enrichment is best-effort: upstream errors (including
+      // non-2xx after retries, already logged by the shared client)
+      // degrade to "no artwork", never fail a scan.
       return [];
     }
   }

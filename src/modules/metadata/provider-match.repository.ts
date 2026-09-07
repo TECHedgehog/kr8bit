@@ -75,41 +75,41 @@ export const providerMatchRepository = {
   },
 
   async findPrimaryByGame(gameId: string): Promise<ProviderMatch | null> {
-    const row = await prisma.providerMatch.findFirst({
-      where: { gameId, isPrimary: true },
-    });
-    return row ? toDomain(row) : null;
-  },
-
-  async findByGameAndProvider(
-    gameId: string,
-    providerName: string,
-  ): Promise<ProviderMatch | null> {
-    const row = await prisma.providerMatch.findUnique({
-      where: {
-        gameId_providerName: { gameId, providerName },
-      },
-    });
-    return row ? toDomain(row) : null;
+    try {
+      const row = await prisma.providerMatch.findFirst({
+        where: { gameId, isPrimary: true },
+      });
+      return row ? toDomain(row) : null;
+    } catch (err) {
+      throw mapPrismaError(err, 'ProviderMatch', gameId);
+    }
   },
 
   async findByGame(gameId: string): Promise<ProviderMatch[]> {
-    const rows = await prisma.providerMatch.findMany({
-      where: { gameId },
-      orderBy: { matchedAt: 'desc' },
-      take: 100,
-    });
-    return rows.map(toDomain);
+    try {
+      const rows = await prisma.providerMatch.findMany({
+        where: { gameId },
+        orderBy: { matchedAt: 'desc' },
+        take: 100,
+      });
+      return rows.map(toDomain);
+    } catch (err) {
+      throw mapPrismaError(err, 'ProviderMatch', gameId);
+    }
   },
 
   async findByProviderAndRemoteId(
     providerName: string,
     remoteId: string,
   ): Promise<ProviderMatch | null> {
-    const row = await prisma.providerMatch.findFirst({
-      where: { providerName, remoteId },
-    });
-    return row ? toDomain(row) : null;
+    try {
+      const row = await prisma.providerMatch.findFirst({
+        where: { providerName, remoteId },
+      });
+      return row ? toDomain(row) : null;
+    } catch (err) {
+      throw mapPrismaError(err, 'ProviderMatch', remoteId);
+    }
   },
 
   async deleteByGame(gameId: string): Promise<void> {

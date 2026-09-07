@@ -1,22 +1,15 @@
-import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
+import { logger } from '../../logger/index.js';
+import { BatchJob, type BatchJobState } from '../../shared/batch-job.js';
 import { libraryRepository } from '../library/library.repository.js';
+import type { Game } from '../library/library.types.js';
 import { providerRegistry } from './provider-registry.js';
-import { normalizeGameName } from '../../shared/normalize.js';
-import { decideMatch } from '../scanner/match-policy.js';
-import { applyMatchResult } from '../scanner/match-apply.js';
 import { metadataRefreshJob } from './metadata-refresh.job.js';
 import { metadataService } from './metadata.service.js';
-import { MatchStatus } from '../../shared/enums.js';
-import type { SearchResult } from '../../shared/types.js';
+import { matchGame, eagerRefreshIfMatched } from '../scanner/match-game.js';
+import { resetGate } from '../database/reset-gate.js';
 
-export interface RetryMatchJobState {
-  running: boolean;
-  processed: number;
-  failed: number;
-  succeeded: string[];
-  failedIds: string[];
-}
+export type RetryMatchJobState = BatchJobState;
 
 export interface RetryMatchJobDeps {
   now: () => Date;
@@ -38,149 +31,49 @@ export const defaultRetryMatchJobDeps: RetryMatchJobDeps = {
   },
 };
 
-export class RetryMatchJob {
-  private running = false;
-  private processed = 0;
-  private failed = 0;
-  private succeededIds: string[] = [];
-  private failedIdsList: string[] = [];
+export class RetryMatchJob extends BatchJob<Game> {
+  private readonly pipelineDeps: {
+    providers: ReturnType<typeof providerRegistry.order>;
+    now: () => Date;
+    metadataRefresh: { refresh: (gameId: string) => Promise<void> };
+  };
 
-  constructor(private readonly deps: RetryMatchJobDeps = defaultRetryMatchJobDeps) {}
-
-  isRunning(): boolean {
-    return this.running;
-  }
-
-  state(): RetryMatchJobState {
-    return {
-      running: this.running,
-      processed: this.processed,
-      failed: this.failed,
-      succeeded: this.succeededIds,
-      failedIds: this.failedIdsList,
+  constructor(deps: RetryMatchJobDeps = defaultRetryMatchJobDeps) {
+    super({
+      label: 'retry-match',
+      delayMs: deps.delayMs,
+      concurrency: deps.concurrency,
+      sleep: deps.sleep,
+      canStart: () => !resetGate.isResetting(),
+    });
+    this.pipelineDeps = {
+      providers: providerRegistry.order(),
+      now: deps.now,
+      metadataRefresh: deps.metadataRefresh,
     };
   }
 
-  async start(): Promise<void> {
-    if (this.running) {
-      logger.debug('retry-match already running');
-      return;
-    }
+  protected async collect(): Promise<Game[]> {
+    return libraryRepository.findPendingGames();
+  }
 
-    this.running = true;
-    this.processed = 0;
-    this.failed = 0;
-    this.succeededIds = [];
-    this.failedIdsList = [];
-
-    try {
-      const games = await libraryRepository.findPendingGames();
-      if (games.length === 0) {
-        logger.debug('retry-match: no pending games');
-        return;
-      }
-
-      logger.info({ count: games.length, concurrency: this.deps.concurrency }, 'retry-match started');
-
-      const providers = providerRegistry.order();
-
-      for (let i = 0; i < games.length; i += this.deps.concurrency) {
-        const chunk = games.slice(i, i + this.deps.concurrency);
-        const results = await Promise.all(
-          chunk.map(async (game) => {
-            try {
-              const normalized = normalizeGameName(game.entryName);
-              let searchResults: SearchResult[] = [];
-
-              for (const provider of providers) {
-                try {
-                  const partial = await provider.search(normalized.query);
-                  searchResults.push(...partial);
-                } catch (err) {
-                  logger.warn(
-                    { err: (err as Error).message, provider: provider.name, gameId: game.id },
-                    'retry-match: provider search failed',
-                  );
-                  continue;
-                }
-              }
-
-              const decision = decideMatch(searchResults);
-              const topResult = decision.result;
-              const now = this.deps.now();
-
-              const applied = topResult
-                ? await applyMatchResult(game.id, decision, now)
-                : false;
-              if (!applied) {
-                await libraryRepository.update(game.id, {
-                  matchStatus: decision.status,
-                  matchScore: decision.score,
-                  matchedAt: now,
-                });
-              }
-
-              if (applied && topResult) {
-                logger.info(
-                  { gameId: game.id, provider: topResult.providerName, score: decision.score },
-                  'retry-match: matched',
-                );
-
-                if (decision.status === MatchStatus.ACCEPTED || decision.status === MatchStatus.FLAGGED) {
-                  try {
-                    await this.deps.metadataRefresh.refresh(game.id);
-                  } catch (err) {
-                    logger.debug(
-                      { err: (err as Error).message, gameId: game.id },
-                      'retry-match: eager metadata refresh failed',
-                    );
-                  }
-                }
-
-                return { id: game.id, ok: true as const };
-              }
-              logger.debug({ gameId: game.id }, 'retry-match: no match found');
-              return { id: game.id, ok: false as const };
-            } catch (err) {
-              logger.warn(
-                { gameId: game.id, err: (err as Error).message },
-                'retry-match: failed for game',
-              );
-              return { id: game.id, ok: false as const };
-            }
-          }),
-        );
-
-        for (const r of results) {
-          if (r.ok) {
-            this.processed += 1;
-            this.succeededIds.push(r.id);
-          } else {
-            this.failed += 1;
-            this.failedIdsList.push(r.id);
-          }
-        }
-
-        if (i + this.deps.concurrency < games.length) {
-          await this.deps.sleep(this.deps.delayMs);
-        }
-      }
-
+  protected async process(game: Game): Promise<boolean> {
+    const { decision, applied } = await matchGame(game, this.pipelineDeps);
+    if (applied && decision.result) {
       logger.info(
-        { processed: this.processed, failed: this.failed },
-        'retry-match done',
+        { gameId: game.id, provider: decision.result.providerName, score: decision.score },
+        'retry-match: matched',
       );
+      await eagerRefreshIfMatched(game.id, decision, this.pipelineDeps);
+      return true;
+    }
+    logger.debug({ gameId: game.id }, 'retry-match: no match found');
+    return false;
+  }
 
-      if (!metadataRefreshJob.isRunning() && this.processed > 0) {
-        void metadataRefreshJob.start();
-      }
-    } catch (err) {
-      logger.error(
-        { err: (err as Error).message },
-        'retry-match unexpected failure',
-      );
-    } finally {
-      this.running = false;
+  protected override async onDone(processed: number): Promise<void> {
+    if (!metadataRefreshJob.isRunning() && processed > 0) {
+      void metadataRefreshJob.start();
     }
   }
 }

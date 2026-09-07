@@ -1,18 +1,20 @@
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
-import { MatchStatus } from '../../shared/enums.js';
+import { MatchStatus, RE_MATCHABLE_STATUSES } from '../../shared/enums.js';
 import { libraryRepository } from '../library/library.repository.js';
 import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
 import { scanLibraryRoot, fsReader, type DirectoryReader, type ScanCandidate } from './folder-scanner.js';
 import { normalizeGameName } from '../../shared/normalize.js';
 import { decideMatch } from './match-policy.js';
-import { applyMatchResult } from './match-apply.js';
-import type { MetadataProvider, SearchResult } from '../../shared/types.js';
+import { searchAllProviders, applyDecisionToGame, eagerRefreshIfMatched } from './match-game.js';
+import type { MetadataProvider } from '../../shared/types.js';
 import { providerRegistry } from '../metadata/provider-registry.js';
 import { metadataService } from '../metadata/metadata.service.js';
 import { retryMatchJob } from '../metadata/retry-match.job.js';
+import { resetGate } from '../database/reset-gate.js';
 import { emitProgress } from './scanner.events.js';
+import { AppError } from '../../shared/errors.js';
 
 export interface ScannerDeps {
   providers: MetadataProvider[];
@@ -38,11 +40,14 @@ export const defaultDeps: ScannerDeps = {
 
 type CandidateOutcome = 'added' | 'updated' | 'skipped';
 
-const RE_MATCHABLE = new Set<MatchStatus>([
-  MatchStatus.PENDING,
-  MatchStatus.FLAGGED,
-  MatchStatus.REJECTED,
-]);
+const RE_MATCHABLE = new Set<MatchStatus>(RE_MATCHABLE_STATUSES);
+
+export interface ScannerStatusSnapshot {
+  runningRun: ScanRun | null;
+  latest: ScanRun | null;
+  isRunning: boolean;
+  currentScanRunId: string | null;
+}
 
 export class ScannerService {
   private running = false;
@@ -58,12 +63,37 @@ export class ScannerService {
     return this.currentRunId;
   }
 
+  async status(): Promise<ScannerStatusSnapshot> {
+    const [running, latest] = await Promise.all([
+      scannerRepository.findRunning(),
+      scannerRepository.findLatest(),
+    ]);
+    return {
+      runningRun: running,
+      latest,
+      isRunning: this.running,
+      currentScanRunId: this.currentRunId,
+    };
+  }
+
   async start(): Promise<ScanRun> {
     if (this.running) {
-      throw new Error('scan already running');
+      throw new AppError(409, 'scan already running', 'SCAN_RUNNING');
     }
-    const run = await scannerRepository.create({ rootPath: this.deps.libraryRoot });
+    if (resetGate.isResetting()) {
+      throw new AppError(409, 'database reset in progress', 'RESET_RUNNING');
+    }
+    // Set the flag synchronously BEFORE the first await: two concurrent
+    // POST /api/scanner/run calls must not both pass the guard while the
+    // ScanRun row is being created.
     this.running = true;
+    let run: ScanRun;
+    try {
+      run = await scannerRepository.create({ rootPath: this.deps.libraryRoot });
+    } catch (err) {
+      this.running = false;
+      throw err;
+    }
     this.currentRunId = run.id;
     logger.info({ runId: run.id, rootPath: this.deps.libraryRoot }, 'scan started');
     void this.executeScan(run).catch((err) => {
@@ -206,21 +236,9 @@ export class ScannerService {
     }
 
     const normalized = normalizeGameName(candidate.entryName);
-
-    let results: SearchResult[] = [];
-    for (const provider of this.deps.providers) {
-      try {
-        const partial = await provider.search(normalized.query);
-        results.push(...partial);
-      } catch (err) {
-        logger.warn(
-          { err: (err as Error).message, provider: provider.name, query: normalized.query },
-          'scan: provider search failed',
-        );
-        continue;
-      }
-    }
-
+    const results = await searchAllProviders(normalized.query, this.deps.providers, {
+      entry: candidate.entryPath,
+    });
     const decision = decideMatch(results);
 
     if (existing) {
@@ -232,26 +250,8 @@ export class ScannerService {
         );
         return 'skipped';
       }
-      if (decision.result) {
-        const applied = await applyMatchResult(existing.id, decision, this.deps.now());
-        if (!applied) {
-          await libraryRepository.update(existing.id, {
-            matchStatus: decision.status,
-            matchScore: decision.score,
-            matchedAt: this.deps.now(),
-          });
-        }
-        if (decision.status === MatchStatus.ACCEPTED || decision.status === MatchStatus.FLAGGED) {
-          try {
-            await this.deps.metadataRefresh.refresh(existing.id);
-          } catch (err) {
-            logger.debug(
-              { err: (err as Error).message, gameId: existing.id },
-              'scan: eager metadata refresh failed',
-            );
-          }
-        }
-      }
+      await applyDecisionToGame(existing.id, decision, this.deps.now());
+      await eagerRefreshIfMatched(existing.id, decision, this.deps);
       return 'updated';
     }
 
@@ -263,18 +263,8 @@ export class ScannerService {
       matchStatus: decision.status,
     });
 
-    await applyMatchResult(created.id, decision, this.deps.now());
-
-    if (decision.result && (decision.status === MatchStatus.ACCEPTED || decision.status === MatchStatus.FLAGGED)) {
-      try {
-        await this.deps.metadataRefresh.refresh(created.id);
-      } catch (err) {
-        logger.debug(
-          { err: (err as Error).message, gameId: created.id },
-          'scan: eager metadata refresh failed',
-        );
-      }
-    }
+    await applyDecisionToGame(created.id, decision, this.deps.now());
+    await eagerRefreshIfMatched(created.id, decision, this.deps);
 
     return 'added';
   }
