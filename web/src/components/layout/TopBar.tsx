@@ -80,12 +80,24 @@ export function TopBar(): JSX.Element {
   // once. Guards the idle re-sync effect so it never runs before the lens
   // has a real position.
   const mountedRef = useRef(false);
-  // Last pathname the nav lens effect consumed. Seeded with the mount
-  // pathname so the first run takes the static SET path. StrictMode (dev)
+  // Active nav entry for the current pathname — segment-boundary prefix
+  // match mirroring NavLink's default active logic (no `end` prop), so the
+  // lens target always agrees with the highlighted tab. The lens effect
+  // keys on this, not the raw pathname: navigating within a tab (e.g.
+  // /games → /games/:id detail open/close) leaves the lens untouched, the
+  // same way the theme lens ignores route changes.
+  const activeTo =
+    NAV_ITEMS.find(
+      (item) =>
+        location.pathname === item.to ||
+        location.pathname.startsWith(item.to + '/'),
+    )?.to ?? null;
+  // Last active nav entry the lens effect consumed. Seeded with the mount
+  // entry so the first run takes the static SET path. StrictMode (dev)
   // re-runs effects on mount while refs persist, so "first run" alone
   // cannot gate that path — comparing the target keeps the simulated
-  // remount static while real route changes still animate.
-  const lastPathRef = useRef(location.pathname);
+  // remount static while real tab switches still animate.
+  const lastTargetRef = useRef<string | null>(activeTo);
   // Transit token: incremented each route change so stale onComplete callbacks
   // from a superseded transit no-op (prevents a late lower from dropping the
   // lens mid-way through a newer raise).
@@ -105,7 +117,7 @@ export function TopBar(): JSX.Element {
   const themeNavRef = useRef<HTMLDivElement>(null);
   // Mirrors mountedRef — guards the theme idle re-sync effect.
   const themeMountedRef = useRef(false);
-  // Mirrors lastPathRef, keyed on the theme value. Seeded with the mount
+  // Mirrors lastTargetRef, keyed on the theme value. Seeded with the mount
   // theme so the first run (and the StrictMode dev remount) sets statically.
   const lastThemeRef = useRef(theme);
   const themeTransitRef = useRef(0);
@@ -117,10 +129,12 @@ export function TopBar(): JSX.Element {
 
   // Slide the glass pill lens so its center sits on the active nav entry's
   // center. The motion value is a 0..1 fraction of the glass container width.
-  // On route change the lens slowly RAISES (grows tall + ramps refraction
-  // idle → peak) while MOVING to the new target. When almost at the target
-  // (raise peaks at ~62% of the move) it LOWERS back to idle height +
-  // refraction — a slow, smooth lift-slide-settle with no bounce.
+  // On active-entry change (a real tab switch — in-tab navigation such as
+  // opening a game detail does not re-run this) the lens slowly RAISES
+  // (grows tall + ramps refraction idle → peak) while MOVING to the new
+  // target. When almost at the target (raise peaks at ~62% of the move) it
+  // LOWERS back to idle height + refraction — a slow, smooth
+  // lift-slide-settle with no bounce.
   useLayoutEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
@@ -145,9 +159,9 @@ export function TopBar(): JSX.Element {
     const peakStrength = LENS_SCALE_PEAK;
 
     // Same-target re-run (initial mount, StrictMode dev remount, refresh):
-    // place the lens statically. Only a real route change animates.
-    const targetChanged = lastPathRef.current !== location.pathname;
-    lastPathRef.current = location.pathname;
+    // place the lens statically. Only a real tab switch animates.
+    const targetChanged = lastTargetRef.current !== activeTo;
+    lastTargetRef.current = activeTo;
 
     if (!targetChanged) {
       lensX.set(clampedFraction);
@@ -180,7 +194,7 @@ export function TopBar(): JSX.Element {
       },
     });
     animateGlassValue(lensScale, peakStrength, RAISE_ANIMATION);
-  }, [location.pathname, lensX, lensW, lensH, lensScale]);
+  }, [activeTo, lensX, lensW, lensH, lensScale]);
 
   // While idle, re-sync the lens dimensions to the active link's measured rect
   // without animating. Runs when a transit settles (isMoving → false) so the
