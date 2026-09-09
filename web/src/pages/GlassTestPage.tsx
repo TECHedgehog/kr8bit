@@ -1,6 +1,7 @@
 import { useTheme } from '../context/ThemeContext';
 import { GlassLens } from '../components/glass/GlassLens';
 import { GlassSlider } from '../components/glass/GlassSlider';
+import { EFFECT_CATALOG } from '../components/effects/catalog';
 import {
   useGlassTune,
   GEOMETRY_SLIDERS_BY_TARGET,
@@ -236,6 +237,29 @@ export function GlassTestPage(): JSX.Element {
             ))}
           </aside>
       </div>
+
+      {/* Effects playground — react-bits previews, all live. */}
+      <section className="glass-test-effects">
+        <h2 className="glass-test-effects-title">Effects Playground</h2>
+        <p className="glass-test-effects-lede">
+          Animated components adapted from react-bits (reactbits.dev), running
+          with their default props. Hover, click or move the pointer over a
+          tile to drive the interactive ones. Anything you like here can be
+          promoted into the app proper with theme tokens and reduced-motion
+          guards.
+        </p>
+        <div className="glass-test-effects-grid">
+          {EFFECT_CATALOG.map((entry) => (
+            <figure key={entry.id} className="glass-test-effect-tile">
+              <figcaption className="glass-test-effect-tile-head">
+                <span className="glass-test-effect-tile-name">{entry.name}</span>
+                <span className="glass-test-effect-tile-cat">{entry.category}</span>
+              </figcaption>
+              <div className="glass-test-effect-tile-body">{entry.node}</div>
+            </figure>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

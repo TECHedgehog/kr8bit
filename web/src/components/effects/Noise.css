@@ -1,0 +1,11 @@
+/* Adapted from react-bits (reactbits.dev) Noise — MIT + Commons Clause. */
+/* Classes prefixed rb- to avoid collisions with the global styles.css. */
+/* Sized to the nearest positioned ancestor (tile), not the viewport. */
+
+.rb-noise-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

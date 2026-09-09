@@ -1,0 +1,15 @@
+/* Adapted from react-bits (reactbits.dev) ScrambledText — MIT + Commons Clause. */
+/* Classes prefixed rb- to avoid collisions with the global styles.css. */
+
+.rb-text-block {
+  margin: 0;
+  max-width: 800px;
+  font-family: monospace;
+  font-size: clamp(14px, 4vw, 32px);
+  color: #fff;
+}
+
+.rb-char {
+  will-change: transform;
+  display: inline-block;
+}

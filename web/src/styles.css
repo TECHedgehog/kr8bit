@@ -2336,6 +2336,145 @@ button.game-detail-close:hover:not(:disabled) {
   }
 }
 
+/* ── Effects playground — react-bits previews (all-live tile grid) ──
+   Components adapted from reactbits.dev run with default props so their
+   looks can be evaluated before adopting any into the app proper. This
+   is a dev evaluation page: effects deliberately run even under
+   prefers-reduced-motion (restored below), unlike the rest of the app. */
+.glass-test-effects {
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 var(--space-6) var(--space-8);
+  box-sizing: border-box;
+  color: var(--text);
+}
+
+.glass-test-effects-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+}
+
+.glass-test-effects-lede {
+  margin: 0 0 var(--space-6);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  max-width: 72ch;
+}
+
+.glass-test-effects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+}
+
+.glass-test-effect-tile {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.glass-test-effect-tile-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.glass-test-effect-tile-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.glass-test-effect-tile-cat {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Fixed dark stage — most effects assume a dark canvas regardless of
+   the app theme. Position + overflow give the canvas/background effects
+   a clipping context. */
+.glass-test-effect-tile-body {
+  position: relative;
+  height: 190px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0b0c10;
+  color: var(--text);
+  padding: var(--space-4);
+  box-sizing: border-box;
+}
+
+.glass-test-effect-fill {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.glass-test-effect-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.glass-test-effect-pad {
+  padding: var(--space-4) var(--space-6);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.glass-test-effect-big {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* GlitchText and ScrambledText ship viewport-scaled display sizes;
+   clamp them to the tile. */
+.glass-test-effect-tile-body .rb-glitch {
+  font-size: 2.5rem;
+}
+
+.glass-test-effect-tile-body .rb-text-block {
+  font-size: var(--text-base);
+}
+
+/* Dev evaluation page: the global reduced-motion collapse must not mute
+   the CSS-driven previews. Higher specificity + later cascade restores
+   the two CSS-animated effects; canvas/JS-driven ones are unaffected by
+   the global rule in the first place. */
+@media (prefers-reduced-motion: reduce) {
+  .glass-test-effects .rb-glitch::after {
+    animation-duration: var(--after-duration, 3s) !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .glass-test-effects .rb-glitch::before {
+    animation-duration: var(--before-duration, 2s) !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .glass-test-effects .rb-border-gradient-bottom,
+  .glass-test-effects .rb-border-gradient-top {
+    animation-duration: 6s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
 /* TopBar glass pill nav selector.
    The nav items are crisp clickable NavLinks inside the Glass container
    (they size the container). A copy of the items is refracted/bent by the

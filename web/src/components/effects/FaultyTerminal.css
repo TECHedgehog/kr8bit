@@ -1,0 +1,9 @@
+/* Adapted from react-bits (reactbits.dev) FaultyTerminal — MIT + Commons Clause. */
+/* Classes prefixed rb- to avoid collisions with the global styles.css. */
+
+.rb-faulty-terminal-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
