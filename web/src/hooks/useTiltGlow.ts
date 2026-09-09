@@ -17,6 +17,10 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
     const activeScale = parseFloat(style.getPropertyValue('--tilt-active-scale')) || 1.04;
     const pillShadowMax = parseFloat(style.getPropertyValue('--pill-shadow-max')) || 10;
 
+    // Single source for the current grow scale — updated wherever
+    // --tilt-active-scale is written so apply() never re-parses the style.
+    let currentScale = 1;
+
     el.style.setProperty('--tilt-active-scale', '1');
     el.style.setProperty('--glow-on', '0');
     el.style.setProperty('--pill-shadow-ox', '0px');
@@ -38,8 +42,16 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
       const py = cy - rect.top;
       const nx = (px / rect.width) * 2 - 1;
       const ny = (py / rect.height) * 2 - 1;
-      const rx = -ny * maxTilt;
-      const ry = nx * maxTilt;
+      // Ramp rotation by the same progress as the scale grow. Snapping
+      // rotation to full tilt while scale is still ~1 leaves the
+      // perspective-shrunk content momentarily smaller than the card
+      // frame, flashing the background behind it.
+      const ramp =
+        activeScale > 1
+          ? Math.min(Math.max((currentScale - 1) / (activeScale - 1), 0), 1)
+          : 1;
+      const rx = -ny * maxTilt * ramp;
+      const ry = nx * maxTilt * ramp;
 
       const glowOx = (ry / maxTilt) * 50;
       const glowOy = (rx / maxTilt) * 50;
@@ -65,9 +77,8 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
         cancelAnimationFrame(settleRaf);
         settleRaf = 0;
       }
-      el.style.willChange = 'transform';
 
-      const startScale = parseFloat(el.style.getPropertyValue('--tilt-active-scale')) || 1;
+      const startScale = currentScale;
       const startGlow = parseFloat(el.style.getPropertyValue('--glow-on')) || 0;
       const startTime = performance.now();
 
@@ -77,6 +88,7 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
         const scale = startScale + (activeScale - startScale) * ease;
         const glow = startGlow + (1 - startGlow) * ease;
 
+        currentScale = scale;
         el.style.setProperty('--tilt-active-scale', `${scale.toFixed(3)}`);
         el.style.setProperty('--glow-on', `${glow.toFixed(2)}`);
 
@@ -102,7 +114,7 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
 
       const startRx = parseFloat(el.style.getPropertyValue('--tilt-rx')) || 0;
       const startRy = parseFloat(el.style.getPropertyValue('--tilt-ry')) || 0;
-      const startScale = parseFloat(el.style.getPropertyValue('--tilt-active-scale')) || activeScale;
+      const startScale = currentScale;
       const startGlow = parseFloat(el.style.getPropertyValue('--glow-on')) || 1;
       const startShadowOx = parseFloat(el.style.getPropertyValue('--pill-shadow-ox')) || 0;
       const startShadowOy = parseFloat(el.style.getPropertyValue('--pill-shadow-oy')) || 0;
@@ -123,6 +135,7 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
 
         el.style.setProperty('--tilt-rx', `${rx.toFixed(2)}deg`);
         el.style.setProperty('--tilt-ry', `${ry.toFixed(2)}deg`);
+        currentScale = scale;
         el.style.setProperty('--tilt-active-scale', `${scale.toFixed(3)}`);
         el.style.setProperty('--glow-on', `${glow.toFixed(2)}`);
         el.style.setProperty('--pill-shadow-ox', `${shadowOx.toFixed(1)}px`);
@@ -140,7 +153,6 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
           el.style.setProperty('--pill-shadow-ox', '0px');
           el.style.setProperty('--pill-shadow-oy', '0px');
           el.style.setProperty('--pill-shadow-elong', '0');
-          el.style.willChange = '';
         }
       };
 
@@ -189,7 +201,6 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
       el.style.setProperty('--pill-shadow-ox', '');
       el.style.setProperty('--pill-shadow-oy', '');
       el.style.setProperty('--pill-shadow-elong', '');
-      el.style.willChange = '';
     };
   }, [ref]);
 }
