@@ -1171,7 +1171,8 @@ textarea {
 .library-search.tilt-glow {
   transform: scale(var(--tilt-active-scale, 1));
   --tilt-active-scale: 1.03;
-  --glow-strength: 0.25;
+  --glow-strength: 0.8;
+  --glow-radius: 150px;
 }
 
 .library-search.tilt-glow::before {
