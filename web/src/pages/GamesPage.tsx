@@ -3,6 +3,7 @@ import { useSearchParams, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useGridFlip } from '../hooks/useGridFlip';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
 import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
@@ -52,6 +53,10 @@ const GRID_SIZE_DEFAULT = 160;
 
 // Chunk size for infinite scroll. Backend caps limit at 200.
 const PAGE_SIZE = 50;
+
+// Phase 1 of the advanced-sidebar close, in ms: the inner glass surface
+// fades out before the wrapper snaps shut and the cards FLIP back out.
+const ADVANCED_CLOSE_PHASE_MS = 120;
 
 interface GameQueryFilters {
   search: string;
@@ -112,11 +117,12 @@ export function GamesPage(): JSX.Element {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState<Panel>(null);
-  // Fades the grid opacity during advanced-panel open/close to mask the card
-  // row-drops that happen as the grid column resizes (auto-animate can't FLIP
-  // CSS layout resizes). Cleared after the panel transition completes.
-  const [gridFading, setGridFading] = useState(false);
-  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Two-phase close for the advanced sidebar: phase 1 adds .is-closing so
+  // the panel's inner glass surface fades out (~120ms) before phase 2
+  // (closeTimerRef) commits the closed state — the wrapper then snaps shut
+  // invisibly while the grid cards FLIP back out (useGridFlip).
+  const [panelClosing, setPanelClosing] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [genres, setGenres] = useState<string[]>([]);
   const [genresError, setGenresError] = useState(false);
@@ -133,6 +139,10 @@ export function GamesPage(): JSX.Element {
     gridRef.current = node;
     if (typeof autoAnimateRef === 'function') autoAnimateRef(node);
   }, [autoAnimateRef]);
+  // FLIP-glides the grid cards when the advanced sidebar toggles. Captured
+  // in togglePanel before the state update, played in a layout effect after
+  // the new layout commits.
+  const flip = useGridFlip(gridRef);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef<HTMLButtonElement>(null);
   useGlowFollow(scrollTopRef);
@@ -296,13 +306,20 @@ export function GamesPage(): JSX.Element {
     };
   }, [panelOpen]);
 
-  // Clear any pending grid-fade timer on unmount to avoid a stuck-faded grid
-  // or a setState-after-unmount warning.
+  // Play the captured FLIP after the sidebar layout change commits (before
+  // paint, so the inverted transforms land as the animation start state).
+  useLayoutEffect(() => {
+    flip.play();
+  }, [panelOpen, flip]);
+
+  // Clear any pending close-phase timer and stop any in-flight card glide
+  // on unmount to avoid a setState-after-unmount warning or stuck styles.
   useEffect(() => {
     return () => {
-      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      flip.cancel();
     };
-  }, []);
+  }, [flip]);
 
   function updateParams(updates: Record<string, string | number>) {
     const next = new URLSearchParams(searchParams);
@@ -349,17 +366,64 @@ export function GamesPage(): JSX.Element {
     updateParams({ deck: [...set].join(',') });
   }
 
-  function togglePanel(panel: 'advanced' | 'settings') {
-    setPanelOpen((current) => (current === panel ? null : panel));
-    // Only the advanced sidebar resizes the grid column; fade it to mask the
-    // reflow. Settings panel doesn't push the grid, so no fade needed.
-    if (panel === 'advanced') {
-      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
-      setGridFading(true);
-      // 320ms = panel transition (0.3s) + small buffer; grid fades back in
-      // via its own 0.15s opacity transition once the class is removed.
-      fadeTimerRef.current = setTimeout(() => setGridFading(false), 320);
+  function scheduleAdvancedClose(target: Panel) {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setPanelOpen(target);
+      setPanelClosing(false);
+    }, ADVANCED_CLOSE_PHASE_MS);
+  }
+
+  function cancelAdvancedClose() {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
     }
+  }
+
+  function togglePanel(panel: 'advanced' | 'settings') {
+    const advancedOpen = panelOpen === 'advanced' && !panelClosing;
+
+    if (panel === 'advanced') {
+      if (advancedOpen) {
+        // Close, phase 1: fade the inner surface now; phase 2 (timer) snaps
+        // the wrapper shut and FLIPs the cards back out.
+        flip.capture();
+        setPanelClosing(true);
+        scheduleAdvancedClose(null);
+        return;
+      }
+      cancelAdvancedClose();
+      setPanelClosing(false);
+      if (panelOpen === 'advanced') {
+        // Re-open mid-close: the layout never changed, so there is nothing
+        // to FLIP — just drop the stale capture and let the inner un-fade.
+        flip.cancel();
+      } else {
+        // Open: wrapper snaps wide (invisible — inner starts transparent),
+        // cards FLIP to their narrower columns, inner fades/slides in.
+        flip.capture();
+        setPanelOpen('advanced');
+      }
+      return;
+    }
+
+    // Settings toggle.
+    cancelAdvancedClose();
+    if (panelOpen === 'advanced') {
+      // Advanced is open or mid-close: fade it out first, then swap
+      // straight to settings so the sidebar surface never pops.
+      flip.capture();
+      setPanelClosing(true);
+      scheduleAdvancedClose('settings');
+      return;
+    }
+    setPanelClosing(false);
+    // The settings panel renders in the header and pushes the body down,
+    // so FLIP the cards vertically too.
+    flip.capture();
+    setPanelOpen((current) => (current === panel ? null : panel));
   }
 
   function scrollToTop() {
@@ -453,7 +517,7 @@ export function GamesPage(): JSX.Element {
 
             <div
               ref={setGridRef}
-              className={`game-grid${gridFading ? ' grid-fading' : ''}`}
+              className="game-grid"
               style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
             >
               {items.map((g) => (
@@ -463,71 +527,73 @@ export function GamesPage(): JSX.Element {
           </div>
           <aside
             ref={panelRef}
-            className={`library-panel library-panel--sidebar${panelOpen === 'advanced' ? ' is-visible' : ''}`}
+            className={`library-panel--sidebar${panelOpen === 'advanced' ? ' is-visible' : ''}${panelClosing ? ' is-closing' : ''}`}
             aria-hidden={panelOpen !== 'advanced'}
           >
-            <div className="panel-group">
-              <span className="panel-label">Sort</span>
-              <div className="panel-chips">
-                {SORT_OPTIONS.map((o) => {
-                  const Icon = o.icon;
-                  return (
-                    <button
-                      key={o.value}
-                      className={`panel-chip${sort === o.value ? ' active' : ''}`}
-                      onClick={() => onSortChange(o.value)}
-                      aria-pressed={sort === o.value}
-                      type="button"
-                    >
-                      <Icon size={14} />
-                      {o.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            {genresError && (
+            <div className="library-panel library-panel__inner">
               <div className="panel-group">
-                <span className="panel-label">Genre</span>
-                <div className="muted">failed to load genres</div>
-              </div>
-            )}
-            {genres.length > 0 && (
-              <div className="panel-group">
-                <span className="panel-label">Genre</span>
-                <div className="panel-chips panel-chips--wrap">
-                  {genres.map((g) => (
-                    <button
-                      key={g}
-                      className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
-                      onClick={() => toggleGenre(g)}
-                      aria-pressed={selectedGenres.includes(g)}
-                      type="button"
-                    >
-                      {g}
-                    </button>
-                  ))}
+                <span className="panel-label">Sort</span>
+                <div className="panel-chips">
+                  {SORT_OPTIONS.map((o) => {
+                    const Icon = o.icon;
+                    return (
+                      <button
+                        key={o.value}
+                        className={`panel-chip${sort === o.value ? ' active' : ''}`}
+                        onClick={() => onSortChange(o.value)}
+                        aria-pressed={sort === o.value}
+                        type="button"
+                      >
+                        <Icon size={14} />
+                        {o.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            )}
-            <div className="panel-group">
-              <span className="panel-label">Steam Deck</span>
-              <div className="panel-chips">
-                {DECK_OPTIONS.map((o) => {
-                  const Icon = o.icon;
-                  return (
-                    <button
-                      key={o.value}
-                      className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
-                      onClick={() => toggleDeck(o.value)}
-                      aria-pressed={selectedDeck.includes(o.value)}
-                      type="button"
-                    >
-                      <Icon size={14} />
-                      {o.label}
-                    </button>
-                  );
-                })}
+              {genresError && (
+                <div className="panel-group">
+                  <span className="panel-label">Genre</span>
+                  <div className="muted">failed to load genres</div>
+                </div>
+              )}
+              {genres.length > 0 && (
+                <div className="panel-group">
+                  <span className="panel-label">Genre</span>
+                  <div className="panel-chips panel-chips--wrap">
+                    {genres.map((g) => (
+                      <button
+                        key={g}
+                        className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
+                        onClick={() => toggleGenre(g)}
+                        aria-pressed={selectedGenres.includes(g)}
+                        type="button"
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="panel-group">
+                <span className="panel-label">Steam Deck</span>
+                <div className="panel-chips">
+                  {DECK_OPTIONS.map((o) => {
+                    const Icon = o.icon;
+                    return (
+                      <button
+                        key={o.value}
+                        className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
+                        onClick={() => toggleDeck(o.value)}
+                        aria-pressed={selectedDeck.includes(o.value)}
+                        type="button"
+                      >
+                        <Icon size={14} />
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </aside>

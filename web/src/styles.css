@@ -454,6 +454,17 @@ button.topbar-link:hover:not(:disabled) {
   border-color: var(--border);
 }
 
+/* Tactile press: shrink fast on :active (overriding the hover grow), spring
+   back on release via .glow-follow's bouncier transform transition. */
+.icon-button:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.icon-button.glow-follow:active:not(:disabled) {
+  transform: scale(0.94);
+  transition: transform 0.08s ease-out;
+}
+
 .icon-button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -724,57 +735,71 @@ textarea {
   padding: var(--space-3);
 }
 
-/* Advanced search sidebar — in-flow right column of .library-body (below the
-   header), pill glass surface. Open/close animate width + margin-left +
-   padding + border-width + opacity + transform on a single unified 0.3s
-   timeline so close is the mirror of open (no mismatched durations). Sticky
-   positions it below the nav pill while scrolling; height: 0 when closed
-   collapses the body row, .is-visible swaps in --panel-height (set
-   dynamically by useLayoutEffect in GamesPage). Closed state also zeroes
-   padding + border-width: global border-box floors width: 0 at padding +
-   border, which would permanently steal 26px from the grid column. */
+/* Advanced search sidebar — in-flow right column of .library-body (below
+   the header). Two-layer structure so no layout property ever animates:
+   - The <aside> wrapper is layout-only (width/height/sticky). It SNAPS
+     between collapsed and open in both directions; the grid cards FLIP
+     around the snap (useGridFlip.ts in GamesPage). The width must never
+     transition: an animated width reflows the grid every frame, which
+     cancels out the cards' FLIP transforms (the exact jank this replaced).
+   - .library-panel__inner carries the pill glass surface at a fixed 320px
+     and animates opacity/transform only (compositor-friendly, and the
+     content never squishes mid-animation). The 16px gutter lives inside
+     the wrapper as the inner's margin-left, so the wrapper's open width
+     (320px + gutter) is the single number the grid column sees.
+   Close choreography is two-phase, driven by GamesPage: .is-closing fades
+   the inner out first (~120ms), then .is-visible is removed — the wrapper
+   snaps shut invisibly (the inner is already transparent) while the cards
+   FLIP back out. Sticky positioning and the dynamic --panel-height (set by
+   useLayoutEffect in GamesPage) behave exactly as before. */
 .library-panel--sidebar {
   flex: none;
   width: 0;
-  max-width: 320px;
-  overflow: hidden auto;
+  max-width: calc(320px + var(--space-4));
+  overflow: hidden;
   position: sticky;
   top: var(--topbar-top-gap);
   height: 0;
-  margin-left: 0;
-  padding: 0;
+  /* Hidden state — pointer-events + aria-hidden handle a11y. */
+  pointer-events: none;
+}
+
+.library-panel--sidebar.is-visible {
+  width: calc(320px + var(--space-4));
+  height: var(--panel-height, calc(100vh - var(--topbar-top-gap) * 2));
+  pointer-events: auto;
+}
+
+/* Fixed-width glass surface inside the wrapper: fades/slides in after the
+   open snap, fades out before the close snap. Scrolls its own content. */
+.library-panel__inner {
+  width: 320px;
+  margin-left: var(--space-4);
+  height: 100%;
+  overflow: hidden auto;
   /* Nav-pill glass surface (overrides .library-panel base) */
   background: var(--pill-bg);
   -webkit-backdrop-filter: var(--pill-blur);
   backdrop-filter: var(--pill-blur);
   border: 1px solid var(--pill-border-color);
-  border-width: 0;
   box-shadow: var(--pill-shadow);
   border-radius: 20px;
-  /* Hidden state — pointer-events + aria-hidden handle a11y.
-     visibility omitted: transitioning it alongside opacity requires
-     changing transition-delay per-state, which restarts the opacity
-     transition in some browsers. */
   opacity: 0;
-  pointer-events: none;
-  transform: translateY(10px);
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              padding 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              border-width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateX(12px);
+  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.library-panel--sidebar.is-visible {
-  width: 320px;
-  height: var(--panel-height, calc(100vh - var(--topbar-top-gap) * 2));
-  margin-left: var(--space-4);
-  padding: var(--space-3);
-  border-width: 1px;
+.library-panel--sidebar.is-visible .library-panel__inner {
   opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
+  transform: translateX(0);
+  transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Close phase 1: fade the surface out before the wrapper snaps shut. */
+.library-panel--sidebar.is-closing .library-panel__inner {
+  opacity: 0;
+  transform: translateX(12px);
+  transition: opacity 0.12s ease, transform 0.12s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Narrow desktop: drop panel below the fixed nav pill so the two never
@@ -797,14 +822,25 @@ textarea {
     position: static;
     width: 100%;
     max-width: none;
-    margin-left: 0;
   }
   .library-panel--sidebar.is-visible {
     width: 100%;
     height: auto;
+  }
+  .library-panel__inner {
+    width: 100%;
     margin-left: 0;
-    padding: var(--space-3);
-    border-width: 1px;
+  }
+}
+
+/* Panel motion is decorative (the layout snap is instant and complete on
+   its own) — skip the fade/slide when the user prefers reduced motion.
+   The card FLIP is skipped from JS for the same reason. */
+@media (prefers-reduced-motion: reduce) {
+  .library-panel__inner,
+  .library-panel--sidebar.is-visible .library-panel__inner,
+  .library-panel--sidebar.is-closing .library-panel__inner {
+    transition: none;
   }
 }
 
@@ -895,15 +931,6 @@ textarea {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--grid-min-size, 160px), 1fr));
   gap: var(--space-6) var(--space-4);
-  /* Fade out during panel open/close to mask the card row-drops that happen
-     as this column resizes (auto-animate can't FLIP CSS layout resizes, only
-     DOM mutations). Held low for the panel transition duration, then restored
-     by JS clearing the .grid-fading class. */
-  transition: opacity 0.15s ease-out;
-}
-
-.game-grid.grid-fading {
-  opacity: 0.15;
 }
 
 .game-card {
