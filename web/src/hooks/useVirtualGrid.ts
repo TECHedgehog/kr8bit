@@ -133,25 +133,21 @@ export function useVirtualGrid(itemCount: number, gridSize: number): VirtualGrid
   // top of the document) in sync with layout shifts above the grid: the
   // settings panel, error/status messages, etc. Deliberately runs after
   // every commit — layout above the grid can shift without any state
-  // change. When it shifts, already-positioned rows are patched in place
-  // so the current commit's DOM is correct before later layout effects
-  // (useGridFlip.play measures card rects) run. The state update then
-  // re-renders with identical values; setScrollMargin bails when the
-  // measured top is unchanged, so the update chain converges.
+  // change. Only the virtualizer writes row transforms: they are
+  // container-relative (it positions each row at item.start minus
+  // scrollMargin), so rows move with the container when layout above
+  // shifts and no DOM patch is needed. Patching transforms here would be
+  // invisible to the virtualizer's internal position cache (it skips
+  // rewrites when its computed offset is unchanged), leaving rows
+  // displaced until they unmount and remount. setScrollMargin bails when
+  // the measured top is unchanged, so the update chain converges.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const top = el.getBoundingClientRect().top + window.scrollY;
-    const delta = top - scrollMarginRef.current;
-    if (Math.abs(delta) < 0.5) return;
+    if (Math.abs(top - scrollMarginRef.current) < 0.5) return;
     scrollMarginRef.current = top;
-    for (const row of el.querySelectorAll<HTMLElement>('.game-grid-row')) {
-      // Row transforms are written by the virtualizer as translate3d;
-      // DOMMatrix reads that or a plain translateY equally.
-      const y = new DOMMatrixReadOnly(row.style.transform || 'none').f;
-      row.style.transform = `translateY(${y - delta}px)`;
-    }
     setScrollMargin(top);
   });
 
