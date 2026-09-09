@@ -76,10 +76,16 @@ export function TopBar(): JSX.Element {
   const location = useLocation();
   const { pill } = useGlassTune();
   const navRef = useRef<HTMLDivElement>(null);
-  // Tracks the very first run of the layout effect below. On initial mount we
-  // SET the lens position/width/height/scale directly (no animation) so the
-  // pill starts idle on the active tab instead of sliding in from centre.
+  // Tracks whether the layout effect below has positioned the lens at least
+  // once. Guards the idle re-sync effect so it never runs before the lens
+  // has a real position.
   const mountedRef = useRef(false);
+  // Last pathname the nav lens effect consumed. Seeded with the mount
+  // pathname so the first run takes the static SET path. StrictMode (dev)
+  // re-runs effects on mount while refs persist, so "first run" alone
+  // cannot gate that path — comparing the target keeps the simulated
+  // remount static while real route changes still animate.
+  const lastPathRef = useRef(location.pathname);
   // Transit token: incremented each route change so stale onComplete callbacks
   // from a superseded transit no-op (prevents a late lower from dropping the
   // lens mid-way through a newer raise).
@@ -97,7 +103,11 @@ export function TopBar(): JSX.Element {
   // Two-icon pill (moon/sun). The lens slides to the active entry on theme
   // change with the same raise → move → lower choreography as the nav lens.
   const themeNavRef = useRef<HTMLDivElement>(null);
+  // Mirrors mountedRef — guards the theme idle re-sync effect.
   const themeMountedRef = useRef(false);
+  // Mirrors lastPathRef, keyed on the theme value. Seeded with the mount
+  // theme so the first run (and the StrictMode dev remount) sets statically.
+  const lastThemeRef = useRef(theme);
   const themeTransitRef = useRef(0);
   const [themeIsMoving, setThemeIsMoving] = useState(false);
   const themeLensX = useMemo(() => glassValue(0.5), []);
@@ -134,7 +144,12 @@ export function TopBar(): JSX.Element {
     const peakH = idleH + LENS_RISE;
     const peakStrength = LENS_SCALE_PEAK;
 
-    if (!mountedRef.current) {
+    // Same-target re-run (initial mount, StrictMode dev remount, refresh):
+    // place the lens statically. Only a real route change animates.
+    const targetChanged = lastPathRef.current !== location.pathname;
+    lastPathRef.current = location.pathname;
+
+    if (!targetChanged) {
       lensX.set(clampedFraction);
       lensW.set(targetW);
       lensH.set(idleH);
@@ -206,7 +221,12 @@ export function TopBar(): JSX.Element {
     const peakH = idleH + LENS_RISE;
     const peakStrength = LENS_SCALE_PEAK;
 
-    if (!themeMountedRef.current) {
+    // Same-target re-run (initial mount, StrictMode dev remount, refresh):
+    // place the lens statically. Only a real theme change animates.
+    const targetChanged = lastThemeRef.current !== theme;
+    lastThemeRef.current = theme;
+
+    if (!targetChanged) {
       themeLensX.set(clampedFraction);
       themeLensW.set(targetW);
       themeLensH.set(idleH);
