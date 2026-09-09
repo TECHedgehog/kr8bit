@@ -1181,7 +1181,9 @@ textarea {
 
 /* ===== Scroll-to-top pill ===== */
 /* Reuses .topbar-pill for the glass surface; this adds fixed bottom-center
-   positioning + a show/hide transition keyed on .is-visible. */
+   positioning + a show/hide transition keyed on .is-visible.
+   Rest = icon only (48px footprint via 3px padding + 40px icon well);
+   hover/focus reveals the label — same mechanics as .game-detail-close. */
 
 .scroll-top-pill {
   position: fixed;
@@ -1189,20 +1191,87 @@ textarea {
   left: 0;
   right: 0;
   margin: 0 auto;
-  width: 48px;
+  width: fit-content;
   height: 48px;
-  justify-content: center;
+  padding: 3px;
+  gap: 0;
+  overflow: hidden;
   z-index: 50;
   opacity: 0;
   pointer-events: none;
   transform: translateY(10px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  /* This transition list replaces .glow-follow's (later in cascade, same
+     specificity); gap/padding animate the label reveal. */
+  transition: opacity 0.3s ease, transform 0.3s ease, gap 0.2s ease,
+    padding 0.2s ease;
+  /* Root 400px radius washes the entire 48px surface (no falloff), reading
+     much stronger than the wide nav pill; 70px gives the localized cursor
+     sheen the nav pill shows (same fix as .grid-size-toggle). */
+  --glow-radius: 150px;
 }
 
 .scroll-top-pill.is-visible {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
+}
+
+/* .is-visible (above) out-specifies .glow-follow:hover, which killed the
+   hover grow — recombine both transforms here. */
+.scroll-top-pill.is-visible.glow-follow:hover {
+  transform: translateY(0) scale(var(--grow-scale, 1.04));
+}
+
+/* Neutralize the global `button:hover:not(:disabled)` accent border + tint
+   (0,2,1) — same pattern as `button.game-detail-close:hover`. Surface stays
+   pill-steady; the label reveal is the only hover change. */
+button.scroll-top-pill:hover:not(:disabled) {
+  border-color: var(--pill-border-color);
+  background: var(--pill-bg);
+}
+
+.scroll-top-pill__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.scroll-top-pill__label {
+  font-size: var(--text-base);
+  font-weight: 500;
+  white-space: nowrap;
+  width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: width 0.2s ease, opacity 0.15s ease;
+}
+
+/* Keyboard focus reveals the label. */
+.scroll-top-pill:focus-visible {
+  gap: 6px;
+  padding-right: 13px;
+}
+
+.scroll-top-pill:focus-visible .scroll-top-pill__label {
+  width: auto;
+  opacity: 1;
+}
+
+/* Desktop hover reveal (scoped to fine pointers so touch sticky-hover
+   doesn't leave the button stuck open). */
+@media (hover: hover) and (pointer: fine) {
+  .scroll-top-pill:hover {
+    gap: 6px;
+    padding-right: 13px;
+  }
+
+  .scroll-top-pill:hover .scroll-top-pill__label {
+    width: auto;
+    opacity: 1;
+  }
 }
 
 /* ===== Game Detail Page ===== */

@@ -542,7 +542,10 @@ export function GamesPage(): JSX.Element {
         aria-label="Scroll to top"
         type="button"
       >
-        <IconArrowUp size={20} />
+        <span className="scroll-top-pill__icon">
+          <IconArrowUp size={20} />
+        </span>
+        <span className="scroll-top-pill__label">Scroll to top</span>
       </button>
 
       <Outlet />
