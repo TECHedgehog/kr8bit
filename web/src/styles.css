@@ -724,15 +724,15 @@ textarea {
   padding: var(--space-3);
 }
 
-/* Advanced search sidebar — in-flow right column, pill glass surface.
-   Open/close animate width + margin-left + padding + border-width + opacity
-   + transform on a single unified 0.3s timeline so close is the mirror of
-   open (no mismatched durations). Sticky positions it below the nav pill
-   while scrolling; height: 0 when closed collapses the flex row,
-   .is-visible swaps in --panel-height (set dynamically by useLayoutEffect in
-   GamesPage). Closed state also zeroes padding + border-width: global
-   border-box floors width: 0 at padding + border, which would permanently
-   steal 26px from the grid column. */
+/* Advanced search sidebar — in-flow right column of .library-body (below the
+   header), pill glass surface. Open/close animate width + margin-left +
+   padding + border-width + opacity + transform on a single unified 0.3s
+   timeline so close is the mirror of open (no mismatched durations). Sticky
+   positions it below the nav pill while scrolling; height: 0 when closed
+   collapses the body row, .is-visible swaps in --panel-height (set
+   dynamically by useLayoutEffect in GamesPage). Closed state also zeroes
+   padding + border-width: global border-box floors width: 0 at padding +
+   border, which would permanently steal 26px from the grid column. */
 .library-panel--sidebar {
   flex: none;
   width: 0;
@@ -789,7 +789,7 @@ textarea {
 }
 
 @media (max-width: 900px) {
-  .library-content {
+  .library-body {
     flex-direction: column;
     gap: var(--space-4);
   }
@@ -865,13 +865,22 @@ textarea {
 
 /* ===== Game Grid ===== */
 
+/* Column stack: full-width header (toolbar never shifts when the sidebar
+   opens) above the body row that holds the grid and the sidebar. */
 .library-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Row below the header: grid column + advanced search sidebar. Only this
+   row narrows when the sidebar opens; the header keeps full width. */
+.library-body {
   display: flex;
   align-items: flex-start;
 }
 
-/* Left column: header + status messages + grid. Toolbar lives here so its
-   width tracks the grid while the sidebar opens/closes beside both. */
+/* Grid column: status messages + grid. Width tracks the sidebar state. */
 .library-main {
   flex: 1;
   min-width: 0;

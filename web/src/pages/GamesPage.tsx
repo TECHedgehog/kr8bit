@@ -136,7 +136,7 @@ export function GamesPage(): JSX.Element {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef<HTMLButtonElement>(null);
   useGlowFollow(scrollTopRef);
-  const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
 
   // Request token: incremented on each reset so stale fetchMore responses
@@ -253,16 +253,17 @@ export function GamesPage(): JSX.Element {
   }, [items]);
 
   // Panel height: dynamically set --panel-height so the panel's bottom edge
-  // stays 12px from the viewport bottom at all times. While the library header
-  // is visible the panel sits below it (shorter); as the header scrolls away
-  // the panel grows upward until it reaches the sticky top (12px or 74px below
-  // nav pill). useLayoutEffect sets the value before paint to avoid a flash of
-  // the CSS fallback height when opening at the top of the page.
+  // stays 12px from the viewport bottom at all times. The panel sits in
+  // .library-body below the header, so its in-flow top is the body's top;
+  // as the header scrolls away the sticky panel grows upward until it
+  // reaches the sticky top (12px or 74px below nav pill). useLayoutEffect
+  // sets the value before paint to avoid a flash of the CSS fallback height
+  // when opening at the top of the page.
   useLayoutEffect(() => {
     if (panelOpen !== 'advanced') return;
     const panel = panelRef.current;
-    const header = headerRef.current;
-    if (!panel || !header) return;
+    const body = bodyRef.current;
+    if (!panel || !body) return;
 
     const root = document.documentElement;
     const css = getComputedStyle(root);
@@ -273,9 +274,9 @@ export function GamesPage(): JSX.Element {
     let raf = 0;
     const update = () => {
       raf = 0;
-      const headerBottom = header.getBoundingClientRect().bottom;
+      const bodyTop = body.getBoundingClientRect().top;
       const minTop = mq.matches ? flowOffset : topGap;
-      const top = Math.max(headerBottom, minTop);
+      const top = Math.max(bodyTop, minTop);
       panel.style.setProperty('--panel-height', `calc(100vh - ${top}px - ${topGap}px)`);
     };
     const onScroll = () => {
@@ -368,167 +369,169 @@ export function GamesPage(): JSX.Element {
   return (
     <div className="page">
       <div className="library-content">
-        <div className="library-main">
-          <div ref={headerRef} className="library-header">
-            <div className="library-toolbar">
-              <div className="library-title-block">
-                <div className="library-title">Library</div>
-                <div className="library-subtitle">{total} {total === 1 ? 'game' : 'games'}</div>
-              </div>
-
-              <div className="toolbar-spacer" />
-
-              <form
-                ref={searchRef}
-                className={`library-search tilt-glow${searchExpanded ? ' is-expanded' : ''}`}
-                onSubmit={onSearchSubmit}
-                onClick={() => {
-                  const input = searchRef.current?.querySelector('input');
-                  input?.focus();
-                }}
-              >
-                <IconSearch size={16} />
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onFocus={() => setSearchExpanded(true)}
-                  onBlur={() => { if (!searchInput.trim()) setSearchExpanded(false); }}
-                  placeholder={searchExpanded ? 'Search title or entry name…' : 'Search'}
-                  aria-label="Search games"
-                />
-              </form>
-
-              <IconButton
-                icon={IconAdjustments}
-                label="Advanced search"
-                active={panelOpen === 'advanced'}
-                onClick={() => togglePanel('advanced')}
-                glow
-              />
-
-              <IconButton
-                icon={IconSettings}
-                label="Settings"
-                active={panelOpen === 'settings'}
-                onClick={() => togglePanel('settings')}
-                glow
-              />
+        <div className="library-header">
+          <div className="library-toolbar">
+            <div className="library-title-block">
+              <div className="library-title">Library</div>
+              <div className="library-subtitle">{total} {total === 1 ? 'game' : 'games'}</div>
             </div>
 
-            {panelOpen === 'settings' && (
-              <div className="library-panel">
-                <div className="panel-group">
-                  <span className="panel-label">Grid size</span>
-                  <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
-                    <div className="view-toggle-lens">
-                      {GRID_SIZES.map((s) => (
-                        <button
-                          key={s.value}
-                          className={`size-button${gridSize === s.value ? ' active' : ''}`}
-                          onClick={() => onGridSizeChange(s.value)}
-                          title={s.label}
-                          aria-label={`Grid size: ${s.label}`}
-                          aria-pressed={gridSize === s.value}
-                          type="button"
-                        >
-                          <IconSquareFilled size={s.iconSize} />
-                        </button>
-                      ))}
-                    </div>
+            <div className="toolbar-spacer" />
+
+            <form
+              ref={searchRef}
+              className={`library-search tilt-glow${searchExpanded ? ' is-expanded' : ''}`}
+              onSubmit={onSearchSubmit}
+              onClick={() => {
+                const input = searchRef.current?.querySelector('input');
+                input?.focus();
+              }}
+            >
+              <IconSearch size={16} />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onFocus={() => setSearchExpanded(true)}
+                onBlur={() => { if (!searchInput.trim()) setSearchExpanded(false); }}
+                placeholder={searchExpanded ? 'Search title or entry name…' : 'Search'}
+                aria-label="Search games"
+              />
+            </form>
+
+            <IconButton
+              icon={IconAdjustments}
+              label="Advanced search"
+              active={panelOpen === 'advanced'}
+              onClick={() => togglePanel('advanced')}
+              glow
+            />
+
+            <IconButton
+              icon={IconSettings}
+              label="Settings"
+              active={panelOpen === 'settings'}
+              onClick={() => togglePanel('settings')}
+              glow
+            />
+          </div>
+
+          {panelOpen === 'settings' && (
+            <div className="library-panel">
+              <div className="panel-group">
+                <span className="panel-label">Grid size</span>
+                <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
+                  <div className="view-toggle-lens">
+                    {GRID_SIZES.map((s) => (
+                      <button
+                        key={s.value}
+                        className={`size-button${gridSize === s.value ? ' active' : ''}`}
+                        onClick={() => onGridSizeChange(s.value)}
+                        title={s.label}
+                        aria-label={`Grid size: ${s.label}`}
+                        aria-pressed={gridSize === s.value}
+                        type="button"
+                      >
+                        <IconSquareFilled size={s.iconSize} />
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {error && <div className="error">{error}</div>}
-          {loading && items.length === 0 && <div className="muted">Loading…</div>}
-
-          {!loading && !error && items.length === 0 && (
-            <div className="muted">No games found</div>
+            </div>
           )}
-
-          <div
-            ref={setGridRef}
-            className={`game-grid${gridFading ? ' grid-fading' : ''}`}
-            style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
-          >
-            {items.map((g) => (
-              <GameCard key={g.id} game={g} />
-            ))}
-          </div>
         </div>
-        <aside
-          ref={panelRef}
-          className={`library-panel library-panel--sidebar${panelOpen === 'advanced' ? ' is-visible' : ''}`}
-          aria-hidden={panelOpen !== 'advanced'}
-        >
-          <div className="panel-group">
-            <span className="panel-label">Sort</span>
-            <div className="panel-chips">
-              {SORT_OPTIONS.map((o) => {
-                const Icon = o.icon;
-                return (
-                  <button
-                    key={o.value}
-                    className={`panel-chip${sort === o.value ? ' active' : ''}`}
-                    onClick={() => onSortChange(o.value)}
-                    aria-pressed={sort === o.value}
-                    type="button"
-                  >
-                    <Icon size={14} />
-                    {o.label}
-                  </button>
-                );
-              })}
+
+        <div ref={bodyRef} className="library-body">
+          <div className="library-main">
+            {error && <div className="error">{error}</div>}
+            {loading && items.length === 0 && <div className="muted">Loading…</div>}
+
+            {!loading && !error && items.length === 0 && (
+              <div className="muted">No games found</div>
+            )}
+
+            <div
+              ref={setGridRef}
+              className={`game-grid${gridFading ? ' grid-fading' : ''}`}
+              style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
+            >
+              {items.map((g) => (
+                <GameCard key={g.id} game={g} />
+              ))}
             </div>
           </div>
-          {genresError && (
+          <aside
+            ref={panelRef}
+            className={`library-panel library-panel--sidebar${panelOpen === 'advanced' ? ' is-visible' : ''}`}
+            aria-hidden={panelOpen !== 'advanced'}
+          >
             <div className="panel-group">
-              <span className="panel-label">Genre</span>
-              <div className="muted">failed to load genres</div>
-            </div>
-          )}
-          {genres.length > 0 && (
-            <div className="panel-group">
-              <span className="panel-label">Genre</span>
-              <div className="panel-chips panel-chips--wrap">
-                {genres.map((g) => (
-                  <button
-                    key={g}
-                    className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
-                    onClick={() => toggleGenre(g)}
-                    aria-pressed={selectedGenres.includes(g)}
-                    type="button"
-                  >
-                    {g}
-                  </button>
-                ))}
+              <span className="panel-label">Sort</span>
+              <div className="panel-chips">
+                {SORT_OPTIONS.map((o) => {
+                  const Icon = o.icon;
+                  return (
+                    <button
+                      key={o.value}
+                      className={`panel-chip${sort === o.value ? ' active' : ''}`}
+                      onClick={() => onSortChange(o.value)}
+                      aria-pressed={sort === o.value}
+                      type="button"
+                    >
+                      <Icon size={14} />
+                      {o.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          )}
-          <div className="panel-group">
-            <span className="panel-label">Steam Deck</span>
-            <div className="panel-chips">
-              {DECK_OPTIONS.map((o) => {
-                const Icon = o.icon;
-                return (
-                  <button
-                    key={o.value}
-                    className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
-                    onClick={() => toggleDeck(o.value)}
-                    aria-pressed={selectedDeck.includes(o.value)}
-                    type="button"
-                  >
-                    <Icon size={14} />
-                    {o.label}
-                  </button>
-                );
-              })}
+            {genresError && (
+              <div className="panel-group">
+                <span className="panel-label">Genre</span>
+                <div className="muted">failed to load genres</div>
+              </div>
+            )}
+            {genres.length > 0 && (
+              <div className="panel-group">
+                <span className="panel-label">Genre</span>
+                <div className="panel-chips panel-chips--wrap">
+                  {genres.map((g) => (
+                    <button
+                      key={g}
+                      className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
+                      onClick={() => toggleGenre(g)}
+                      aria-pressed={selectedGenres.includes(g)}
+                      type="button"
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="panel-group">
+              <span className="panel-label">Steam Deck</span>
+              <div className="panel-chips">
+                {DECK_OPTIONS.map((o) => {
+                  const Icon = o.icon;
+                  return (
+                    <button
+                      key={o.value}
+                      className={`panel-chip${selectedDeck.includes(o.value) ? ' active' : ''}`}
+                      onClick={() => toggleDeck(o.value)}
+                      aria-pressed={selectedDeck.includes(o.value)}
+                      type="button"
+                    >
+                      <Icon size={14} />
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </aside>
+          </aside>
+        </div>
       </div>
 
       {loadingMore && <div className="muted">Loading more…</div>}
