@@ -4,7 +4,8 @@ import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useGridFlip } from '../hooks/useGridFlip';
-import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { useVirtualGrid } from '../hooks/useVirtualGrid';
+import { useRevealRows } from '../hooks/useRevealRows';
 import IconSearch from '@tabler/icons-react/dist/esm/icons/IconSearch.mjs';
 import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
 import IconSettings from '@tabler/icons-react/dist/esm/icons/IconSettings.mjs';
@@ -131,18 +132,29 @@ export function GamesPage(): JSX.Element {
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
   useGlowFollow(gridSizeToggleRef);
   const gridRef = useRef<HTMLDivElement | null>(null);
-  // FLIP-animated grid reflow on filter/sort changes. Merged with gridRef so
-  // the scroll-top IntersectionObserver (reads gridRef.current.firstElementChild)
-  // keeps working alongside auto-animate's own ref.
-  const [autoAnimateRef] = useAutoAnimate<HTMLDivElement>();
-  const setGridRef = useCallback((node: HTMLDivElement | null) => {
-    gridRef.current = node;
-    if (typeof autoAnimateRef === 'function') autoAnimateRef(node);
-  }, [autoAnimateRef]);
+  // Window-scrolled row virtualization: only rows near the viewport stay
+  // mounted. Owns the grid container height and row transforms.
+  // containerRef/rowRef/refreshWidth are stable callbacks from the hook.
+  const {
+    containerRef: gridContainerRef,
+    columns: gridColumns,
+    rows: gridRows,
+    rowRef: gridRowRef,
+    refreshWidth: refreshGridWidth,
+  } = useVirtualGrid(items.length, gridSize);
   // FLIP-glides the grid cards when the advanced sidebar toggles. Captured
   // in togglePanel before the state update, played in a layout effect after
   // the new layout commits.
   const flip = useGridFlip(gridRef);
+  // Merge the flip/observer gridRef with the virtualizer's container ref.
+  const setGridRef = useCallback((node: HTMLDivElement | null) => {
+    gridRef.current = node;
+    gridContainerRef(node);
+  }, [gridContainerRef]);
+  // Viewport-entry reveal: toggles .is-visible on rows as they cross the
+  // viewport edge — a mount-time animation would play out offscreen in
+  // the overscan buffer and never be seen.
+  useRevealRows(gridRef, gridRows);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollTopRef = useRef<HTMLButtonElement>(null);
   useGlowFollow(scrollTopRef);
@@ -245,22 +257,31 @@ export function GamesPage(): JSX.Element {
   }, [fetchMore]);
 
   // Scroll-to-top visibility: show once the first row of games scrolls out
-  // the top of the viewport. The first card shares top+height with all
-  // first-row cards in a CSS grid, so its bottom < 0 means the row is gone.
+  // the top of the viewport. Under virtualization the first row unmounts
+  // once it leaves the overscan window (well above the viewport) — that
+  // alone means it is gone; while row 0 is mounted, an observer watches
+  // it directly (its bottom < 0 means the row is fully above the viewport).
+  const firstRowIndex = gridRows[0]?.index ?? -1;
   useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    const firstCard = grid.firstElementChild as HTMLElement | null;
-    if (!firstCard) return;
+    if (items.length === 0) {
+      setShowScrollTop(false);
+      return;
+    }
+    if (firstRowIndex !== 0) {
+      setShowScrollTop(true);
+      return;
+    }
+    const row0 = gridRef.current?.querySelector<HTMLElement>('.game-grid-row[data-index="0"]');
+    if (!row0) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         setShowScrollTop(!entry.isIntersecting && entry.boundingClientRect.bottom < 0);
       },
       { threshold: 0 },
     );
-    observer.observe(firstCard);
+    observer.observe(row0);
     return () => observer.disconnect();
-  }, [items]);
+  }, [items.length, firstRowIndex]);
 
   // Panel height: dynamically set --panel-height so the panel's bottom edge
   // stays 12px from the viewport bottom at all times. The panel sits in
@@ -308,9 +329,13 @@ export function GamesPage(): JSX.Element {
 
   // Play the captured FLIP after the sidebar layout change commits (before
   // paint, so the inverted transforms land as the animation start state).
+  // If the toggle changed the container width, refreshWidth() has scheduled
+  // a re-render with the new column count — skip here and let this effect
+  // re-run once the re-sliced rows are in place.
   useLayoutEffect(() => {
+    if (refreshGridWidth()) return;
     flip.play();
-  }, [panelOpen, flip]);
+  }, [panelOpen, gridColumns, refreshGridWidth, flip]);
 
   // Clear any pending close-phase timer and stop any in-flight card glide
   // on unmount to avoid a setState-after-unmount warning or stuck styles.
@@ -515,14 +540,26 @@ export function GamesPage(): JSX.Element {
               <div className="muted">No games found</div>
             )}
 
-            <div
-              ref={setGridRef}
-              className="game-grid"
-              style={{ '--grid-min-size': `${gridSize}px` } as React.CSSProperties}
-            >
-              {items.map((g) => (
-                <GameCard key={g.id} game={g} />
-              ))}
+            {/* Virtualized grid: the container is a spacer whose height and
+                the row transforms are owned by useVirtualGrid; only rows
+                near the viewport are mounted. */}
+            <div ref={setGridRef} className="game-grid">
+              {gridRows.map((row) => {
+                const start = row.index * gridColumns;
+                return (
+                  <div
+                    key={row.key}
+                    className="game-grid-row"
+                    data-index={row.index}
+                    ref={gridRowRef}
+                    style={{ gridTemplateColumns: `repeat(${gridColumns}, 1fr)` }}
+                  >
+                    {items.slice(start, start + gridColumns).map((g, i) => (
+                      <GameCard key={g.id} game={g} index={i} />
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
           <aside

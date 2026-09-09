@@ -1,23 +1,32 @@
 import { useCallback, useMemo, useRef } from 'react';
 
 // FLIP (First-Last-Invert-Play) for grid layout shifts caused by the
-// advanced search sidebar toggling. The sidebar wrapper's width snaps to
-// its final value in both directions (no CSS width transition — an animated
-// width reflows the grid every frame and cancels out the transforms applied
-// here). This hook glides the cards from their pre-toggle positions to the
-// post-commit layout using transform only, so the animation runs entirely
-// on the compositor.
+// advanced search sidebar and settings panel toggling. The layout snaps
+// to its final state in both directions (no animated width/height — that
+// would reflow the grid every frame and cancel out the transforms applied
+// here). This hook glides the cards from their pre-toggle positions to
+// the post-commit layout using transform only, so the animation runs
+// entirely on the compositor.
 //
-// Inline styles are always cleared afterwards so @formkit/auto-animate
-// (which also writes inline transform/transition on the same children for
-// DOM add/remove) stays the owner outside of panel toggles.
+// Cards are matched across the toggle by data-game-id, not DOM identity:
+// virtualized rows re-slice whenever the grid width changes, so a card's
+// DOM node is usually replaced even though the game stays on screen.
+// While a flight is in play the grid carries [data-flip-active] so the
+// cards' mount animation is suppressed (see styles.css) — remounting
+// cards must glide, not fade.
 
 const FLIP_DURATION_MS = 300;
 const FLIP_EASING = 'cubic-bezier(0.16, 1, 0.3, 1)';
-const CLEANUP_DELAY_MS = FLIP_DURATION_MS + 60;
+// Longest possible suppressed reveal: cards stagger up to 8 columns ×
+// 40ms delay plus the 250ms duration (see .game-grid-row.is-visible in
+// styles.css). The [data-flip-active] suppression must outlast any
+// animation it collapsed — restoring the original timing while one is
+// still running would resume a partial fade-in after the glide.
+const REVEAL_TAIL_MS = 8 * 40 + 250;
+const CLEANUP_DELAY_MS = FLIP_DURATION_MS + REVEAL_TAIL_MS + 60;
 
 export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
-  const firstRectsRef = useRef<Map<HTMLElement, DOMRect> | null>(null);
+  const firstRectsRef = useRef<Map<string, DOMRect> | null>(null);
   const flightElsRef = useRef<HTMLElement[]>([]);
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -26,28 +35,34 @@ export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
       clearTimeout(cleanupTimerRef.current);
       cleanupTimerRef.current = null;
     }
+    const grid = gridRef.current;
+    if (grid) delete grid.dataset.flipActive;
     for (const el of flightElsRef.current) {
       el.style.transition = '';
       el.style.transform = '';
       el.style.willChange = '';
     }
     flightElsRef.current = [];
-  }, []);
+  }, [gridRef]);
 
-  // Record pre-toggle positions. Called synchronously before the state
-  // update that triggers the layout change. No-op when reduced motion is
-  // preferred or the grid is empty (play() then also no-ops).
+  // Record pre-toggle positions, keyed by data-game-id. Called
+  // synchronously before the state update that triggers the layout
+  // change. No-op when reduced motion is preferred or no cards are
+  // mounted (play() then also no-ops).
   const capture = useCallback(() => {
     firstRectsRef.current = null;
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const grid = gridRef.current;
-    if (!grid || grid.children.length === 0) return;
-    const rects = new Map<HTMLElement, DOMRect>();
-    for (const el of grid.children) {
+    if (!grid) return;
+    const rects = new Map<string, DOMRect>();
+    for (const el of grid.querySelectorAll<HTMLElement>('.game-card')) {
+      const id = el.dataset.gameId;
+      if (!id) continue;
       // getBoundingClientRect includes any in-flight FLIP transform, so
       // rapid re-toggles chain from the current visual position.
-      rects.set(el as HTMLElement, el.getBoundingClientRect());
+      rects.set(id, el.getBoundingClientRect());
     }
+    if (rects.size === 0) return;
     firstRectsRef.current = rects;
   }, [gridRef]);
 
@@ -55,7 +70,8 @@ export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
   // useLayoutEffect). Any previous flight is reset before measuring: its
   // transform is already baked into the captured rects, so clearing it
   // here causes no visual jump (nothing paints between the synchronous
-  // steps).
+  // steps). Cards absent from the capture (freshly mounted) are skipped —
+  // they simply appear in place.
   const play = useCallback(() => {
     const firstRects = firstRectsRef.current;
     firstRectsRef.current = null;
@@ -65,19 +81,22 @@ export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
     if (!grid) return;
 
     const flight: HTMLElement[] = [];
-    for (const el of grid.children) {
-      const first = firstRects.get(el as HTMLElement);
+    for (const el of grid.querySelectorAll<HTMLElement>('.game-card')) {
+      const first = el.dataset.gameId ? firstRects.get(el.dataset.gameId) : undefined;
       if (!first) continue;
       const last = el.getBoundingClientRect();
       const dx = first.left - last.left;
       const dy = first.top - last.top;
       if (dx === 0 && dy === 0) continue;
-      const htmlEl = el as HTMLElement;
-      htmlEl.style.transition = 'none';
-      htmlEl.style.transform = `translate(${dx}px, ${dy}px)`;
-      flight.push(htmlEl);
+      el.style.transition = 'none';
+      el.style.transform = `translate(${dx}px, ${dy}px)`;
+      flight.push(el);
     }
     if (flight.length === 0) return;
+
+    // Suppress the card mount animation for the duration of the flight:
+    // remounted cards must glide from their captured positions, not fade.
+    grid.dataset.flipActive = 'true';
 
     // Commit the inverted transforms as the animation start state.
     void flight[0].offsetWidth;
@@ -89,6 +108,8 @@ export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
     flightElsRef.current = flight;
     cleanupTimerRef.current = setTimeout(() => {
       cleanupTimerRef.current = null;
+      const grid = gridRef.current;
+      if (grid) delete grid.dataset.flipActive;
       for (const el of flightElsRef.current) {
         el.style.transition = '';
         el.style.transform = '';

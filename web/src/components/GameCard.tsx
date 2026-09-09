@@ -7,9 +7,11 @@ import { useMarquee } from '../hooks/useMarquee';
 
 interface GameCardProps {
   game: Game;
+  /** Column position within the grid row — drives the reveal stagger. */
+  index: number;
 }
 
-export const GameCard = memo(function GameCard({ game }: GameCardProps): JSX.Element {
+export const GameCard = memo(function GameCard({ game, index }: GameCardProps): JSX.Element {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const title = game.displayName;
@@ -34,7 +36,16 @@ export const GameCard = memo(function GameCard({ game }: GameCardProps): JSX.Ele
   }
 
   return (
-    <button ref={cardRef} className="game-card" onClick={onClick} onPointerEnter={onPointerEnter}>
+    <button
+      ref={cardRef}
+      className="game-card"
+      // useGridFlip matches cards across panel-toggle re-slices by id.
+      data-game-id={game.id}
+      // Column position for the reveal stagger delay (.game-grid-row.is-visible).
+      style={{ '--card-i': index } as React.CSSProperties}
+      onClick={onClick}
+      onPointerEnter={onPointerEnter}
+    >
       <div className="game-card-tilt tilt-glow">
         <div className="game-card-cover">
           {imgError ? (
@@ -46,6 +57,7 @@ export const GameCard = memo(function GameCard({ game }: GameCardProps): JSX.Ele
               src={`/api/games/${game.id}/artwork/cover?v=${game.updatedAt}`}
               alt={title}
               loading="lazy"
+              decoding="async"
               onError={() => setImgError(true)}
             />
           )}
