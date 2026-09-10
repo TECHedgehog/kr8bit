@@ -1,7 +1,14 @@
 import { useTheme } from '../context/ThemeContext';
 import { GlassLens } from '../components/glass/GlassLens';
 import { GlassSlider } from '../components/glass/GlassSlider';
-import { EFFECT_CATALOG } from '../components/effects/catalog';
+import {
+  DEMO_EFFECTS,
+  BACKGROUND_EFFECTS,
+  CURSOR_EFFECTS,
+  type EffectEntry,
+} from '../components/effects/catalog';
+import type { SettingControl } from '../components/effects/effectSettings';
+import { useEffectsSettings, type EffectId } from '../context/EffectsSettingsContext';
 import {
   useGlassTune,
   GEOMETRY_SLIDERS_BY_TARGET,
@@ -55,10 +62,173 @@ export function GlassTestPage(): JSX.Element {
     setIndependent,
     setMovementPattern,
   } = useGlassTune();
+  const { background, cursor, params, setBackground, setCursor, setParam, resetParams } =
+    useEffectsSettings();
 
   const sliderSurface = PANEL_BG[theme];
   const sliderTrack = TRACK[theme];
   const sliderActive = ACTIVE[theme];
+
+  // Selectable tile — live preview + On/Off toggle wired to the global
+  // effects settings. Toggling on selects this effect (replacing any other
+  // in the same group); toggling off clears the group.
+  const renderSelectableTile = (
+    entry: EffectEntry,
+    activeId: EffectId,
+    onSelect: (id: EffectId) => void,
+  ) => {
+    const active = activeId === entry.id;
+    return (
+      <figure
+        key={entry.id}
+        className={`glass-test-effect-tile${active ? ' active' : ''}`}
+      >
+        <figcaption className="glass-test-effect-tile-head">
+          <span className="glass-test-effect-tile-name">{entry.name}</span>
+          <span className="glass-test-effect-tile-meta">
+            <span className="glass-test-effect-tile-cat">{entry.category}</span>
+            <button
+              type="button"
+              className={`glass-test-toggle${active ? ' on' : ''}`}
+              onClick={() => onSelect(active ? null : entry.id)}
+              aria-pressed={active}
+            >
+              {active ? 'On' : 'Off'}
+            </button>
+          </span>
+        </figcaption>
+        <div className="glass-test-effect-tile-body">{entry.render(params[entry.id] ?? {})}</div>
+      </figure>
+    );
+  };
+
+  // One settings control row — number sliders reuse the glass slider,
+  // booleans reuse the On/Off toggle, selects/colors/text get native
+  // inputs styled to match. Values fall back to the control default
+  // until the user tweaks them (component defaults stay verbatim).
+  const renderSettingControl = (effectId: string, control: SettingControl) => {
+    const value = params[effectId]?.[control.key] ?? control.default;
+    switch (control.kind) {
+      case 'number':
+        return (
+          <div className="glass-test-setting-row" key={control.key}>
+            <span className="glass-test-setting-label">{control.label}</span>
+            <GlassSlider
+              value={Number(value)}
+              onValueChange={(v) => setParam(effectId, control.key, v)}
+              min={control.min}
+              max={control.max}
+              step={control.step}
+              width={180}
+              thumbHeight={14}
+              height={4}
+              scheme={theme}
+              trackColor={sliderTrack}
+              activeColor={sliderActive}
+              surface={sliderSurface}
+              ariaLabel={control.label}
+            />
+            <span className="glass-test-setting-value">
+              {formatValue(Number(value), control.step)}
+            </span>
+          </div>
+        );
+      case 'boolean':
+        return (
+          <div className="glass-test-setting-row" key={control.key}>
+            <span className="glass-test-setting-label">{control.label}</span>
+            <button
+              type="button"
+              className={`glass-test-toggle${value === true ? ' on' : ''}`}
+              onClick={() => setParam(effectId, control.key, !(value === true))}
+              aria-pressed={value === true}
+            >
+              {value === true ? 'On' : 'Off'}
+            </button>
+          </div>
+        );
+      case 'select':
+        return (
+          <div className="glass-test-setting-row" key={control.key}>
+            <span className="glass-test-setting-label">{control.label}</span>
+            <select
+              className="glass-test-select"
+              value={String(value)}
+              onChange={(e) => setParam(effectId, control.key, e.target.value)}
+            >
+              {control.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      case 'color':
+        return (
+          <div className="glass-test-setting-row" key={control.key}>
+            <span className="glass-test-setting-label">{control.label}</span>
+            <input
+              type="color"
+              className="glass-test-color-input"
+              value={String(value)}
+              onChange={(e) => setParam(effectId, control.key, e.target.value)}
+              aria-label={control.label}
+            />
+            <span className="glass-test-setting-value">{String(value)}</span>
+          </div>
+        );
+      case 'text':
+        return (
+          <div className="glass-test-setting-row glass-test-setting-row-wide" key={control.key}>
+            <span className="glass-test-setting-label">{control.label}</span>
+            <input
+              type="text"
+              className="glass-test-text-input"
+              value={String(value)}
+              onChange={(e) => setParam(effectId, control.key, e.target.value)}
+              aria-label={control.label}
+            />
+          </div>
+        );
+    }
+  };
+
+  // Settings panel for one group — shows controls only for the
+  // currently active effect, plus a per-effect Reset.
+  const renderSettingsGroup = (
+    title: string,
+    entries: EffectEntry[],
+    activeId: EffectId,
+  ) => {
+    const entry = activeId !== null ? entries.find((e) => e.id === activeId) : undefined;
+    return (
+      <div className="glass-test-settings-group">
+        <div className="glass-test-settings-group-head">
+          <h4 className="glass-test-settings-group-title">{title}</h4>
+          {entry && <span className="glass-test-settings-group-name">{entry.name}</span>}
+          {entry && (
+            <button
+              type="button"
+              className="glass-test-btn"
+              onClick={() => resetParams(entry.id)}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        {!entry ? (
+          <p className="glass-test-settings-empty">
+            Nothing active — toggle one on above to tune it.
+          </p>
+        ) : (
+          <div className="glass-test-settings-controls">
+            {entry.controls.map((control) => renderSettingControl(entry.id, control))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderSlider = <K extends string>(
     cfg: SliderConfig<K>,
@@ -238,24 +408,63 @@ export function GlassTestPage(): JSX.Element {
           </aside>
       </div>
 
-      {/* Effects playground — react-bits previews, all live. */}
+      {/* Effects playground — global toggles + demo previews. */}
       <section className="glass-test-effects">
         <h2 className="glass-test-effects-title">Effects Playground</h2>
         <p className="glass-test-effects-lede">
-          Animated components adapted from react-bits (reactbits.dev), running
-          with their default props. Hover, click or move the pointer over a
-          tile to drive the interactive ones. Anything you like here can be
-          promoted into the app proper with theme tokens and reduced-motion
-          guards.
+          Backgrounds and cursors are global — toggle one on and it applies to
+          every page of the app (one active at a time per group, persisted per
+          browser). The remaining tiles are playground-only previews of
+          components adapted from react-bits (reactbits.dev).
+        </p>
+
+        <h3 className="glass-test-effects-sub">Background</h3>
+        <p className="glass-test-effects-sub-hint">
+          One active background across the whole app. Toggle it off to return
+          to the flat theme background.
         </p>
         <div className="glass-test-effects-grid">
-          {EFFECT_CATALOG.map((entry) => (
+          {BACKGROUND_EFFECTS.map((entry) =>
+            renderSelectableTile(entry, background, setBackground),
+          )}
+        </div>
+
+        <h3 className="glass-test-effects-sub">Cursor</h3>
+        <p className="glass-test-effects-sub-hint">
+          One active cursor across the whole app. Move the pointer over a tile
+          to preview it. Blob cursor replaces the native cursor.
+        </p>
+        <div className="glass-test-effects-grid glass-test-effects-grid-cursors">
+          {CURSOR_EFFECTS.map((entry) =>
+            renderSelectableTile(entry, cursor, setCursor),
+          )}
+        </div>
+
+        <h3 className="glass-test-effects-sub">Settings</h3>
+        <p className="glass-test-effects-sub-hint">
+          Every prop of the active background and cursor, live-tuned. Tweaks
+          apply to the preview and the whole app, and persist per effect —
+          switch away and back and they are restored. Reset returns the
+          react-bits defaults.
+        </p>
+        <div className="glass-test-settings">
+          {renderSettingsGroup('Background', BACKGROUND_EFFECTS, background)}
+          {renderSettingsGroup('Cursor', CURSOR_EFFECTS, cursor)}
+        </div>
+
+        <h3 className="glass-test-effects-sub">Demos</h3>
+        <p className="glass-test-effects-sub-hint">
+          Playground-only previews — hover, click or move the pointer over a
+          tile to drive the interactive ones.
+        </p>
+        <div className="glass-test-effects-grid">
+          {DEMO_EFFECTS.map((entry) => (
             <figure key={entry.id} className="glass-test-effect-tile">
               <figcaption className="glass-test-effect-tile-head">
                 <span className="glass-test-effect-tile-name">{entry.name}</span>
                 <span className="glass-test-effect-tile-cat">{entry.category}</span>
               </figcaption>
-              <div className="glass-test-effect-tile-body">{entry.node}</div>
+              <div className="glass-test-effect-tile-body">{entry.render({})}</div>
             </figure>
           ))}
         </div>

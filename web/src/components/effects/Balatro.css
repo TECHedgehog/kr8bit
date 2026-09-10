@@ -1,7 +1,0 @@
-/* Adapted from react-bits (reactbits.dev) Balatro — MIT + Commons Clause. */
-/* Classes prefixed rb- to avoid collisions with the global styles.css. */
-
-.rb-balatro-container {
-  width: 100%;
-  height: 100%;
-}

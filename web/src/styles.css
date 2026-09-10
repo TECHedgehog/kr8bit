@@ -138,13 +138,19 @@
   box-sizing: border-box;
 }
 
+/* Background lives on html only: the global effects layer is a
+   z-index: -1 fixed element, which paints above the root background
+   but below body/#root backgrounds — those must stay transparent. */
+html {
+  background: var(--bg);
+}
+
 html,
 body,
 #root {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: var(--text-base);
@@ -2336,11 +2342,12 @@ button.game-detail-close:hover:not(:disabled) {
   }
 }
 
-/* ── Effects playground — react-bits previews (all-live tile grid) ──
-   Components adapted from reactbits.dev run with default props so their
-   looks can be evaluated before adopting any into the app proper. This
-   is a dev evaluation page: effects deliberately run even under
-   prefers-reduced-motion (restored below), unlike the rest of the app. */
+/* ── Effects playground — global toggles + react-bits previews ──
+    Backgrounds and cursors are single-select global effects (stored in
+    EffectsSettingsContext, rendered app-wide by GlobalEffectsLayer);
+    the demo tiles are playground-only previews. This is a dev evaluation
+    page: effects deliberately run even under prefers-reduced-motion
+    (restored below), unlike the rest of the app. */
 .glass-test-effects {
   max-width: 1400px;
   width: 100%;
@@ -2364,10 +2371,29 @@ button.game-detail-close:hover:not(:disabled) {
   max-width: 72ch;
 }
 
+.glass-test-effects-sub {
+  margin: var(--space-8) 0 var(--space-1);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.glass-test-effects-sub-hint {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  max-width: 72ch;
+}
+
 .glass-test-effects-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--space-4);
+}
+
+/* Cursor tiles don't need the wide 300px columns */
+.glass-test-effects-grid-cursors {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
 }
 
 .glass-test-effect-tile {
@@ -2378,6 +2404,11 @@ button.game-detail-close:hover:not(:disabled) {
   border-radius: var(--radius-lg);
   background: var(--surface-1);
   overflow: hidden;
+}
+
+.glass-test-effect-tile.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 
 .glass-test-effect-tile-head {
@@ -2392,6 +2423,12 @@ button.game-detail-close:hover:not(:disabled) {
 .glass-test-effect-tile-name {
   font-size: var(--text-sm);
   font-weight: 600;
+}
+
+.glass-test-effect-tile-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .glass-test-effect-tile-cat {
@@ -2431,48 +2468,169 @@ button.game-detail-close:hover:not(:disabled) {
   text-align: center;
 }
 
-.glass-test-effect-pad {
-  padding: var(--space-4) var(--space-6);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-.glass-test-effect-big {
-  font-size: var(--text-3xl);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-/* GlitchText and ScrambledText ship viewport-scaled display sizes;
-   clamp them to the tile. */
-.glass-test-effect-tile-body .rb-glitch {
-  font-size: 2.5rem;
-}
-
-.glass-test-effect-tile-body .rb-text-block {
-  font-size: var(--text-base);
-}
-
 /* Dev evaluation page: the global reduced-motion collapse must not mute
    the CSS-driven previews. Higher specificity + later cascade restores
-   the two CSS-animated effects; canvas/JS-driven ones are unaffected by
-   the global rule in the first place. */
+   the CSS-animated demo; canvas/JS-driven ones are unaffected by the
+   global rule in the first place. */
 @media (prefers-reduced-motion: reduce) {
-  .glass-test-effects .rb-glitch::after {
-    animation-duration: var(--after-duration, 3s) !important;
-    animation-iteration-count: infinite !important;
-  }
-
-  .glass-test-effects .rb-glitch::before {
-    animation-duration: var(--before-duration, 2s) !important;
-    animation-iteration-count: infinite !important;
-  }
-
   .glass-test-effects .rb-border-gradient-bottom,
   .glass-test-effects .rb-border-gradient-top {
     animation-duration: 6s !important;
     animation-iteration-count: infinite !important;
   }
+}
+
+/* ── Global effects layers (GlobalEffectsLayer in AppLayout) ── */
+
+/* Background sits behind everything: fixed, negative z-index paints it
+   above the html background but below all in-flow content (body/#root
+   backgrounds are transparent for this reason — see the html rule up
+   top). Glass elements backdrop-filter it; it never takes pointer
+   events. */
+.global-effects-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Cursor overlay sits above everything, including modals (z-index 100),
+   and never intercepts pointer events. */
+.global-effects-cursor {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Blob cursor replaces the native cursor app-wide while active —
+   interactive elements set their own cursor, so the rule is global. */
+.kr8bit-hide-cursor,
+.kr8bit-hide-cursor * {
+  cursor: none !important;
+}
+
+/* ── Effect settings panels (active background + cursor on /glass-test) ── */
+
+/* Two groups side by side on wide screens; each shows only the controls
+   of the currently active effect. */
+.glass-test-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.glass-test-settings-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  padding: var(--space-3) var(--space-4);
+}
+
+.glass-test-settings-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.glass-test-settings-group-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.glass-test-settings-group-name {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  flex: 1;
+}
+
+/* Some effects expose 20+ props — cap the panel and scroll. */
+.glass-test-settings-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-2) var(--space-4);
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: var(--space-1);
+}
+
+.glass-test-settings-empty {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Control rows mirror the glass slider rows: label, control, value. */
+.glass-test-setting-row {
+  display: grid;
+  grid-template-columns: 96px 1fr 52px;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 14px;
+}
+
+.glass-test-setting-row-wide {
+  grid-template-columns: 96px 1fr;
+}
+
+.glass-test-setting-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.glass-test-setting-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glass-test-color-input {
+  justify-self: start;
+  width: 44px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--surface-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.glass-test-color-input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.glass-test-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+}
+
+.glass-test-text-input {
+  justify-self: start;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-3);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.glass-test-text-input:hover {
+  background: var(--surface-3);
+  border-color: var(--accent);
 }
 
 /* TopBar glass pill nav selector.
