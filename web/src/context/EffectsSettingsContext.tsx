@@ -20,15 +20,12 @@ export type EffectParamsMap = Record<string, EffectParams>;
 
 export interface EffectsSettings {
   background: EffectId;
-  cursor: EffectId;
   params: EffectParamsMap;
 }
 
 interface EffectsSettingsContextValue extends EffectsSettings {
   /** Single-select: setting a background replaces the previous one. */
   setBackground: (id: EffectId) => void;
-  /** Single-select: setting a cursor replaces the previous one. */
-  setCursor: (id: EffectId) => void;
   /** Store one tweaked param for an effect (merged with the existing map). */
   setParam: (effectId: string, key: string, value: EffectParamValue) => void;
   /** Drop all tweaked params for an effect — component defaults return. */
@@ -41,7 +38,6 @@ const STORAGE_KEY = 'kr8bit-effects';
 
 const DEFAULT_SETTINGS: EffectsSettings = {
   background: null,
-  cursor: null,
   params: {},
 };
 
@@ -53,7 +49,7 @@ function isValidParamValue(value: unknown): value is EffectParamValue {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
-/** Accepts the pre-params shape ({background, cursor}) and migrates it. */
+/** Accepts stored settings and migrates persisted params. */
 function loadStoredSettings(): EffectsSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -72,7 +68,6 @@ function loadStoredSettings(): EffectsSettings {
     }
     return {
       background: isValidId(parsed.background) ? parsed.background : null,
-      cursor: isValidId(parsed.cursor) ? parsed.cursor : null,
       params,
     };
   } catch {
@@ -95,15 +90,13 @@ const EffectsSettingsContext = createContext<EffectsSettingsContextValue | null>
 export function EffectsSettingsProvider({ children }: { children: ReactNode }): JSX.Element {
   const stored = useMemo(() => loadStoredSettings(), []);
   const [background, setBackgroundId] = useState<EffectId>(stored.background);
-  const [cursor, setCursorId] = useState<EffectId>(stored.cursor);
   const [params, setParams] = useState<EffectParamsMap>(stored.params);
 
   useEffect(() => {
-    saveStoredSettings({ background, cursor, params });
-  }, [background, cursor, params]);
+    saveStoredSettings({ background, params });
+  }, [background, params]);
 
   const setBackground = useCallback((id: EffectId) => setBackgroundId(id), []);
-  const setCursor = useCallback((id: EffectId) => setCursorId(id), []);
 
   const setParam = useCallback((effectId: string, key: string, value: EffectParamValue) => {
     setParams((prev) => ({
@@ -122,8 +115,8 @@ export function EffectsSettingsProvider({ children }: { children: ReactNode }): 
   }, []);
 
   const value = useMemo<EffectsSettingsContextValue>(
-    () => ({ background, cursor, params, setBackground, setCursor, setParam, resetParams }),
-    [background, cursor, params, setBackground, setCursor, setParam, resetParams],
+    () => ({ background, params, setBackground, setParam, resetParams }),
+    [background, params, setBackground, setParam, resetParams],
   );
 
   return (

@@ -2308,6 +2308,9 @@ button.game-detail-close:hover:not(:disabled) {
 }
 
 .glass-test-select {
+  width: min(100%, 180px);
+  min-width: 0;
+  max-width: 100%;
   justify-self: start;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
@@ -2554,7 +2557,7 @@ button.game-detail-close:hover:not(:disabled) {
 /* Some effects expose 20+ props — cap the panel and scroll. */
 .glass-test-settings-controls {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: var(--space-2) var(--space-4);
   max-height: 420px;
   overflow-y: auto;
@@ -2570,9 +2573,10 @@ button.game-detail-close:hover:not(:disabled) {
 /* Control rows mirror the glass slider rows: label, control, value. */
 .glass-test-setting-row {
   display: grid;
-  grid-template-columns: 96px 1fr 52px;
+  grid-template-columns: minmax(0, 88px) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   min-height: 14px;
 }
 

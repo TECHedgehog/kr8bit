@@ -4,7 +4,6 @@ import { GlassSlider } from '../components/glass/GlassSlider';
 import {
   DEMO_EFFECTS,
   BACKGROUND_EFFECTS,
-  CURSOR_EFFECTS,
   type EffectEntry,
 } from '../components/effects/catalog';
 import type { SettingControl } from '../components/effects/effectSettings';
@@ -62,8 +61,7 @@ export function GlassTestPage(): JSX.Element {
     setIndependent,
     setMovementPattern,
   } = useGlassTune();
-  const { background, cursor, params, setBackground, setCursor, setParam, resetParams } =
-    useEffectsSettings();
+  const { background, params, setBackground, setParam, resetParams } = useEffectsSettings();
 
   const sliderSurface = PANEL_BG[theme];
   const sliderTrack = TRACK[theme];
@@ -119,7 +117,7 @@ export function GlassTestPage(): JSX.Element {
               min={control.min}
               max={control.max}
               step={control.step}
-              width={180}
+              width={140}
               thumbHeight={14}
               height={4}
               scheme={theme}
@@ -412,7 +410,7 @@ export function GlassTestPage(): JSX.Element {
       <section className="glass-test-effects">
         <h2 className="glass-test-effects-title">Effects Playground</h2>
         <p className="glass-test-effects-lede">
-          Backgrounds and cursors are global — toggle one on and it applies to
+          Backgrounds are global — toggle one on and it applies to
           every page of the app (one active at a time per group, persisted per
           browser). The remaining tiles are playground-only previews of
           components adapted from react-bits (reactbits.dev).
@@ -429,27 +427,15 @@ export function GlassTestPage(): JSX.Element {
           )}
         </div>
 
-        <h3 className="glass-test-effects-sub">Cursor</h3>
-        <p className="glass-test-effects-sub-hint">
-          One active cursor across the whole app. Move the pointer over a tile
-          to preview it. Blob cursor replaces the native cursor.
-        </p>
-        <div className="glass-test-effects-grid glass-test-effects-grid-cursors">
-          {CURSOR_EFFECTS.map((entry) =>
-            renderSelectableTile(entry, cursor, setCursor),
-          )}
-        </div>
-
         <h3 className="glass-test-effects-sub">Settings</h3>
         <p className="glass-test-effects-sub-hint">
-          Every prop of the active background and cursor, live-tuned. Tweaks
+          Every prop of the active background, live-tuned. Tweaks
           apply to the preview and the whole app, and persist per effect —
           switch away and back and they are restored. Reset returns the
           react-bits defaults.
         </p>
         <div className="glass-test-settings">
           {renderSettingsGroup('Background', BACKGROUND_EFFECTS, background)}
-          {renderSettingsGroup('Cursor', CURSOR_EFFECTS, cursor)}
         </div>
 
         <h3 className="glass-test-effects-sub">Demos</h3>
