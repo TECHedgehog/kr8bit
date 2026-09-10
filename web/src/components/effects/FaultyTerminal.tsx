@@ -37,6 +37,7 @@ uniform float uChromaticAberration;
 uniform float uDither;
 uniform float uCurvature;
 uniform vec3  uTint;
+uniform vec3  uBackground;
 uniform vec2  uMouse;
 uniform float uMouseStrength;
 uniform float uUseMouse;
@@ -214,8 +215,11 @@ void main() {
     if (uLightMode > 0.5) {
       float energy = max(max(col.r, col.g), col.b);
       float coverage = clamp(smoothstep(0.0, 0.72, energy) * 0.9, 0.0, 0.9);
-      vec3 ink = clamp(col * 0.42, 0.0, 0.76);
-      col = mix(vec3(1.0), ink, coverage);
+      vec3 ink = clamp(col * 0.8, 0.0, 1.0);
+      col = mix(uBackground, ink, coverage);
+    } else {
+      float coverage = clamp(max(max(col.r, col.g), col.b), 0.0, 1.0);
+      col = mix(uBackground, col, coverage);
     }
 
     gl_FragColor = vec4(col, 1.0);
@@ -247,6 +251,7 @@ export interface FaultyTerminalProps extends HTMLAttributes<HTMLDivElement> {
   dither?: number | boolean;
   curvature?: number;
   tint?: string;
+  backgroundColor?: string;
   mouseReact?: boolean;
   mouseStrength?: number;
   dpr?: number;
@@ -270,7 +275,8 @@ export const FaultyTerminal = memo(function FaultyTerminal({
   chromaticAberration = 0,
   dither = 0,
   curvature = 0.2,
-  tint = '#ffffff',
+  tint = '#b8b5ff',
+  backgroundColor = '#08090c',
   mouseReact = true,
   mouseStrength = 0.2,
   dpr = Math.min(window.devicePixelRatio || 1, 2),
@@ -294,15 +300,16 @@ export const FaultyTerminal = memo(function FaultyTerminal({
   const visibleRef = useTileVisible(containerRef);
 
   const tintVec = useMemo(() => hexToRgb(tint), [tint]);
+  const backgroundVec = useMemo(() => hexToRgb(backgroundColor), [backgroundColor]);
 
   const ditherValue = useMemo(() => (typeof dither === 'boolean' ? (dither ? 1 : 0) : dither), [dither]);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  const handlePointerMove = useCallback((e: PointerEvent) => {
     const ctn = containerRef.current;
     if (!ctn) return;
     const rect = ctn.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = 1 - (e.clientY - rect.top) / rect.height;
+    const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const y = Math.min(1, Math.max(0, 1 - (e.clientY - rect.top) / rect.height));
     mouseRef.current = { x, y };
   }, []);
 
@@ -313,7 +320,7 @@ export const FaultyTerminal = memo(function FaultyTerminal({
     const renderer = new Renderer({ dpr });
     rendererRef.current = renderer;
     const gl = renderer.gl;
-    gl.clearColor(lightMode ? 1 : 0, lightMode ? 1 : 0, lightMode ? 1 : 0, 1);
+    gl.clearColor(backgroundVec[0], backgroundVec[1], backgroundVec[2], 1);
 
     const geometry = new Triangle(gl);
 
@@ -337,6 +344,7 @@ export const FaultyTerminal = memo(function FaultyTerminal({
         uDither: { value: ditherValue },
         uCurvature: { value: curvature },
         uTint: { value: new Color(tintVec[0], tintVec[1], tintVec[2]) },
+        uBackground: { value: new Color(backgroundVec[0], backgroundVec[1], backgroundVec[2]) },
         uMouse: {
           value: new Float32Array([smoothMouseRef.current.x, smoothMouseRef.current.y]),
         },
@@ -407,12 +415,12 @@ export const FaultyTerminal = memo(function FaultyTerminal({
     rafRef.current = requestAnimationFrame(update);
     ctn.appendChild(gl.canvas);
 
-    if (mouseReact) ctn.addEventListener('mousemove', handleMouseMove);
+    if (mouseReact) window.addEventListener('pointermove', handlePointerMove);
 
     return () => {
       if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current);
       resizeObserver.disconnect();
-      if (mouseReact) ctn.removeEventListener('mousemove', handleMouseMove);
+      if (mouseReact) window.removeEventListener('pointermove', handlePointerMove);
       if (gl.canvas.parentElement === ctn) ctn.removeChild(gl.canvas);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
       loadAnimationStartRef.current = 0;
@@ -433,12 +441,13 @@ export const FaultyTerminal = memo(function FaultyTerminal({
     ditherValue,
     curvature,
     tintVec,
+    backgroundVec,
     mouseReact,
     mouseStrength,
     pageLoadAnimation,
     brightness,
     lightMode,
-    handleMouseMove,
+    handlePointerMove,
     visibleRef,
   ]);
 

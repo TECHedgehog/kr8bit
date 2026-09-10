@@ -9,6 +9,8 @@ import {
 } from 'react';
 
 import type { EffectParamValue, EffectParams } from '../components/effects/effectSettings';
+import { applyThemeEffectParams } from '../components/effects/themeEffectColors';
+import { useTheme } from './ThemeContext';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -88,9 +90,14 @@ function saveStoredSettings(settings: EffectsSettings): void {
 const EffectsSettingsContext = createContext<EffectsSettingsContextValue | null>(null);
 
 export function EffectsSettingsProvider({ children }: { children: ReactNode }): JSX.Element {
+  const { theme } = useTheme();
   const stored = useMemo(() => loadStoredSettings(), []);
   const [background, setBackgroundId] = useState<EffectId>(stored.background);
-  const [params, setParams] = useState<EffectParamsMap>(stored.params);
+  const [params, setParams] = useState<EffectParamsMap>(() => applyThemeEffectParams(theme, stored.params));
+
+  useEffect(() => {
+    setParams((prev) => applyThemeEffectParams(theme, prev));
+  }, [theme]);
 
   useEffect(() => {
     saveStoredSettings({ background, params });
