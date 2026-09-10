@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
+import { prefersReducedMotion, usePerformanceSettings } from '../context/PerformanceSettingsContext';
 
 export function useGlowFollow(ref: React.RefObject<HTMLElement | null>, enabled: boolean = true) {
+  const { motion } = usePerformanceSettings();
   useEffect(() => {
     if (!enabled) return;
     const el = ref.current;
@@ -8,7 +10,7 @@ export function useGlowFollow(ref: React.RefObject<HTMLElement | null>, enabled:
 
     // Decorative pointer-tracking effect — skip entirely when the user
     // prefers reduced motion (or is on a touch device).
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (prefersReducedMotion(motion)) return;
 
     const coarse = matchMedia('(pointer: coarse)').matches;
     if (coarse) return;
@@ -40,5 +42,5 @@ export function useGlowFollow(ref: React.RefObject<HTMLElement | null>, enabled:
       el.style.setProperty('--glow-x', '');
       el.style.setProperty('--glow-y', '');
     };
-  }, [ref, enabled]);
+  }, [ref, enabled, motion]);
 }

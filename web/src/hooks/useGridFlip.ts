@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react';
+import { prefersReducedMotion, usePerformanceSettings } from '../context/PerformanceSettingsContext';
 
 // FLIP (First-Last-Invert-Play) for grid layout shifts caused by the
 // advanced search sidebar and settings panel toggling. The layout snaps
@@ -26,6 +27,7 @@ const REVEAL_TAIL_MS = 8 * 40 + 250;
 const CLEANUP_DELAY_MS = FLIP_DURATION_MS + REVEAL_TAIL_MS + 60;
 
 export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
+  const { motion, gridAnimations } = usePerformanceSettings();
   const firstRectsRef = useRef<Map<string, DOMRect> | null>(null);
   const flightElsRef = useRef<HTMLElement[]>([]);
   const cleanupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,7 +53,7 @@ export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
   // mounted (play() then also no-ops).
   const capture = useCallback(() => {
     firstRectsRef.current = null;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!gridAnimations || prefersReducedMotion(motion)) return;
     const grid = gridRef.current;
     if (!grid) return;
     const rects = new Map<string, DOMRect>();
@@ -64,7 +66,7 @@ export function useGridFlip(gridRef: React.RefObject<HTMLDivElement | null>) {
     }
     if (rects.size === 0) return;
     firstRectsRef.current = rects;
-  }, [gridRef]);
+  }, [gridRef, gridAnimations, motion]);
 
   // Invert + play after the new layout has committed (called from a
   // useLayoutEffect). Any previous flight is reset before measuring: its

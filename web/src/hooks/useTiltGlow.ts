@@ -1,13 +1,15 @@
 import { useEffect } from 'react';
+import { prefersReducedMotion, usePerformanceSettings } from '../context/PerformanceSettingsContext';
 
 const GROW_MS = 250;
 
 export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
+  const { motion } = usePerformanceSettings();
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const noMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const noMotion = prefersReducedMotion(motion);
     const coarse = matchMedia('(pointer: coarse)').matches;
     if (noMotion || coarse) return;
 
@@ -202,5 +204,5 @@ export function useTiltGlow(ref: React.RefObject<HTMLElement | null>) {
       el.style.setProperty('--pill-shadow-oy', '');
       el.style.setProperty('--pill-shadow-elong', '');
     };
-  }, [ref]);
+  }, [ref, motion]);
 }

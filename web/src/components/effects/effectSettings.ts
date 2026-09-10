@@ -1,4 +1,4 @@
-// Shared types + assembler for the per-effect settings panels on /glass-test.
+// Shared types + assembler for per-effect settings panels.
 // Each effect exposes a CONTROLS array (co-located `*.settings.ts`); stored
 // params (EffectsSettingsContext, localStorage `kr8bit-effects`) are flat
 // primitive maps keyed by control key. `paramsToProps` turns them into

@@ -4,7 +4,7 @@ import type { ComponentType } from 'react';
 import type { IconProps } from '@tabler/icons-react';
 import IconLibrary from '@tabler/icons-react/dist/esm/icons/IconLibrary.mjs';
 import IconScan from '@tabler/icons-react/dist/esm/icons/IconScan.mjs';
-import IconGlassFull from '@tabler/icons-react/dist/esm/icons/IconGlassFull.mjs';
+import IconSettings from '@tabler/icons-react/dist/esm/icons/IconSettings.mjs';
 
 export type TablerIcon = ComponentType<IconProps>;
 
@@ -19,5 +19,5 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { to: '/games', label: 'Library', icon: IconLibrary, color: '#10b981' },
   { to: '/scan', label: 'Scan', icon: IconScan, color: '#06b6d4' },
-  { to: '/glass-test', label: 'Glass', icon: IconGlassFull, color: '#8b5cf6' },
+  { to: '/settings', label: 'Settings', icon: IconSettings, color: '#8b5cf6' },
 ];

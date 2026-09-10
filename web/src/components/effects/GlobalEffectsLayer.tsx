@@ -1,5 +1,6 @@
 import { BACKGROUND_EFFECTS } from './catalog';
 import { useEffectsSettings } from '../../context/EffectsSettingsContext';
+import { usePerformanceSettings } from '../../context/PerformanceSettingsContext';
 
 // Renders the globally selected background effect from
 // EffectsSettingsContext. Mounted once in AppLayout so every route
@@ -8,6 +9,8 @@ import { useEffectsSettings } from '../../context/EffectsSettingsContext';
 
 export function GlobalEffectsLayer(): JSX.Element | null {
   const { background, params } = useEffectsSettings();
+  const { backgroundEffects } = usePerformanceSettings();
+  if (!backgroundEffects) return null;
 
   const backgroundEntry =
     background !== null

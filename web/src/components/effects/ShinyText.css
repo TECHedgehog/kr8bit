@@ -1,6 +1,0 @@
-/* Adapted from react-bits (reactbits.dev) ShinyText — MIT + Commons Clause. */
-/* Classes prefixed rb- to avoid collisions with the global styles.css. */
-
-.rb-shiny-text {
-  display: inline-block;
-}
