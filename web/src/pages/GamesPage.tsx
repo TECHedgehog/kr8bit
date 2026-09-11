@@ -216,7 +216,7 @@ export function GamesPage(): JSX.Element {
     const next = new URLSearchParams(searchParams);
     if (trimmed) next.set('search', trimmed);
     else next.delete('search');
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: true, preventScrollReset: true });
   }, [debouncedSearch, search, searchParams, setSearchParams]);
 
   const fetchInitial = useCallback(async () => {
@@ -396,7 +396,7 @@ export function GamesPage(): JSX.Element {
         next.set(key, String(value));
       }
     }
-    setSearchParams(next);
+    setSearchParams(next, { preventScrollReset: true });
   }
 
   function onSearchSubmit(e: React.FormEvent) {
@@ -407,7 +407,7 @@ export function GamesPage(): JSX.Element {
     const next = new URLSearchParams(searchParams);
     if (trimmed) next.set('search', trimmed);
     else next.delete('search');
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: true, preventScrollReset: true });
   }
 
   function onSortChange(key: SortKey) {
