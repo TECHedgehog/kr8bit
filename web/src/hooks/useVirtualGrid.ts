@@ -115,6 +115,7 @@ export function useVirtualGrid(itemCount: number, gridSize: number): VirtualGrid
     const el = containerRef.current;
     if (!el) return;
     let raf = 0;
+    const initialMeasureRaf = requestAnimationFrame(measureWidth);
     const ro = new ResizeObserver(() => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
@@ -125,6 +126,7 @@ export function useVirtualGrid(itemCount: number, gridSize: number): VirtualGrid
     ro.observe(el);
     return () => {
       ro.disconnect();
+      cancelAnimationFrame(initialMeasureRaf);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [measureWidth]);
