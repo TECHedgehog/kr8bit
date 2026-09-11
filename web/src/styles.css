@@ -948,7 +948,7 @@ textarea {
   backdrop-filter: var(--pill-blur);
   border: 1px solid var(--pill-border-color);
    box-shadow: none;
-   border-radius: 20px;
+   border-radius: var(--radius-md);
   opacity: 0;
   transform: translateX(12px);
    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
