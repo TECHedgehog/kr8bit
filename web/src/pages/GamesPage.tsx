@@ -461,47 +461,36 @@ export function GamesPage(): JSX.Element {
   }
 
   function togglePanel(panel: 'advanced' | 'settings') {
-    const advancedOpen = panelOpen === 'advanced' && !panelClosing;
-
-    if (panel === 'advanced') {
-      if (advancedOpen) {
-        // Close, phase 1: fade the inner surface now; phase 2 (timer) snaps
-        // the wrapper shut and FLIPs the cards back out.
-        flip.capture();
-        setPanelClosing(true);
-        scheduleAdvancedClose(null);
-        return;
-      }
-      cancelAdvancedClose();
-      setPanelClosing(false);
-      if (panelOpen === 'advanced') {
-        // Re-open mid-close: the layout never changed, so there is nothing
-        // to FLIP — just drop the stale capture and let the inner un-fade.
-        flip.cancel();
-      } else {
-        // Open: wrapper snaps wide (invisible — inner starts transparent),
-        // cards FLIP to their narrower columns, inner fades/slides in.
-        flip.capture();
-        setPanelOpen('advanced');
-      }
-      return;
-    }
-
-    // Settings toggle.
-    cancelAdvancedClose();
-    if (panelOpen === 'advanced') {
-      // Advanced is open or mid-close: fade it out first, then swap
-      // straight to settings so the sidebar surface never pops.
+    if (panelOpen === panel && !panelClosing) {
+      // Close, phase 1: fade the inner surface now; phase 2 (timer) snaps
+      // the wrapper shut and FLIPs the cards back out.
       flip.capture();
       setPanelClosing(true);
-      scheduleAdvancedClose('settings');
+      scheduleAdvancedClose(null);
       return;
     }
+
+    if (panelClosing && panelOpen === panel) {
+      // Re-open mid-close without changing layout.
+      cancelAdvancedClose();
+      setPanelClosing(false);
+      flip.cancel();
+      return;
+    }
+
+    cancelAdvancedClose();
+    if (panelOpen !== null) {
+      // Switch panels through same fade phase; sidebar never pops.
+      flip.capture();
+      setPanelClosing(true);
+      scheduleAdvancedClose(panel);
+      return;
+    }
+
     setPanelClosing(false);
-    // The settings panel renders in the header and pushes the body down,
-    // so FLIP the cards vertically too.
+    // Open: wrapper snaps wide while inner fades/slides in.
     flip.capture();
-    setPanelOpen((current) => (current === panel ? null : panel));
+    setPanelOpen(panel);
   }
 
   function scrollToTop() {
@@ -573,30 +562,6 @@ export function GamesPage(): JSX.Element {
             />
           </div>
 
-          {panelOpen === 'settings' && (
-            <div className="library-panel">
-              <div className="panel-group">
-                <span className="panel-label">Grid size</span>
-                <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
-                  <div className="view-toggle-lens">
-                    {GRID_SIZES.map((s) => (
-                      <button
-                        key={s.value}
-                        className={`size-button${gridSize === s.value ? ' active' : ''}`}
-                        onClick={() => onGridSizeChange(s.value)}
-                        title={s.label}
-                        aria-label={`Grid size: ${s.label}`}
-                        aria-pressed={gridSize === s.value}
-                        type="button"
-                      >
-                        <IconSquareFilled size={s.iconSize} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         <div ref={bodyRef} className="library-body">
@@ -632,18 +597,46 @@ export function GamesPage(): JSX.Element {
           </div>
           <aside
             ref={panelRef}
-            className={`library-panel--sidebar${panelOpen === 'advanced' ? ' is-visible' : ''}${panelClosing ? ' is-closing' : ''}`}
-            aria-hidden={panelOpen !== 'advanced'}
-           >
+             className={`library-panel--sidebar${panelOpen ? ' is-visible' : ''}${panelClosing ? ' is-closing' : ''}`}
+             aria-hidden={!panelOpen}
+            >
              <div className="library-panel library-panel__inner">
-               <div className="filter-panel-header">
-               <h2>Advanced Search</h2>
-                 <button className="filter-panel-action" onClick={clearPanelFilters} type="button">
-                   Reset
-                 </button>
-               </div>
+                {panelOpen === 'settings' ? (
+                  <>
+                    <div className="filter-panel-header">
+                      <h2>Settings</h2>
+                    </div>
+                    <div className="filter-section">
+                      <span className="panel-label">Grid size</span>
+                      <div className="grid-size-toggle glow-follow" ref={gridSizeToggleRef}>
+                        <div className="view-toggle-lens">
+                          {GRID_SIZES.map((s) => (
+                            <button
+                              key={s.value}
+                              className={`size-button${gridSize === s.value ? ' active' : ''}`}
+                              onClick={() => onGridSizeChange(s.value)}
+                              title={s.label}
+                              aria-label={`Grid size: ${s.label}`}
+                              aria-pressed={gridSize === s.value}
+                              type="button"
+                            >
+                              <IconSquareFilled size={s.iconSize} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="filter-panel-header">
+                      <h2>Advanced Search</h2>
+                      <button className="filter-panel-action" onClick={clearPanelFilters} type="button">
+                        Reset
+                      </button>
+                    </div>
 
-               {activeFilterCount > 0 && (
+                {activeFilterCount > 0 && (
                  <div className="filter-summary">
                    <span className="filter-summary__count">{activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active</span>
                    <div className="filter-summary__pills">
@@ -783,11 +776,13 @@ export function GamesPage(): JSX.Element {
                    })}
                  </div>
                </div>
-               <div className="filter-panel-footer">
-                 <strong>{total} {total === 1 ? 'game' : 'games'}</strong>
-               </div>
-             </div>
-          </aside>
+                <div className="filter-panel-footer">
+                  <strong>{total} {total === 1 ? 'game' : 'games'}</strong>
+                </div>
+                  </>
+                )}
+              </div>
+           </aside>
         </div>
       </div>
 
