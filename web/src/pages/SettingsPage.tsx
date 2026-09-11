@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useTheme } from '../context/ThemeContext';
 import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
+import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
 
 type SettingsCategory = 'appearance' | 'library';
 
@@ -12,20 +12,30 @@ const CATEGORIES: { id: SettingsCategory; label: string; description: string }[]
 
 export function SettingsPage(): JSX.Element {
   const [category, setCategory] = useState<SettingsCategory>('appearance');
-  const { theme, toggleTheme } = useTheme();
   const { background, setBackground } = useEffectsSettings();
+  const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
+  const hasBackgroundEffect = background !== null && BACKGROUND_EFFECTS.some((entry) => entry.id === background);
+  const showShadeSelectors = background !== 'dither';
 
   const renderAppearance = () => (
-    <SettingsPanel title="Surface profile" eyebrow="Appearance">
-      <div className="settings-option-grid">
-        <button type="button" className={`settings-choice${theme === 'dark' ? ' is-active' : ''}`} onClick={() => theme !== 'dark' && toggleTheme()}><strong>Dark mode</strong><span>Deep contrast, neon accents</span></button>
-        <button type="button" className={`settings-choice${theme === 'light' ? ' is-active' : ''}`} onClick={() => theme !== 'light' && toggleTheme()}><strong>Light mode</strong><span>Bright surfaces, soft contrast</span></button>
-      </div>
-      <div className="settings-subpanel">
-        <div className="settings-card-heading"><div><p className="eyebrow">Background</p><h2>Ambient effect</h2></div></div>
+    <SettingsPanel title="Background" eyebrow="Appearance">
+      <div className="settings-subpanel settings-subpanel--first">
         <div className="settings-option-grid">
           <button type="button" className={`settings-choice${background === null ? ' is-active' : ''}`} onClick={() => setBackground(null)}><strong>No background</strong><span>Lowest GPU cost</span></button>
           {BACKGROUND_EFFECTS.map((entry) => <button type="button" className={`settings-choice${background === entry.id ? ' is-active' : ''}`} key={entry.id} onClick={() => setBackground(background === entry.id ? null : entry.id)}><strong>{entry.name}</strong><span>Animated background</span></button>)}
+        </div>
+      </div>
+      <div className="settings-subpanel settings-subpanel--controls">
+        <div className="settings-swatch-groups">
+          <div className={`settings-swatch-group${showShadeSelectors ? '' : ' settings-swatch-group--unavailable'}`}><span>Dark shade</span>{showShadeSelectors ? <div className="settings-shade-grid" role="group" aria-label="Dark background shades">
+            {BACKGROUND_DARK_SHADES.map((entry) => <button type="button" className={`settings-shade${darkShade === entry.id ? ' is-active' : ''}`} key={entry.id} onClick={() => setDarkShade(entry.id)} aria-label={entry.label} aria-pressed={darkShade === entry.id}><span style={{ background: entry.color }} /></button>)}
+          </div> : <strong>Not available</strong>}</div>
+          <div className={`settings-swatch-group${showShadeSelectors ? '' : ' settings-swatch-group--unavailable'}`}><span>Light shade</span>{showShadeSelectors ? <div className="settings-shade-grid" role="group" aria-label="Light background shades">
+            {BACKGROUND_LIGHT_SHADES.map((entry) => <button type="button" className={`settings-shade${lightShade === entry.id ? ' is-active' : ''}`} key={entry.id} onClick={() => setLightShade(entry.id)} aria-label={entry.label} aria-pressed={lightShade === entry.id}><span style={{ background: entry.color }} /></button>)}
+          </div> : <strong>Not available</strong>}</div>
+          <div className={`settings-swatch-group${hasBackgroundEffect ? '' : ' settings-swatch-group--unavailable'}`}><span>Effect tint</span>{hasBackgroundEffect ? <div className="settings-swatch-grid" role="group" aria-label="Effect tint">
+              {(Object.keys(BACKGROUND_TINTS) as BackgroundTint[]).map((entry) => <button type="button" className={`settings-swatch settings-swatch--${entry}${tint === entry ? ' is-active' : ''}`} key={entry} onClick={() => setTint(entry)} aria-label={`${BACKGROUND_TINTS[entry].label} tint`} aria-pressed={tint === entry}><span aria-hidden="true" /></button>)}
+            </div> : <strong>Not available</strong>}</div>
         </div>
       </div>
     </SettingsPanel>

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
+import { BackgroundSettingsProvider } from './context/BackgroundSettingsContext';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import '@fontsource/onest/400.css';
@@ -20,11 +21,13 @@ if (!rootEl) {
 createRoot(rootEl).render(
   <StrictMode>
     <ThemeProvider>
-      <BrowserRouter>
-        <ErrorBoundary>
-          <App />
-        </ErrorBoundary>
-      </BrowserRouter>
+      <BackgroundSettingsProvider>
+        <BrowserRouter>
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
+        </BrowserRouter>
+      </BackgroundSettingsProvider>
     </ThemeProvider>
   </StrictMode>,
 );
