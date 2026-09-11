@@ -720,7 +720,13 @@ export function GamesPage(): JSX.Element {
                  <div className="filter-section">
                    <span className="panel-label">Genre</span>
                    <div className="genre-filter">
-                     <div className="genre-search">
+                      <div
+                        className="genre-search"
+                        onClick={(event) => {
+                          if (event.target instanceof HTMLInputElement) return;
+                          event.currentTarget.querySelector('input')?.focus();
+                        }}
+                      >
                        <IconSearch size={14} aria-hidden="true" />
                        <input
                          value={genreSearch}

@@ -1127,6 +1127,7 @@ textarea {
   font: inherit;
   font-size: var(--text-sm);
   box-shadow: none;
+  cursor: text;
 }
 
 .genre-search:focus-within {
