@@ -312,7 +312,7 @@ export function GamesPage(): JSX.Element {
   // sets the value before paint to avoid a flash of the CSS fallback height
   // when opening at the top of the page.
   useLayoutEffect(() => {
-    if (panelOpen !== 'advanced') return;
+    if (panelOpen !== 'advanced' && panelOpen !== 'settings') return;
     const panel = panelRef.current;
     const body = bodyRef.current;
     if (!panel || !body) return;
@@ -322,8 +322,6 @@ export function GamesPage(): JSX.Element {
     const topGap = parseFloat(css.getPropertyValue('--topbar-top-gap')) || 12;
     const flowOffset = parseFloat(css.getPropertyValue('--topbar-flow-offset')) || 74;
     const mq = window.matchMedia('(max-width: 1200px)');
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-
     let raf = 0;
     let currentHeight: number | null = null;
     let targetHeight = 0;
@@ -332,28 +330,21 @@ export function GamesPage(): JSX.Element {
       const minTop = mq.matches ? flowOffset : topGap;
       const top = Math.max(bodyTop, minTop);
       targetHeight = Math.max(0, window.innerHeight - top - topGap);
-      if (immediate || currentHeight === null) currentHeight = targetHeight;
-      panel.style.setProperty('--panel-height', `${currentHeight}px`);
-    };
-    const settle = () => {
-      raf = 0;
-      const delta = targetHeight - (currentHeight ?? targetHeight);
-      if (Math.abs(delta) < 0.5) {
+      if (immediate) {
         currentHeight = targetHeight;
         panel.style.setProperty('--panel-height', `${currentHeight}px`);
         return;
       }
-      currentHeight = (currentHeight ?? targetHeight) + delta * 0.35;
-      panel.style.setProperty('--panel-height', `${currentHeight}px`);
-      raf = requestAnimationFrame(settle);
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          currentHeight = targetHeight;
+          panel.style.setProperty('--panel-height', `${currentHeight}px`);
+        });
+      }
     };
     const onScroll = () => {
-      if (reduceMotion.matches) {
-        update(true);
-        return;
-      }
       update();
-      if (!raf) raf = requestAnimationFrame(settle);
     };
 
     update(true);

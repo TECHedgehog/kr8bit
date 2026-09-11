@@ -937,6 +937,7 @@ textarea {
   width: 328px;
   margin-left: var(--space-4);
   height: 100%;
+  position: relative;
   overflow: hidden auto;
   display: flex;
   flex-direction: column;
@@ -1304,12 +1305,13 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-top: auto;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--pill-bg) 90%, transparent);
-  position: sticky;
-  bottom: 0;
   z-index: 2;
 }
 
