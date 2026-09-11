@@ -515,6 +515,7 @@ export function GamesPage(): JSX.Element {
   const displayedGenres = genresExpanded ? visibleGenres : visibleGenres.slice(0, genreLimit);
   const hiddenGenreCount = Math.max(0, visibleGenres.length - displayedGenres.length);
   const selectedSort = SORT_OPTIONS.find((option) => option.value === sort) ?? SORT_OPTIONS[0];
+  const SelectedSortIcon = selectedSort.icon;
 
   function moveSortSelection(direction: 1 | -1) {
     const currentIndex = SORT_OPTIONS.findIndex((option) => option.value === sort);
@@ -683,9 +684,10 @@ export function GamesPage(): JSX.Element {
                          setSortMenuOpen((open) => !open);
                        }
                      }}
-                   >
-                     <span>{selectedSort.label}</span>
-                     <IconChevronDown size={16} aria-hidden="true" />
+                    >
+                      <SelectedSortIcon size={14} aria-hidden="true" />
+                      <span>{selectedSort.label}</span>
+                      <IconChevronDown size={16} aria-hidden="true" />
                    </button>
                    {sortMenuOpen && (
                      <div className="sort-menu__options" role="listbox" aria-label="Sort games">

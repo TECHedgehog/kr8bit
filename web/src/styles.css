@@ -1152,7 +1152,7 @@ textarea {
   background: var(--surface-2);
   color: var(--text);
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   text-align: left;
   cursor: pointer;
   transition: border-color .15s, background .15s;
@@ -1180,9 +1180,9 @@ textarea {
   padding: var(--space-1);
   border: 1px solid var(--pill-border-color);
   border-radius: var(--radius-md);
-  background: var(--pill-bg);
-  -webkit-backdrop-filter: var(--pill-blur);
-  backdrop-filter: var(--pill-blur);
+  background: color-mix(in srgb, var(--glass-bg) 55%, transparent);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
 
 .sort-menu__option {
@@ -1204,7 +1204,7 @@ textarea {
 .sort-menu__option:hover,
 .sort-menu__option.active {
   border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: var(--accent-subtle);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   color: var(--accent);
 }
 
