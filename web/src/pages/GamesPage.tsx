@@ -21,6 +21,7 @@ import IconCircleCheckFilled from '@tabler/icons-react/dist/esm/icons/IconCircle
 import IconCircleXFilled from '@tabler/icons-react/dist/esm/icons/IconCircleXFilled.mjs';
 import IconCircleCaretRightFilled from '@tabler/icons-react/dist/esm/icons/IconCircleCaretRightFilled.mjs';
 import IconHelpCircleFilled from '@tabler/icons-react/dist/esm/icons/IconHelpCircleFilled.mjs';
+import IconChevronDown from '@tabler/icons-react/dist/esm/icons/IconChevronDown.mjs';
 import { api, ApiError } from '../api/client';
 import type { Game, GameListResult, GenresResult, SortKey } from '../api/types';
 import { GameCard } from '../components/GameCard';
@@ -127,6 +128,10 @@ export function GamesPage(): JSX.Element {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [genres, setGenres] = useState<string[]>([]);
   const [genresError, setGenresError] = useState(false);
+  const [genreSearch, setGenreSearch] = useState('');
+  const [genresExpanded, setGenresExpanded] = useState(false);
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLFormElement>(null);
   useTiltGlow(searchRef);
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);
@@ -175,6 +180,22 @@ export function GamesPage(): JSX.Element {
     }
     setSearchInput(search);
   }, [search]);
+
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    function closeSortMenu(event: MouseEvent) {
+      if (!sortMenuRef.current?.contains(event.target as Node)) setSortMenuOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSortMenuOpen(false);
+    }
+    document.addEventListener('mousedown', closeSortMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeSortMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [sortMenuOpen]);
 
   // Fetch distinct genres list once on mount for the genre filter chips.
   useEffect(() => {
@@ -301,28 +322,48 @@ export function GamesPage(): JSX.Element {
     const topGap = parseFloat(css.getPropertyValue('--topbar-top-gap')) || 12;
     const flowOffset = parseFloat(css.getPropertyValue('--topbar-flow-offset')) || 74;
     const mq = window.matchMedia('(max-width: 1200px)');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     let raf = 0;
-    const update = () => {
-      raf = 0;
+    let currentHeight: number | null = null;
+    let targetHeight = 0;
+    const update = (immediate = false) => {
       const bodyTop = body.getBoundingClientRect().top;
       const minTop = mq.matches ? flowOffset : topGap;
       const top = Math.max(bodyTop, minTop);
-      panel.style.setProperty('--panel-height', `calc(100vh - ${top}px - ${topGap}px)`);
+      targetHeight = Math.max(0, window.innerHeight - top - topGap);
+      if (immediate || currentHeight === null) currentHeight = targetHeight;
+      panel.style.setProperty('--panel-height', `${currentHeight}px`);
+    };
+    const settle = () => {
+      raf = 0;
+      const delta = targetHeight - (currentHeight ?? targetHeight);
+      if (Math.abs(delta) < 0.5) {
+        currentHeight = targetHeight;
+        panel.style.setProperty('--panel-height', `${currentHeight}px`);
+        return;
+      }
+      currentHeight = (currentHeight ?? targetHeight) + delta * 0.35;
+      panel.style.setProperty('--panel-height', `${currentHeight}px`);
+      raf = requestAnimationFrame(settle);
     };
     const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(update);
+      if (reduceMotion.matches) {
+        update(true);
+        return;
+      }
+      update();
+      if (!raf) raf = requestAnimationFrame(settle);
     };
 
-    update();
+    update(true);
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
-    mq.addEventListener('change', update);
+    mq.addEventListener('change', onScroll);
     return () => {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
-      mq.removeEventListener('change', update);
+      mq.removeEventListener('change', onScroll);
       if (raf) cancelAnimationFrame(raf);
     };
   }, [panelOpen]);
@@ -391,6 +432,18 @@ export function GamesPage(): JSX.Element {
     updateParams({ deck: [...set].join(',') });
   }
 
+  function clearPanelFilters() {
+    updateParams({ genre: '', deck: '', sort: 'title-asc' });
+  }
+
+  function removeGenre(genre: string) {
+    if (selectedGenres.includes(genre)) toggleGenre(genre);
+  }
+
+  function removeDeck(deck: number) {
+    if (selectedDeck.includes(deck)) toggleDeck(deck);
+  }
+
   function scheduleAdvancedClose(target: Panel) {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => {
@@ -453,6 +506,20 @@ export function GamesPage(): JSX.Element {
 
   function scrollToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const activeFilterCount = selectedGenres.length + selectedDeck.length;
+  const normalizedGenreSearch = genreSearch.trim().toLowerCase();
+  const visibleGenres = genres.filter((genre) => genre.toLowerCase().includes(normalizedGenreSearch));
+  const genreLimit = 9;
+  const displayedGenres = genresExpanded ? visibleGenres : visibleGenres.slice(0, genreLimit);
+  const hiddenGenreCount = Math.max(0, visibleGenres.length - displayedGenres.length);
+  const selectedSort = SORT_OPTIONS.find((option) => option.value === sort) ?? SORT_OPTIONS[0];
+
+  function moveSortSelection(direction: 1 | -1) {
+    const currentIndex = SORT_OPTIONS.findIndex((option) => option.value === sort);
+    const nextIndex = (currentIndex + direction + SORT_OPTIONS.length) % SORT_OPTIONS.length;
+    onSortChange(SORT_OPTIONS[nextIndex].value);
   }
 
   return (
@@ -566,56 +633,132 @@ export function GamesPage(): JSX.Element {
             ref={panelRef}
             className={`library-panel--sidebar${panelOpen === 'advanced' ? ' is-visible' : ''}${panelClosing ? ' is-closing' : ''}`}
             aria-hidden={panelOpen !== 'advanced'}
-          >
-            <div className="library-panel library-panel__inner">
-              <div className="panel-group">
-                <span className="panel-label">Sort</span>
-                <div className="panel-chips">
-                  {SORT_OPTIONS.map((o) => {
-                    const Icon = o.icon;
-                    return (
-                      <button
-                        key={o.value}
-                        className={`panel-chip${sort === o.value ? ' active' : ''}`}
-                        onClick={() => onSortChange(o.value)}
-                        aria-pressed={sort === o.value}
-                        type="button"
-                      >
-                        <Icon size={14} />
-                        {o.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              {genresError && (
-                <div className="panel-group">
-                  <span className="panel-label">Genre</span>
-                  <div className="muted">failed to load genres</div>
-                </div>
-              )}
-              {genres.length > 0 && (
-                <div className="panel-group">
-                  <span className="panel-label">Genre</span>
-                  <div className="panel-chips panel-chips--wrap">
-                    {genres.map((g) => (
-                      <button
-                        key={g}
-                        className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
+           >
+             <div className="library-panel library-panel__inner">
+               <div className="filter-panel-header">
+               <h2>Advanced Search</h2>
+                 <button className="filter-panel-action" onClick={clearPanelFilters} type="button">
+                   Reset
+                 </button>
+               </div>
+
+               {activeFilterCount > 0 && (
+                 <div className="filter-summary">
+                   <span className="filter-summary__count">{activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active</span>
+                   <div className="filter-summary__pills">
+                     {selectedGenres.map((genre) => (
+                       <button key={genre} className="filter-summary__pill" onClick={() => removeGenre(genre)} type="button">
+                         {genre}<span aria-hidden="true">×</span>
+                       </button>
+                     ))}
+                     {selectedDeck.map((deck) => {
+                       const option = DECK_OPTIONS.find((item) => item.value === deck);
+                       if (!option) return null;
+                       return (
+                         <button key={deck} className="filter-summary__pill" onClick={() => removeDeck(deck)} type="button">
+                           {option.label}<span aria-hidden="true">×</span>
+                         </button>
+                       );
+                     })}
+                   </div>
+                 </div>
+               )}
+
+               <div className="filter-section">
+                 <span className="panel-label">Sort</span>
+                 <div className="sort-menu" ref={sortMenuRef}>
+                   <button
+                     className="sort-menu__trigger"
+                     type="button"
+                     aria-haspopup="listbox"
+                     aria-expanded={sortMenuOpen}
+                     onClick={() => setSortMenuOpen((open) => !open)}
+                     onKeyDown={(event) => {
+                       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                         event.preventDefault();
+                         if (!sortMenuOpen) setSortMenuOpen(true);
+                         moveSortSelection(event.key === 'ArrowDown' ? 1 : -1);
+                       } else if (event.key === 'Enter' || event.key === ' ') {
+                         event.preventDefault();
+                         setSortMenuOpen((open) => !open);
+                       }
+                     }}
+                   >
+                     <span>{selectedSort.label}</span>
+                     <IconChevronDown size={16} aria-hidden="true" />
+                   </button>
+                   {sortMenuOpen && (
+                     <div className="sort-menu__options" role="listbox" aria-label="Sort games">
+                       {SORT_OPTIONS.map((option) => (
+                         <button
+                           key={option.value}
+                           className={`sort-menu__option${sort === option.value ? ' active' : ''}`}
+                           type="button"
+                           role="option"
+                           aria-selected={sort === option.value}
+                           onClick={() => {
+                             onSortChange(option.value);
+                             setSortMenuOpen(false);
+                           }}
+                         >
+                           <option.icon size={14} aria-hidden="true" />
+                           {option.label}
+                         </button>
+                       ))}
+                     </div>
+                   )}
+                 </div>
+               </div>
+
+               {genresError && (
+                 <div className="filter-section">
+                   <span className="panel-label">Genre</span>
+                   <div className="muted">failed to load genres</div>
+                 </div>
+               )}
+               {genres.length > 0 && (
+                 <div className="filter-section">
+                   <span className="panel-label">Genre</span>
+                   <div className="genre-filter">
+                     <div className="genre-search">
+                       <IconSearch size={14} aria-hidden="true" />
+                       <input
+                         value={genreSearch}
+                         onChange={(event) => setGenreSearch(event.target.value)}
+                         placeholder="Search genres…"
+                         aria-label="Search genres"
+                       />
+                     </div>
+                     <div className="panel-chips panel-chips--wrap">
+                     {displayedGenres.map((g) => (
+                       <button
+                         key={g}
+                         className={`panel-chip${selectedGenres.includes(g) ? ' active' : ''}`}
                         onClick={() => toggleGenre(g)}
                         aria-pressed={selectedGenres.includes(g)}
                         type="button"
                       >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="panel-group">
-                <span className="panel-label">Steam Deck</span>
-                <div className="panel-chips">
-                  {DECK_OPTIONS.map((o) => {
+                         {g}
+                       </button>
+                     ))}
+                     </div>
+                     {hiddenGenreCount > 0 && (
+                       <button className="genre-more" onClick={() => setGenresExpanded(true)} type="button">
+                         + {hiddenGenreCount} more
+                       </button>
+                     )}
+                     {genresExpanded && visibleGenres.length > genreLimit && (
+                       <button className="genre-more" onClick={() => setGenresExpanded(false)} type="button">
+                         Show less
+                       </button>
+                     )}
+                   </div>
+                 </div>
+               )}
+               <div className="filter-section">
+                 <span className="panel-label">Steam Deck</span>
+                 <div className="deck-filter-grid">
+                   {DECK_OPTIONS.map((o) => {
                     const Icon = o.icon;
                     return (
                       <button
@@ -629,10 +772,13 @@ export function GamesPage(): JSX.Element {
                         {o.label}
                       </button>
                     );
-                  })}
-                </div>
-              </div>
-            </div>
+                   })}
+                 </div>
+               </div>
+               <div className="filter-panel-footer">
+                 <strong>{total} {total === 1 ? 'game' : 'games'}</strong>
+               </div>
+             </div>
           </aside>
         </div>
       </div>

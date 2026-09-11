@@ -7,12 +7,6 @@ import * as THREE from 'three';
 
 import './Dither.css';
 
-// Adapted from react-bits (reactbits.dev) Dither — MIT + Commons Clause.
-// https://github.com/DavidHDev/react-bits — snapshot of src/content, converted to TS.
-// Deviation: pointer tracked on window (not an invisible raycast mesh) so the
-// effect keeps its mouse ripple when mounted in the pointer-events: none
-// global layer. Math unchanged.
-
 const waveVertexShader = `
 precision highp float;
 varying vec2 vUv;
@@ -214,6 +208,7 @@ function DitheredWaves({
 }: DitheredWavesProps) {
   const mesh = useRef<THREE.Mesh | null>(null);
   const mouseRef = useRef(new THREE.Vector2());
+  const animationTimeRef = useRef(0);
   const { viewport, size, gl } = useThree();
 
   const waveUniformsRef = useRef({
@@ -241,11 +236,12 @@ function DitheredWaves({
 
   const prevColor = useRef([...waveColor]);
   const prevBackgroundColor = useRef([...backgroundColor]);
-  useFrame(({ clock }) => {
+  useFrame((_, delta) => {
     const u = waveUniformsRef.current;
 
     if (!disableAnimation) {
-      u.time.value = clock.getElapsedTime();
+      animationTimeRef.current += delta;
+      u.time.value = animationTimeRef.current;
     }
 
     if (u.waveSpeed.value !== waveSpeed) u.waveSpeed.value = waveSpeed;
