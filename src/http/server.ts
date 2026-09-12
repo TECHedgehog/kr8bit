@@ -11,6 +11,8 @@ import { scannerRoutes } from './routes/scanner.routes.js';
 import { libraryRoutes } from './routes/library.routes.js';
 import { metadataRoutes } from './routes/metadata.routes.js';
 import { databaseRoutes } from './routes/database.routes.js';
+import { demoService } from '../modules/demo/demo-service.js';
+import { config } from '../config/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -50,12 +52,25 @@ function registerErrorHandler(app: FastifyInstance): void {
 }
 
 async function registerApiRoutes(app: FastifyInstance): Promise<void> {
+  if (config.demoMode) {
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.url.startsWith('/api/metadata') || req.url.includes('/artwork/')) {
+        return reply.status(503).send({
+          statusCode: 503,
+          code: 'DEMO_OFFLINE',
+          error: 'DemoOfflineError',
+          message: 'metadata and artwork services are disabled in demo mode',
+        });
+      }
+    });
+  }
   await app.register(healthRoutes);
   await app.register(settingsRoutes);
   await app.register(scannerRoutes);
   await app.register(libraryRoutes);
   await app.register(metadataRoutes);
   await app.register(databaseRoutes);
+  app.get('/api/demo/status', async () => demoService.status());
 }
 
 async function registerWebDist(app: FastifyInstance, webDist: string): Promise<void> {

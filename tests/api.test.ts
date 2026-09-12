@@ -56,6 +56,14 @@ describe('GET /api/health', () => {
   });
 });
 
+describe('GET /api/demo/status', () => {
+  it('reports server-controlled demo status', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/demo/status' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ enabled: false, offline: false });
+  });
+});
+
 describe('GET /api/settings', () => {
   it('returns env and empty kv', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/settings' });

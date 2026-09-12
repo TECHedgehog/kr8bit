@@ -5,6 +5,8 @@ loadEnv();
 
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
+  DEMO_MODE: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  DEMO_SCAN_STEP_DELAY_MS: z.coerce.number().int().nonnegative().default(350),
   LIBRARY_ROOT: z.string().min(1),
   CACHE_DIR: z.string().min(1),
   DB_PATH: z.string().min(1),
@@ -52,6 +54,8 @@ if (!parsed.success) {
 
 export const config = {
   nodeEnv: parsed.data.NODE_ENV,
+  demoMode: parsed.data.DEMO_MODE,
+  demoScanStepDelayMs: parsed.data.DEMO_SCAN_STEP_DELAY_MS,
   libraryRoot: parsed.data.LIBRARY_ROOT,
   cacheDir: parsed.data.CACHE_DIR,
   dbPath: parsed.data.DB_PATH,

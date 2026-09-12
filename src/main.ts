@@ -9,13 +9,17 @@ import { metadataRefreshJob } from './modules/metadata/metadata-refresh.job.js';
 import { retryMatchJob } from './modules/metadata/retry-match.job.js';
 import { scannerService } from './modules/scanner/scanner.service.js';
 import './shared/bigint.js';
+import { demoService } from './modules/demo/demo-service.js';
 
 let app: FastifyInstance | null = null;
 
 async function bootstrap(): Promise<void> {
-  await recoverStaleScanRuns();
-  await steamIndexService.start();
-  void metadataRefreshJob.start();
+  if (config.demoMode) await demoService.resetAndSeed();
+  else {
+    await recoverStaleScanRuns();
+    await steamIndexService.start();
+    void metadataRefreshJob.start();
+  }
   app = await buildServer();
   await app.listen({ port: config.port, host: config.host });
   logger.info(`kr8bit listening on http://${config.host}:${config.port}`);

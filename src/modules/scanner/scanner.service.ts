@@ -15,6 +15,7 @@ import { retryMatchJob } from '../metadata/retry-match.job.js';
 import { resetGate } from '../database/reset-gate.js';
 import { emitProgress } from './scanner.events.js';
 import { AppError } from '../../shared/errors.js';
+import { demoService } from '../demo/demo-service.js';
 
 export interface ScannerDeps {
   providers: MetadataProvider[];
@@ -104,7 +105,8 @@ export class ScannerService {
 
   private async executeScan(run: ScanRun): Promise<void> {
     try {
-      await this.scanLibrary(run);
+      if (config.demoMode) await demoService.runScan(run);
+      else await this.scanLibrary(run);
     } finally {
       this.running = false;
       this.currentRunId = null;
