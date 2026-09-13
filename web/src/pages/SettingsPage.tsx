@@ -160,7 +160,7 @@ export function SettingsPage(): JSX.Element {
   );
 
   const renderLibrary = () => (
-    <SettingsPanel title="Library locations" eyebrow="Locations">
+    <SettingsPanel title="Scan activity" eyebrow="Locations">
       <ScannerSection />
     </SettingsPanel>
   );
@@ -270,6 +270,6 @@ export function SettingsPage(): JSX.Element {
   );
 }
 
-function SettingsPanel({ title, eyebrow, children }: { title: string; eyebrow: string; children: React.ReactNode }): JSX.Element {
-  return <section className="settings-panel-content"><div className="settings-card-heading"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div></div>{children}</section>;
+function SettingsPanel({ title, eyebrow, children }: { title: string; eyebrow?: string; children: React.ReactNode }): JSX.Element {
+  return <section className="settings-panel-content"><div className="settings-card-heading"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2>{title}</h2></div></div>{children}</section>;
 }

@@ -220,6 +220,23 @@ describe('ScannerService.start', () => {
     expect(refreshed.errors).toEqual([]);
   });
 
+  it('emits determinate progress for scan stages', async () => {
+    await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
+    const events: ScanProgressEvent[] = [];
+    const unsubscribe = onProgress((event) => events.push(event));
+    const service = new ScannerService(makeDeps());
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+    unsubscribe();
+
+    const runEvents = events.filter((event) => event.scanRunId === run.id);
+    expect(runEvents.some((event) => event.stage === 'scan' && event.total === 1 && event.completed === 1)).toBe(true);
+    expect(runEvents.some((event) => event.stage === 'metadata' && event.total === 1 && event.completed === 1)).toBe(true);
+    expect(runEvents.some((event) => event.stage === 'artwork' && event.total === 1 && event.completed === 1)).toBe(true);
+    expect(runEvents.at(-1)?.stage).toBe('done');
+  });
+
   it('prevents concurrent runs', async () => {
     await fs.writeFile(join(tmpDir, 'Game.7z'), 'data');
     const service = new ScannerService(makeDeps());

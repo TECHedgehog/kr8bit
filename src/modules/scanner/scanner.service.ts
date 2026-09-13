@@ -120,6 +120,9 @@ export class ScannerService {
     emitProgress({
       scanRunId: runId,
       phase: 'start',
+      stage: 'scan',
+      total: 0,
+      completed: 0,
       found: 0,
       added: 0,
       updated: 0,
@@ -140,6 +143,9 @@ export class ScannerService {
       emitProgress({
         scanRunId: runId,
         phase: 'done',
+        stage: 'done',
+        total: 0,
+        completed: 0,
         found: 0,
         added: 0,
         updated: 0,
@@ -154,10 +160,25 @@ export class ScannerService {
     let failed = 0;
     const errors: string[] = [];
 
-    for (const candidate of candidates) {
+    emitProgress({
+      scanRunId: runId,
+      phase: 'candidate',
+      stage: 'scan',
+      total: candidates.length,
+      completed: 0,
+      found: candidates.length,
+      added,
+      updated,
+      failed,
+    });
+
+    for (const [index, candidate] of candidates.entries()) {
       emitProgress({
         scanRunId: runId,
         phase: 'candidate',
+        stage: 'metadata',
+        total: candidates.length,
+        completed: index,
         found: candidates.length,
         added,
         updated,
@@ -173,6 +194,9 @@ export class ScannerService {
         emitProgress({
           scanRunId: runId,
           phase: 'matched',
+          stage: 'metadata',
+          total: candidates.length,
+          completed: index + 1,
           found: candidates.length,
           added,
           updated,
@@ -187,6 +211,9 @@ export class ScannerService {
         emitProgress({
           scanRunId: runId,
           phase: 'failed',
+          stage: 'metadata',
+          total: candidates.length,
+          completed: index + 1,
           found: candidates.length,
           added,
           updated,
@@ -195,6 +222,32 @@ export class ScannerService {
           message,
         });
       }
+
+      emitProgress({
+        scanRunId: runId,
+        phase: 'matched',
+        stage: 'artwork',
+        total: candidates.length,
+        completed: index + 1,
+        found: candidates.length,
+        added,
+        updated,
+        failed,
+        currentEntry: candidate.entryName,
+      });
+
+      emitProgress({
+        scanRunId: runId,
+        phase: 'matched',
+        stage: 'scan',
+        total: candidates.length,
+        completed: index + 1,
+        found: candidates.length,
+        added,
+        updated,
+        failed,
+        currentEntry: candidate.entryName,
+      });
     }
 
     await scannerRepository.update(runId, {
@@ -210,6 +263,9 @@ export class ScannerService {
     emitProgress({
       scanRunId: runId,
       phase: 'done',
+      stage: 'done',
+      total: candidates.length,
+      completed: candidates.length,
       found: candidates.length,
       added,
       updated,

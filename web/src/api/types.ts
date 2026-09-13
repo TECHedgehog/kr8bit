@@ -75,6 +75,9 @@ export interface ScannerStatus {
 export interface ScanProgressEvent {
   scanRunId: string;
   phase: ScanPhase;
+  stage?: 'scan' | 'metadata' | 'artwork' | 'done';
+  total?: number;
+  completed?: number;
   found: number;
   added: number;
   updated: number;
