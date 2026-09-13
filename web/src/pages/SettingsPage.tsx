@@ -4,15 +4,45 @@ import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
 import { ScannerSection } from '../components/ScannerSection';
 
-type SettingsCategory = 'appearance' | 'library';
+type SettingsCategory = 'appearance' | 'locations';
 
-const CATEGORIES: { id: SettingsCategory; label: string; description: string }[] = [
-  { id: 'appearance', label: 'Appearance', description: 'Theme and surface' },
-  { id: 'library', label: 'Library', description: 'Collection preferences' },
+type SettingsNavigationItem = {
+  id: string;
+  label: string;
+  category?: SettingsCategory;
+};
+
+const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
+  {
+    label: 'General',
+    items: [
+      { id: 'appearance', label: 'Appearance', category: 'appearance' },
+      { id: 'behavior', label: 'Behavior' },
+    ],
+  },
+  {
+    label: 'Library',
+    items: [
+      { id: 'display', label: 'Display' },
+      { id: 'locations', label: 'Locations', category: 'locations' },
+      { id: 'metadata', label: 'Metadata' },
+    ],
+  },
+  {
+    label: 'Providers',
+    items: [{ id: 'steam', label: 'Steam' }],
+  },
+  {
+    label: 'System',
+    items: [
+      { id: 'storage', label: 'Storage' },
+      { id: 'maintenance', label: 'Maintenance' },
+    ],
+  },
 ];
 
 export function SettingsPage(): JSX.Element {
-  const [category, setCategory] = useState<SettingsCategory>('library');
+  const [category, setCategory] = useState<SettingsCategory>('locations');
   const { background, setBackground } = useEffectsSettings();
   const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
   const hasBackgroundEffect = background !== null && BACKGROUND_EFFECTS.some((entry) => entry.id === background);
@@ -43,25 +73,31 @@ export function SettingsPage(): JSX.Element {
   );
 
   const renderLibrary = () => (
-    <SettingsPanel title="Library preferences" eyebrow="Library">
+    <SettingsPanel title="Library locations" eyebrow="Locations">
       <ScannerSection />
     </SettingsPanel>
   );
 
-  const panels: Record<SettingsCategory, () => JSX.Element> = { appearance: renderAppearance, library: renderLibrary };
+  const panels: Record<SettingsCategory, () => JSX.Element> = { appearance: renderAppearance, locations: renderLibrary };
 
   return (
     <div className="page">
       <div className="settings-page">
-        <header className="library-header settings-header">
-          <div className="library-toolbar settings-title-toolbar">
-            <div className="library-title-block"><div className="library-title">Settings</div><div className="library-subtitle">Tune your space</div></div>
-          </div>
-        </header>
         <div className="settings-shell">
           <nav className="settings-menu" aria-label="Settings categories">
-            <span className="settings-menu-label">Categories</span>
-            {CATEGORIES.map((item) => <button type="button" key={item.id} className={`settings-menu-item${category === item.id ? ' is-active' : ''}`} onClick={() => setCategory(item.id)} aria-current={category === item.id ? 'page' : undefined}><strong>{item.label}</strong><span>{item.description}</span></button>)}
+            {SETTINGS_GROUPS.map((group) => (
+              <section className="settings-menu-group" key={group.label}>
+                <h2 className="settings-menu-label">{group.label}</h2>
+                <div className="settings-menu-items">
+                  {group.items.map((item) => {
+                    const isAvailable = item.category !== undefined;
+                    const isActive = item.category === category;
+
+                    return <button type="button" key={item.id} className={`settings-menu-item${isActive ? ' is-active' : ''}${!isAvailable ? ' is-disabled' : ''}`} onClick={isAvailable ? () => setCategory(item.category!) : undefined} aria-current={isActive ? 'page' : undefined} disabled={!isAvailable}><strong>{item.label}</strong>{!isAvailable && <small>Coming soon</small>}</button>;
+                  })}
+                </div>
+              </section>
+            ))}
           </nav>
           <main className="settings-panel">{panels[category]()}</main>
         </div>
