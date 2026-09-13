@@ -28,7 +28,7 @@ const SETTINGS_MOVE_ANIMATION = { duration: 0.4, ease: cubicBezier(0.42, 0, 0.58
 const SETTINGS_RAISE_ANIMATION = { duration: 0.25, ease: cubicBezier(0.42, 0, 0.58, 1) };
 const SETTINGS_LOWER_ANIMATION = { duration: 0.2, ease: cubicBezier(0.33, 1, 0.68, 1) };
 
-type SettingsCategory = 'appearance' | 'locations';
+type SettingsCategory = 'review' | 'appearance' | 'locations';
 
 type SettingsNavigationItem = {
   id: string;
@@ -39,6 +39,10 @@ type SettingsNavigationItem = {
 };
 
 const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
+  {
+    label: 'Overview',
+    items: [{ id: 'review', label: 'Review', icon: IconLayoutGrid, color: '#14b8a6', category: 'review' }],
+  },
   {
     label: 'General',
     items: [
@@ -68,7 +72,7 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
 ];
 
 export function SettingsPage(): JSX.Element {
-  const [category, setCategory] = useState<SettingsCategory>('locations');
+  const [category, setCategory] = useState<SettingsCategory>('review');
   const { theme } = useTheme();
   const { pill } = useGlassTune();
   const menuRef = useRef<HTMLElement>(null);
@@ -84,6 +88,52 @@ export function SettingsPage(): JSX.Element {
   const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
   const hasBackgroundEffect = background !== null && BACKGROUND_EFFECTS.some((entry) => entry.id === background);
   const showShadeSelectors = background !== 'dither';
+
+  const renderReview = () => (
+    <SettingsPanel title="System review" eyebrow="Review">
+      <div className="settings-review-grid">
+        <article className="settings-review-card settings-review-card--wide">
+          <div className="settings-review-card__heading">
+            <div>
+              <p className="settings-review-card__eyebrow">Resources</p>
+              <h3>Library overview</h3>
+            </div>
+            <span className="settings-review-badge">Ready</span>
+          </div>
+          <div className="settings-review-metrics">
+            <div><strong>—</strong><span>Games</span></div>
+            <div><strong>—</strong><span>Platforms</span></div>
+            <div><strong>—</strong><span>Collections</span></div>
+          </div>
+          <p className="settings-review-copy">Library resource summaries will appear here.</p>
+        </article>
+        <article className="settings-review-card">
+          <div className="settings-review-card__heading">
+            <div>
+              <p className="settings-review-card__eyebrow">Services</p>
+              <h3>Service status</h3>
+            </div>
+            <span className="settings-review-status"><span />Operational</span>
+          </div>
+          <ul className="settings-review-list">
+            <li><span>Library service</span><strong>Ready</strong></li>
+            <li><span>Scanner</span><strong>Idle</strong></li>
+            <li><span>Metadata providers</span><strong>Not configured</strong></li>
+          </ul>
+        </article>
+        <article className="settings-review-card">
+          <div className="settings-review-card__heading">
+            <div>
+              <p className="settings-review-card__eyebrow">Next steps</p>
+              <h3>Configuration</h3>
+            </div>
+          </div>
+          <p className="settings-review-copy">Connect services and add library locations to get started.</p>
+          <span className="settings-review-placeholder">Placeholder panel</span>
+        </article>
+      </div>
+    </SettingsPanel>
+  );
 
   const renderAppearance = () => (
     <SettingsPanel title="Background" eyebrow="Appearance">
@@ -115,7 +165,7 @@ export function SettingsPage(): JSX.Element {
     </SettingsPanel>
   );
 
-  const panels: Record<SettingsCategory, () => JSX.Element> = { appearance: renderAppearance, locations: renderLibrary };
+  const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, locations: renderLibrary };
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
