@@ -64,7 +64,7 @@ export function SettingsPage(): JSX.Element {
   const [isLensMoving, setIsLensMoving] = useState(false);
   const lensY = useMemo(() => glassValue(0.5), []);
   const lensW = useMemo(() => glassValue(160), []);
-  const lensH = useMemo(() => glassValue(40), []);
+  const lensH = useMemo(() => glassValue(160), []);
   const lensScale = useMemo(() => glassValue(SETTINGS_LENS_SCALE_IDLE), []);
   const { background, setBackground } = useEffectsSettings();
   const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
@@ -115,15 +115,16 @@ export function SettingsPage(): JSX.Element {
     const activeCenterY = activeRect.top + activeRect.height / 2;
     const targetY = glassRect.height > 0 ? (activeCenterY - glassRect.top) / glassRect.height : 0.5;
     const clampedY = Math.max(0, Math.min(1, targetY));
-    const targetW = activeRect.width + 2 * SETTINGS_LENS_MARGIN;
+    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_MARGIN);
     const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
+    const peakW = idleW + SETTINGS_LENS_RISE;
     const peakH = idleH + SETTINGS_LENS_RISE;
     const targetChanged = lastCategoryRef.current !== category;
     lastCategoryRef.current = category;
 
     if (!targetChanged) {
       lensY.set(clampedY);
-      lensW.set(targetW);
+      lensW.set(idleW);
       lensH.set(idleH);
       lensScale.set(SETTINGS_LENS_SCALE_IDLE);
       return;
@@ -132,20 +133,21 @@ export function SettingsPage(): JSX.Element {
     const transit = ++transitRef.current;
     setIsLensMoving(true);
     animateGlassValue(lensY, clampedY, SETTINGS_MOVE_ANIMATION);
-    animateGlassValue(lensW, targetW, SETTINGS_MOVE_ANIMATION);
-    animateGlassValue(lensH, peakH, {
+    animateGlassValue(lensW, peakW, {
       ...SETTINGS_RAISE_ANIMATION,
       onComplete: () => {
         if (transitRef.current !== transit) return;
-        animateGlassValue(lensH, idleH, {
+        animateGlassValue(lensW, idleW, {
           ...SETTINGS_LOWER_ANIMATION,
           onComplete: () => {
             if (transitRef.current === transit) setIsLensMoving(false);
           },
         });
+        animateGlassValue(lensH, idleH, SETTINGS_LOWER_ANIMATION);
         animateGlassValue(lensScale, SETTINGS_LENS_SCALE_IDLE, SETTINGS_LOWER_ANIMATION);
       },
     });
+    animateGlassValue(lensH, peakH, SETTINGS_RAISE_ANIMATION);
     animateGlassValue(lensScale, SETTINGS_LENS_SCALE_PEAK, SETTINGS_RAISE_ANIMATION);
   }, [category, lensH, lensScale, lensW, lensY]);
 
@@ -157,8 +159,10 @@ export function SettingsPage(): JSX.Element {
     if (!active || !glass) return;
     const glassRect = glass.getBoundingClientRect();
     const activeRect = active.getBoundingClientRect();
-    lensW.set(activeRect.width + 2 * SETTINGS_LENS_MARGIN);
-    lensH.set(activeRect.height + 2 * SETTINGS_LENS_MARGIN);
+    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_MARGIN);
+    const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
+    lensW.set(idleW);
+    lensH.set(idleH);
     lensY.set(Math.max(0, Math.min(1, (activeRect.top + activeRect.height / 2 - glassRect.top) / glassRect.height)));
   }, [isLensMoving, lensH, lensW, lensY]);
 
@@ -171,7 +175,7 @@ export function SettingsPage(): JSX.Element {
             const isAvailable = item.category !== undefined;
             const isActive = item.category === category;
             const className = `settings-menu-item${isActive ? ' is-active' : ''}${!isAvailable ? ' is-disabled' : ''}`;
-            const itemContent = <><strong>{item.label}</strong>{!isAvailable && <small>Coming soon</small>}</>;
+            const itemContent = <strong>{item.label}</strong>;
             return as === 'button'
               ? <button type="button" key={item.id} className={className} onClick={isAvailable ? () => setCategory(item.category!) : undefined} aria-current={isActive ? 'page' : undefined} disabled={!isAvailable}>{itemContent}</button>
               : <div key={item.id} className={className} aria-hidden="true">{itemContent}</div>;
@@ -191,7 +195,7 @@ export function SettingsPage(): JSX.Element {
         <div className="settings-shell">
           <nav ref={menuRef} className={`settings-menu${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
             <div className="settings-menu-glass" aria-hidden="true">
-              <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} refract={renderMenu('copy')} behind={behind} filterResolution={2} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+              <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} behind={behind} filterResolution={2} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
             </div>
             <div className="settings-menu-content">{renderMenu('button')}</div>
           </nav>
