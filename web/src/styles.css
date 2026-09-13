@@ -519,6 +519,31 @@ a {
   gap: var(--space-4);
 }
 
+.page.library-page--empty {
+  height: calc(100vh - var(--topbar-flow-offset));
+  min-height: 0;
+  overflow: hidden;
+}
+
+.library-page--empty .library-content,
+.library-page--empty .library-body,
+.library-page--empty .library-main {
+  min-height: 0;
+}
+
+.library-page--empty .library-main {
+  height: 100%;
+}
+
+.library-page--empty .library-content,
+.library-page--empty .library-body {
+  flex: 1;
+}
+
+.library-page--empty .library-body {
+  overflow: hidden;
+}
+
 /* ===== PageHeader (frozen — Scan page compatibility) ===== */
 
 .page-header {
@@ -1406,6 +1431,84 @@ textarea {
   gap: var(--space-4);
 }
 
+.library-empty-state {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: var(--radius-lg);
+}
+
+.library-empty-placeholders {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  grid-auto-rows: minmax(190px, 1fr);
+  gap: var(--space-6) var(--space-4);
+  opacity: 0.72;
+  filter: grayscale(1);
+  mask-image: linear-gradient(to bottom, black 45%, transparent 100%);
+}
+
+.library-empty-placeholder {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface-3) 92%, white), var(--surface-2));
+  box-shadow: var(--glass-tint-edge);
+}
+
+.library-empty-panel {
+  position: absolute;
+  z-index: 1;
+  top: 30%;
+  left: 50%;
+  width: min(400px, calc(100% - 32px));
+  padding: var(--space-6) var(--space-8);
+  transform: translate(-50%, -50%);
+  text-align: center;
+  border: 1px solid var(--pill-border-color);
+  border-radius: var(--radius-lg);
+  background: var(--pill-bg);
+  box-shadow: var(--pill-shadow);
+  backdrop-filter: var(--pill-blur);
+  -webkit-backdrop-filter: var(--pill-blur);
+}
+
+.library-empty-panel h2 {
+  margin: var(--space-2) 0 var(--space-3);
+}
+
+.library-empty-panel p:not(.eyebrow) {
+  margin: 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.library-empty-action {
+  display: inline-flex;
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-full);
+  color: var(--accent);
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.library-empty-action:hover {
+  background: var(--accent);
+  color: var(--surface-1);
+}
+
+@media (max-width: 600px) {
+  .library-empty-panel p:not(.eyebrow) {
+    white-space: normal;
+  }
+}
+
 /* Virtualized grid: a relative spacer whose height and row transforms are
    written by the virtualizer (see useVirtualGrid). The gap declaration
    stays because useVirtualGrid reads the computed values to mirror the
@@ -1426,6 +1529,16 @@ textarea {
   display: grid;
   gap: var(--space-6) var(--space-4);
   padding-bottom: var(--space-6);
+}
+
+.game-grid-placeholder {
+  aspect-ratio: 2 / 3;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface-3) 92%, white), var(--surface-2));
+  box-shadow: var(--glass-tint-edge);
+  opacity: 0.72;
+  pointer-events: none;
 }
 
 .game-card {

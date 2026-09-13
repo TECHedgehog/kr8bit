@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams, Outlet } from 'react-router-dom';
+import { Link, useSearchParams, Outlet } from 'react-router-dom';
 import { useTiltGlow } from '../hooks/useTiltGlow';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -23,7 +23,7 @@ import IconCircleCaretRightFilled from '@tabler/icons-react/dist/esm/icons/IconC
 import IconHelpCircleFilled from '@tabler/icons-react/dist/esm/icons/IconHelpCircleFilled.mjs';
 import IconChevronDown from '@tabler/icons-react/dist/esm/icons/IconChevronDown.mjs';
 import { api, ApiError } from '../api/client';
-import type { Game, GameListResult, GenresResult, SortKey } from '../api/types';
+import type { Game, GameListResult, GenresResult, ScannerStatus, SortKey } from '../api/types';
 import { GameCard } from '../components/GameCard';
 import { IconButton } from '../components/IconButton';
 
@@ -128,6 +128,8 @@ export function GamesPage(): JSX.Element {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [genres, setGenres] = useState<string[]>([]);
   const [genresError, setGenresError] = useState(false);
+  const [scannerStatus, setScannerStatus] = useState<ScannerStatus | null>(null);
+  const [scannerStatusLoaded, setScannerStatusLoaded] = useState(false);
   const [genreSearch, setGenreSearch] = useState('');
   const [genresExpanded, setGenresExpanded] = useState(false);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
@@ -204,6 +206,14 @@ export function GamesPage(): JSX.Element {
     api.get<GenresResult>('/api/games/genres')
       .then((res) => { if (!cancelled) setGenres(res.genres); })
       .catch(() => { if (!cancelled) setGenresError(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get<ScannerStatus>('/api/scanner/status')
+      .then((res) => { if (!cancelled) { setScannerStatus(res); setScannerStatusLoaded(true); } })
+      .catch(() => { if (!cancelled) setScannerStatusLoaded(true); });
     return () => { cancelled = true; };
   }, []);
 
@@ -303,6 +313,9 @@ export function GamesPage(): JSX.Element {
     observer.observe(row0);
     return () => observer.disconnect();
   }, [items.length, firstRowIndex]);
+
+  const isFirstRunEmpty = scannerStatusLoaded && !loading && !error && items.length === 0 && scannerStatus?.latest === null;
+  const isLibraryEmpty = scannerStatusLoaded && !loading && !error && items.length === 0;
 
   // Panel height: dynamically set --panel-height so the panel's bottom edge
   // stays 12px from the viewport bottom at all times. The panel sits in
@@ -504,7 +517,7 @@ export function GamesPage(): JSX.Element {
   }
 
   return (
-    <div className="page">
+    <div className={`page${isLibraryEmpty ? ' library-page--empty' : ''}`}>
       <div className="library-content">
         <div className="library-header">
           <div className="library-toolbar">
@@ -560,8 +573,16 @@ export function GamesPage(): JSX.Element {
             {error && <div className="error">{error}</div>}
             {loading && items.length === 0 && <div className="muted">Loading…</div>}
 
-            {!loading && !error && items.length === 0 && (
-              <div className="muted">No games found</div>
+            {isLibraryEmpty && (
+              <section className="library-empty-state" aria-label="Empty library">
+                <div className="library-empty-placeholders" aria-hidden="true">
+                  {Array.from({ length: 60 }, (_, index) => <div className="library-empty-placeholder" key={index} />)}
+                </div>
+                <div className="library-empty-panel">
+                  <h2>{isFirstRunEmpty ? 'Start building your library' : 'No games found'}</h2>
+                  {isFirstRunEmpty && <Link className="library-empty-action" to="/settings?category=locations">Open Locations</Link>}
+                </div>
+              </section>
             )}
 
             {/* Virtualized grid: the container is a spacer whose height and
@@ -570,6 +591,10 @@ export function GamesPage(): JSX.Element {
             <div ref={setGridRef} className="game-grid">
               {gridRows.map((row) => {
                 const start = row.index * gridColumns;
+                const rowItems = items.slice(start, start + gridColumns);
+                const emptyCellCount = rowItems.length > 0 && rowItems.length < gridColumns
+                  ? gridColumns - rowItems.length
+                  : 0;
                 return (
                   <div
                     key={row.key}
@@ -578,8 +603,11 @@ export function GamesPage(): JSX.Element {
                     ref={gridRowRef}
                     style={{ gridTemplateColumns: `repeat(${gridColumns}, 1fr)` }}
                   >
-                    {items.slice(start, start + gridColumns).map((g, i) => (
+                    {rowItems.map((g, i) => (
                       <GameCard key={g.id} game={g} index={i} />
+                    ))}
+                    {Array.from({ length: emptyCellCount }, (_, i) => (
+                      <div className="game-grid-placeholder" key={`empty-${start + i}`} aria-hidden="true" />
                     ))}
                   </div>
                 );

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { IconProps } from '@tabler/icons-react';
 import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
 import IconBrandSteam from '@tabler/icons-react/dist/esm/icons/IconBrandSteam.mjs';
@@ -72,6 +73,7 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
 ];
 
 export function SettingsPage(): JSX.Element {
+  const [searchParams] = useSearchParams();
   const [category, setCategory] = useState<SettingsCategory>('review');
   const { theme } = useTheme();
   const { pill } = useGlassTune();
@@ -88,6 +90,10 @@ export function SettingsPage(): JSX.Element {
   const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
   const hasBackgroundEffect = background !== null && BACKGROUND_EFFECTS.some((entry) => entry.id === background);
   const showShadeSelectors = background !== 'dither';
+
+  useLayoutEffect(() => {
+    if (searchParams.get('category') === 'locations') setCategory('locations');
+  }, [searchParams]);
 
   const renderReview = () => (
     <SettingsPanel title="System review" eyebrow="Review">
