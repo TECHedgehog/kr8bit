@@ -1,8 +1,21 @@
-import { useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Glass, animateGlassValue, cubicBezier, glassValue } from '@samasante/liquid-glass';
 import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
 import { ScannerSection } from '../components/ScannerSection';
+import { useTheme } from '../context/ThemeContext';
+import { useGlassTune } from '../context/GlassTuneContext';
+
+const SETTINGS_LENS_MARGIN = 1;
+const SETTINGS_LENS_RISE = 20;
+const SETTINGS_LENS_RADIUS = 24;
+const SETTINGS_LENS_DEPTH = 0.7;
+const SETTINGS_LENS_SCALE_IDLE = 0;
+const SETTINGS_LENS_SCALE_PEAK = 0.05;
+const SETTINGS_MOVE_ANIMATION = { duration: 0.4, ease: cubicBezier(0.42, 0, 0.58, 1) };
+const SETTINGS_RAISE_ANIMATION = { duration: 0.25, ease: cubicBezier(0.42, 0, 0.58, 1) };
+const SETTINGS_LOWER_ANIMATION = { duration: 0.2, ease: cubicBezier(0.33, 1, 0.68, 1) };
 
 type SettingsCategory = 'appearance' | 'locations';
 
@@ -43,6 +56,16 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
 
 export function SettingsPage(): JSX.Element {
   const [category, setCategory] = useState<SettingsCategory>('locations');
+  const { theme } = useTheme();
+  const { pill } = useGlassTune();
+  const menuRef = useRef<HTMLElement>(null);
+  const lastCategoryRef = useRef(category);
+  const transitRef = useRef(0);
+  const [isLensMoving, setIsLensMoving] = useState(false);
+  const lensY = useMemo(() => glassValue(0.5), []);
+  const lensW = useMemo(() => glassValue(160), []);
+  const lensH = useMemo(() => glassValue(40), []);
+  const lensScale = useMemo(() => glassValue(SETTINGS_LENS_SCALE_IDLE), []);
   const { background, setBackground } = useEffectsSettings();
   const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
   const hasBackgroundEffect = background !== null && BACKGROUND_EFFECTS.some((entry) => entry.id === background);
@@ -80,24 +103,97 @@ export function SettingsPage(): JSX.Element {
 
   const panels: Record<SettingsCategory, () => JSX.Element> = { appearance: renderAppearance, locations: renderLibrary };
 
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const glass = menu.querySelector('.settings-menu-glass') as HTMLElement | null;
+    const active = menu.querySelector('.settings-menu-content .settings-menu-item.is-active') as HTMLElement | null;
+    if (!glass || !active) return;
+
+    const glassRect = glass.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    const activeCenterY = activeRect.top + activeRect.height / 2;
+    const targetY = glassRect.height > 0 ? (activeCenterY - glassRect.top) / glassRect.height : 0.5;
+    const clampedY = Math.max(0, Math.min(1, targetY));
+    const targetW = activeRect.width + 2 * SETTINGS_LENS_MARGIN;
+    const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
+    const peakH = idleH + SETTINGS_LENS_RISE;
+    const targetChanged = lastCategoryRef.current !== category;
+    lastCategoryRef.current = category;
+
+    if (!targetChanged) {
+      lensY.set(clampedY);
+      lensW.set(targetW);
+      lensH.set(idleH);
+      lensScale.set(SETTINGS_LENS_SCALE_IDLE);
+      return;
+    }
+
+    const transit = ++transitRef.current;
+    setIsLensMoving(true);
+    animateGlassValue(lensY, clampedY, SETTINGS_MOVE_ANIMATION);
+    animateGlassValue(lensW, targetW, SETTINGS_MOVE_ANIMATION);
+    animateGlassValue(lensH, peakH, {
+      ...SETTINGS_RAISE_ANIMATION,
+      onComplete: () => {
+        if (transitRef.current !== transit) return;
+        animateGlassValue(lensH, idleH, {
+          ...SETTINGS_LOWER_ANIMATION,
+          onComplete: () => {
+            if (transitRef.current === transit) setIsLensMoving(false);
+          },
+        });
+        animateGlassValue(lensScale, SETTINGS_LENS_SCALE_IDLE, SETTINGS_LOWER_ANIMATION);
+      },
+    });
+    animateGlassValue(lensScale, SETTINGS_LENS_SCALE_PEAK, SETTINGS_RAISE_ANIMATION);
+  }, [category, lensH, lensScale, lensW, lensY]);
+
+  useLayoutEffect(() => {
+    if (isLensMoving) return;
+    const menu = menuRef.current;
+    const active = menu?.querySelector('.settings-menu-content .settings-menu-item.is-active') as HTMLElement | null;
+    const glass = menu?.querySelector('.settings-menu-glass') as HTMLElement | null;
+    if (!active || !glass) return;
+    const glassRect = glass.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    lensW.set(activeRect.width + 2 * SETTINGS_LENS_MARGIN);
+    lensH.set(activeRect.height + 2 * SETTINGS_LENS_MARGIN);
+    lensY.set(Math.max(0, Math.min(1, (activeRect.top + activeRect.height / 2 - glassRect.top) / glassRect.height)));
+  }, [isLensMoving, lensH, lensW, lensY]);
+
+  const renderMenu = (as: 'button' | 'copy') => {
+    const content = SETTINGS_GROUPS.map((group) => (
+      <section className="settings-menu-group" key={group.label}>
+        <h2 className="settings-menu-label">{group.label}</h2>
+        <div className="settings-menu-items">
+          {group.items.map((item) => {
+            const isAvailable = item.category !== undefined;
+            const isActive = item.category === category;
+            const className = `settings-menu-item${isActive ? ' is-active' : ''}${!isAvailable ? ' is-disabled' : ''}`;
+            const itemContent = <><strong>{item.label}</strong>{!isAvailable && <small>Coming soon</small>}</>;
+            return as === 'button'
+              ? <button type="button" key={item.id} className={className} onClick={isAvailable ? () => setCategory(item.category!) : undefined} aria-current={isActive ? 'page' : undefined} disabled={!isAvailable}>{itemContent}</button>
+              : <div key={item.id} className={className} aria-hidden="true">{itemContent}</div>;
+          })}
+        </div>
+      </section>
+    ));
+
+    return as === 'copy' ? <div className="settings-menu-glass-content">{content}</div> : <>{content}</>;
+  };
+
+  const behind = theme === 'dark' ? '#1a1d24' : '#e8ebf0';
+
   return (
     <div className="page">
       <div className="settings-page">
         <div className="settings-shell">
-          <nav className="settings-menu" aria-label="Settings categories">
-            {SETTINGS_GROUPS.map((group) => (
-              <section className="settings-menu-group" key={group.label}>
-                <h2 className="settings-menu-label">{group.label}</h2>
-                <div className="settings-menu-items">
-                  {group.items.map((item) => {
-                    const isAvailable = item.category !== undefined;
-                    const isActive = item.category === category;
-
-                    return <button type="button" key={item.id} className={`settings-menu-item${isActive ? ' is-active' : ''}${!isAvailable ? ' is-disabled' : ''}`} onClick={isAvailable ? () => setCategory(item.category!) : undefined} aria-current={isActive ? 'page' : undefined} disabled={!isAvailable}><strong>{item.label}</strong>{!isAvailable && <small>Coming soon</small>}</button>;
-                  })}
-                </div>
-              </section>
-            ))}
+          <nav ref={menuRef} className={`settings-menu${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
+            <div className="settings-menu-glass" aria-hidden="true">
+              <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} refract={renderMenu('copy')} behind={behind} filterResolution={2} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+            </div>
+            <div className="settings-menu-content">{renderMenu('button')}</div>
           </nav>
           <main className="settings-panel">{panels[category]()}</main>
         </div>
