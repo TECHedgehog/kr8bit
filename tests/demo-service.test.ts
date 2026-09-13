@@ -41,4 +41,31 @@ describe('demoService', () => {
   it('reports demo status without exposing a mutation', () => {
     expect(demoService.status()).toEqual({ enabled: false, offline: false });
   });
+
+  it('keeps demo database URL separate from normal database URL', () => {
+    expect(config.demoDatabaseUrl).not.toBe(config.databaseUrl);
+  });
+
+  it('removes legacy demo rows without removing real games', async () => {
+    await prisma.game.create({
+      data: {
+        entryPath: '/games/real.7z',
+        entryType: 'ARCHIVE',
+        entryName: 'real.7z',
+        sizeBytes: 1,
+        developers: '[]',
+        publishers: '[]',
+        genres: '[]',
+        screenshots: '[]',
+        videos: '[]',
+        steamDeckItems: '[]',
+        matchStatus: 'PENDING',
+      },
+    });
+
+    await demoService.removeLegacyData();
+
+    expect(await prisma.game.findUnique({ where: { entryPath: '/games/real.7z' } })).not.toBeNull();
+    expect(await prisma.game.findMany({ where: { entryPath: { startsWith: '/demo/library/' } } })).toHaveLength(0);
+  });
 });

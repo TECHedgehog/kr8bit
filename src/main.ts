@@ -16,6 +16,7 @@ let app: FastifyInstance | null = null;
 async function bootstrap(): Promise<void> {
   if (config.demoMode) await demoService.resetAndSeed();
   else {
+    await demoService.removeLegacyData();
     await recoverStaleScanRuns();
     await steamIndexService.start();
     void metadataRefreshJob.start();

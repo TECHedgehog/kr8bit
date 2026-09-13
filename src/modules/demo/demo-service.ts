@@ -34,6 +34,22 @@ async function fetchDemoMetadata(
 }
 
 export const demoService = {
+  async removeLegacyData(): Promise<void> {
+    const demoIds = DEMO_GAMES.map(({ id }) => id);
+    await prisma.$transaction([
+      prisma.providerMatch.deleteMany({ where: { gameId: { in: demoIds } } }),
+      prisma.game.deleteMany({
+        where: {
+          OR: [
+            { id: { in: demoIds } },
+            { entryPath: { startsWith: '/demo/library/' } },
+          ],
+        },
+      }),
+    ]);
+    logger.info('legacy demo data cleanup complete');
+  },
+
   async resetAndSeed(provider: MetadataProvider = steamProvider): Promise<void> {
     const candidates = DEMO_GAMES.slice(0, config.demoGameCount);
     const available = provider === steamProvider ? [] : await fetchDemoMetadata(candidates, provider);

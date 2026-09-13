@@ -67,6 +67,7 @@ export const config = {
   host: parsed.data.HOST,
   logLevel: parsed.data.LOG_LEVEL,
   databaseUrl: `file:${parsed.data.DB_PATH}`,
+  demoDatabaseUrl: `file:${parsed.data.DB_PATH}.demo`,
   igdb: {
     clientId: parsed.data.IGDB_CLIENT_ID,
     clientSecret: parsed.data.IGDB_CLIENT_SECRET,
