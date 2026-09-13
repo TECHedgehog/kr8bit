@@ -15,10 +15,11 @@ import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useB
 import { ScannerSection } from '../components/ScannerSection';
 import { useTheme } from '../context/ThemeContext';
 import { useGlassTune } from '../context/GlassTuneContext';
+import { useGlowFollow } from '../hooks/useGlowFollow';
 
 const SETTINGS_LENS_MARGIN = 1;
+const SETTINGS_LENS_WIDTH_INSET = 1;
 const SETTINGS_LENS_RISE = 20;
-const SETTINGS_LENS_CLEARANCE = SETTINGS_LENS_RISE / 2;
 const SETTINGS_LENS_RADIUS = 24;
 const SETTINGS_LENS_DEPTH = 0.7;
 const SETTINGS_LENS_SCALE_IDLE = 0;
@@ -33,6 +34,7 @@ type SettingsNavigationItem = {
   id: string;
   label: string;
   icon: ComponentType<IconProps>;
+  color: string;
   category?: SettingsCategory;
 };
 
@@ -40,27 +42,27 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
   {
     label: 'General',
     items: [
-      { id: 'appearance', label: 'Appearance', icon: IconPalette, category: 'appearance' },
-      { id: 'behavior', label: 'Behavior', icon: IconAdjustments },
+      { id: 'appearance', label: 'Appearance', icon: IconPalette, color: '#a855f7', category: 'appearance' },
+      { id: 'behavior', label: 'Behavior', icon: IconAdjustments, color: '#f59e0b' },
     ],
   },
   {
     label: 'Library',
     items: [
-      { id: 'display', label: 'Display', icon: IconLayoutGrid },
-      { id: 'locations', label: 'Locations', icon: IconMapPin, category: 'locations' },
-      { id: 'metadata', label: 'Metadata', icon: IconTags },
+      { id: 'display', label: 'Display', icon: IconLayoutGrid, color: '#06b6d4' },
+      { id: 'locations', label: 'Locations', icon: IconMapPin, color: '#10b981', category: 'locations' },
+      { id: 'metadata', label: 'Metadata', icon: IconTags, color: '#3b82f6' },
     ],
   },
   {
     label: 'Providers',
-    items: [{ id: 'steam', label: 'Steam', icon: IconBrandSteam }],
+    items: [{ id: 'steam', label: 'Steam', icon: IconBrandSteam, color: '#6366f1' }],
   },
   {
     label: 'System',
     items: [
-      { id: 'storage', label: 'Storage', icon: IconDatabase },
-      { id: 'maintenance', label: 'Maintenance', icon: IconTool },
+      { id: 'storage', label: 'Storage', icon: IconDatabase, color: '#f97316' },
+      { id: 'maintenance', label: 'Maintenance', icon: IconTool, color: '#f43f5e' },
     ],
   },
 ];
@@ -70,6 +72,7 @@ export function SettingsPage(): JSX.Element {
   const { theme } = useTheme();
   const { pill } = useGlassTune();
   const menuRef = useRef<HTMLElement>(null);
+  useGlowFollow(menuRef);
   const lastCategoryRef = useRef(category);
   const transitRef = useRef(0);
   const [isLensMoving, setIsLensMoving] = useState(false);
@@ -126,7 +129,7 @@ export function SettingsPage(): JSX.Element {
     const activeCenterY = activeRect.top + activeRect.height / 2;
     const targetY = glassRect.height > 0 ? (activeCenterY - glassRect.top) / glassRect.height : 0.5;
     const clampedY = Math.max(0, Math.min(1, targetY));
-    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_CLEARANCE - 2 * SETTINGS_LENS_MARGIN);
+    const idleW = Math.max(0, menu.offsetWidth - SETTINGS_LENS_WIDTH_INSET);
     const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
     const peakW = idleW + SETTINGS_LENS_RISE;
     const peakH = idleH + SETTINGS_LENS_RISE;
@@ -167,10 +170,10 @@ export function SettingsPage(): JSX.Element {
     const menu = menuRef.current;
     const active = menu?.querySelector('.settings-menu-content .settings-menu-item.is-active') as HTMLElement | null;
     const glass = menu?.querySelector('.settings-menu-glass') as HTMLElement | null;
-    if (!active || !glass) return;
+    if (!menu || !active || !glass) return;
     const glassRect = glass.getBoundingClientRect();
     const activeRect = active.getBoundingClientRect();
-    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_CLEARANCE - 2 * SETTINGS_LENS_MARGIN);
+    const idleW = Math.max(0, menu.offsetWidth - SETTINGS_LENS_WIDTH_INSET);
     const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
     lensW.set(idleW);
     lensH.set(idleH);
@@ -186,7 +189,7 @@ export function SettingsPage(): JSX.Element {
             const isAvailable = item.category !== undefined;
             const isActive = item.category === category;
             const className = `settings-menu-item${isActive ? ' is-active' : ''}${!isAvailable ? ' is-disabled' : ''}`;
-            const itemContent = <><item.icon className="settings-menu-item-icon" size={18} stroke={1.8} aria-hidden="true" /><strong>{item.label}</strong></>;
+            const itemContent = <><item.icon className="settings-menu-item-icon" size={18} stroke={1.8} aria-hidden="true" color={as === 'copy' ? item.color : undefined} /><strong>{item.label}</strong></>;
             return as === 'button'
               ? <button type="button" key={item.id} className={className} onClick={isAvailable ? () => setCategory(item.category!) : undefined} aria-current={isActive ? 'page' : undefined} disabled={!isAvailable}>{itemContent}</button>
               : <div key={item.id} className={className} aria-hidden="true">{itemContent}</div>;
@@ -204,7 +207,7 @@ export function SettingsPage(): JSX.Element {
     <div className="page">
       <div className="settings-page">
         <div className="settings-shell">
-          <nav ref={menuRef} className={`settings-menu${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
+          <nav ref={menuRef} className={`settings-menu glow-follow${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
             <div className="settings-menu-glass" aria-hidden="true">
               <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} refract={renderMenu('copy')} behind={behind} filterResolution={2} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }} />
             </div>
