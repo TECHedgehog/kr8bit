@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type {
-  JobStartResponse,
-  JobStatusResponse,
-  JobState,
   ScanRun,
   ScannerStatus,
 } from '../api/types';
@@ -16,10 +13,6 @@ export function ScannerSection(): JSX.Element {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [activeScanRunId, setActiveScanRunId] = useState<string | null>(null);
-  const [refreshState, setRefreshState] = useState<JobState | null>(null);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [retryState, setRetryState] = useState<JobState | null>(null);
-  const [retryError, setRetryError] = useState<string | null>(null);
   const statusToken = useRef(0);
 
   const fetchStatus = useCallback(async () => {
@@ -38,41 +31,9 @@ export function ScannerSection(): JSX.Element {
     }
   }, []);
 
-  const fetchRefreshStatus = useCallback(async () => {
-    try {
-      const response = await api.get<JobStatusResponse>('/api/metadata/refresh-all/status');
-      setRefreshState(response.running ? response.state : null);
-    } catch {
-      // Ignore polling errors.
-    }
-  }, []);
-
-  const fetchRetryStatus = useCallback(async () => {
-    try {
-      const response = await api.get<JobStatusResponse>('/api/metadata/retry-matches/status');
-      setRetryState(response.running ? response.state : null);
-    } catch {
-      // Ignore polling errors.
-    }
-  }, []);
-
   useEffect(() => {
     void fetchStatus();
-    void fetchRefreshStatus();
-    void fetchRetryStatus();
-  }, [fetchStatus, fetchRefreshStatus, fetchRetryStatus]);
-
-  useEffect(() => {
-    if (!refreshState) return;
-    const id = setInterval(fetchRefreshStatus, 1500);
-    return () => clearInterval(id);
-  }, [refreshState, fetchRefreshStatus]);
-
-  useEffect(() => {
-    if (!retryState) return;
-    const id = setInterval(fetchRetryStatus, 1500);
-    return () => clearInterval(id);
-  }, [retryState, fetchRetryStatus]);
+  }, [fetchStatus]);
 
   async function startScan() {
     setStarting(true);
@@ -93,26 +54,6 @@ export function ScannerSection(): JSX.Element {
     setActiveScanRunId(null);
   }, [fetchStatus]);
 
-  async function handleRetryMatches() {
-    setRetryError(null);
-    try {
-      await api.post<JobStartResponse>('/api/metadata/retry-matches');
-      setRetryState({ running: true, processed: 0, failed: 0 });
-    } catch (err) {
-      setRetryError(err instanceof ApiError ? err.message : 'failed to start retry');
-    }
-  }
-
-  async function handleRefreshAll() {
-    setRefreshError(null);
-    try {
-      await api.post<JobStartResponse>('/api/metadata/refresh-all');
-      setRefreshState({ running: true, processed: 0, failed: 0 });
-    } catch (err) {
-      setRefreshError(err instanceof ApiError ? err.message : 'failed to start refresh');
-    }
-  }
-
   const isRunning = status?.isRunning ?? false;
   const latest = status?.latest ?? null;
   const running = status?.runningRun ?? null;
@@ -129,22 +70,12 @@ export function ScannerSection(): JSX.Element {
           <button className="primary" onClick={startScan} disabled={isRunning || starting || !!activeScanRunId}>
             {isRunning || activeScanRunId ? 'scanning…' : starting ? 'starting…' : 'start scan'}
           </button>
-          <button onClick={handleRetryMatches} disabled={!!retryState}>
-            {retryState ? 'retrying…' : 'retry metadata search'}
-          </button>
-          <button onClick={handleRefreshAll} disabled={!!refreshState}>
-            {refreshState ? 'refreshing…' : 'refresh metadata'}
-          </button>
         </div>
       </div>
 
       {startError && <div className="error">{startError}</div>}
       {statusError && <div className="error">{statusError}</div>}
-      {retryError && <div className="error">{retryError}</div>}
-      {refreshError && <div className="error">{refreshError}</div>}
 
-      {retryState && <div className="card"><div className="job-banner"><span>retrying metadata search: {retryState.processed} processed, {retryState.failed} failed</span></div></div>}
-      {refreshState && <div className="card"><div className="job-banner"><span>refreshing metadata: {refreshState.processed} processed, {refreshState.failed} failed</span></div></div>}
       {activeScanRunId && <ScanProgress scanRunId={activeScanRunId} onDone={onProgressDone} />}
 
       {running && <section className="card"><h4>Running scan</h4><ScanRunView run={running} /></section>}

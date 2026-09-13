@@ -318,6 +318,20 @@ describe('Scanner endpoints', () => {
 });
 
 describe('Metadata endpoints', () => {
+  it('does not expose manual metadata refresh endpoints', async () => {
+    const endpoints = [
+      { method: 'POST', url: '/api/metadata/refresh-all' },
+      { method: 'GET', url: '/api/metadata/refresh-all/status' },
+      { method: 'POST', url: '/api/metadata/retry-matches' },
+      { method: 'GET', url: '/api/metadata/retry-matches/status' },
+    ] as const;
+
+    for (const endpoint of endpoints) {
+      const res = await app.inject(endpoint);
+      expect(res.statusCode).toBe(404);
+    }
+  });
+
   it('POST /api/games/:id/metadata/search returns 200 with results array shape', async () => {
     const id = await createGame();
     const res = await app.inject({

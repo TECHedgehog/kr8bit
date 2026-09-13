@@ -1,7 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { metadataService } from '../../modules/metadata/metadata.service.js';
-import { metadataRefreshJob } from '../../modules/metadata/metadata-refresh.job.js';
-import { retryMatchJob } from '../../modules/metadata/retry-match.job.js';
 import { steamIndexService } from '../../modules/metadata/steam-index/steam-index.service.js';
 import { AppError, ConflictError, ValidationError } from '../../shared/errors.js';
 
@@ -34,32 +32,6 @@ export const metadataController = {
   async refresh(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
     return metadataService.refresh(id);
-  },
-
-  async refreshAll(_req: FastifyRequest, reply: FastifyReply) {
-    if (metadataRefreshJob.isRunning()) {
-      throw new ConflictError('metadata refresh already running');
-    }
-    void metadataRefreshJob.start();
-    reply.status(202);
-    return { started: true };
-  },
-
-  async refreshAllStatus(_req: FastifyRequest, _reply: FastifyReply) {
-    return { running: metadataRefreshJob.isRunning(), state: metadataRefreshJob.state() };
-  },
-
-  async retryMatches(_req: FastifyRequest, reply: FastifyReply) {
-    if (retryMatchJob.isRunning()) {
-      throw new ConflictError('retry-match already running');
-    }
-    void retryMatchJob.start();
-    reply.status(202);
-    return { started: true };
-  },
-
-  async retryMatchesStatus(_req: FastifyRequest, _reply: FastifyReply) {
-    return { running: retryMatchJob.isRunning(), state: retryMatchJob.state() };
   },
 
   async refreshIndex(_req: FastifyRequest, _reply: FastifyReply) {
