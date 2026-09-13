@@ -9,6 +9,7 @@ import { useGlassTune } from '../context/GlassTuneContext';
 
 const SETTINGS_LENS_MARGIN = 1;
 const SETTINGS_LENS_RISE = 20;
+const SETTINGS_LENS_CLEARANCE = SETTINGS_LENS_RISE / 2;
 const SETTINGS_LENS_RADIUS = 24;
 const SETTINGS_LENS_DEPTH = 0.7;
 const SETTINGS_LENS_SCALE_IDLE = 0;
@@ -115,7 +116,7 @@ export function SettingsPage(): JSX.Element {
     const activeCenterY = activeRect.top + activeRect.height / 2;
     const targetY = glassRect.height > 0 ? (activeCenterY - glassRect.top) / glassRect.height : 0.5;
     const clampedY = Math.max(0, Math.min(1, targetY));
-    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_MARGIN);
+    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_CLEARANCE - 2 * SETTINGS_LENS_MARGIN);
     const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
     const peakW = idleW + SETTINGS_LENS_RISE;
     const peakH = idleH + SETTINGS_LENS_RISE;
@@ -159,7 +160,7 @@ export function SettingsPage(): JSX.Element {
     if (!active || !glass) return;
     const glassRect = glass.getBoundingClientRect();
     const activeRect = active.getBoundingClientRect();
-    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_MARGIN);
+    const idleW = Math.max(0, glassRect.width - 2 * SETTINGS_LENS_CLEARANCE - 2 * SETTINGS_LENS_MARGIN);
     const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
     lensW.set(idleW);
     lensH.set(idleH);
@@ -195,7 +196,7 @@ export function SettingsPage(): JSX.Element {
         <div className="settings-shell">
           <nav ref={menuRef} className={`settings-menu${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
             <div className="settings-menu-glass" aria-hidden="true">
-              <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} behind={behind} filterResolution={2} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+              <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} refract={renderMenu('copy')} behind={behind} filterResolution={2} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }} />
             </div>
             <div className="settings-menu-content">{renderMenu('button')}</div>
           </nav>
