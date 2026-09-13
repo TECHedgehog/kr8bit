@@ -54,7 +54,7 @@ function registerErrorHandler(app: FastifyInstance): void {
 async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   if (config.demoMode) {
     app.addHook('onRequest', async (req, reply) => {
-      if (req.url.startsWith('/api/metadata') || req.url.includes('/artwork/')) {
+      if (req.url.includes('/metadata') || req.url.startsWith('/api/metadata')) {
         return reply.status(503).send({
           statusCode: 503,
           code: 'DEMO_OFFLINE',

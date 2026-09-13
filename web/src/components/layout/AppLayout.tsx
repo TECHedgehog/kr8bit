@@ -22,8 +22,7 @@ export function AppLayout(): JSX.Element {
         <EffectsSettingsProvider>
           <GlassTuneProvider>
           <GlobalEffectsLayer />
-           <TopBar />
-           {demoMode && <div className="demo-banner" role="status">demo mode · sample data · offline</div>}
+           <TopBar demoMode={demoMode} />
           <main className="app-content">
             <Outlet />
           </main>

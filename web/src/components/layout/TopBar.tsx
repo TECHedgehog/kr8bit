@@ -65,7 +65,7 @@ const LENS_DEPTH = 0.7;
 const PILL_CLEARANCE_X = 150;
 const PILL_CLEARANCE_Y = 80;
 
-export function TopBar(): JSX.Element {
+export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Element {
   const { theme, toggleTheme } = useTheme();
   const logoRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
@@ -345,6 +345,7 @@ export function TopBar(): JSX.Element {
             <IconDeviceGamepad2 size={24} />
             <span>kr8bit</span>
           </div>
+          {demoMode && <span className="topbar-demo-badge" role="status">Live demo</span>}
         </div>
         <div
           ref={themeRef}

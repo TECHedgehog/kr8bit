@@ -22,6 +22,7 @@ async function bootstrap(): Promise<void> {
   }
   app = await buildServer();
   await app.listen({ port: config.port, host: config.host });
+  if (config.demoMode) void demoService.refreshMetadata();
   logger.info(`kr8bit listening on http://${config.host}:${config.port}`);
 }
 
