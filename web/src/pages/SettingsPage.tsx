@@ -1,4 +1,13 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import type { IconProps } from '@tabler/icons-react';
+import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
+import IconBrandSteam from '@tabler/icons-react/dist/esm/icons/IconBrandSteam.mjs';
+import IconDatabase from '@tabler/icons-react/dist/esm/icons/IconDatabase.mjs';
+import IconLayoutGrid from '@tabler/icons-react/dist/esm/icons/IconLayoutGrid.mjs';
+import IconMapPin from '@tabler/icons-react/dist/esm/icons/IconMapPin.mjs';
+import IconPalette from '@tabler/icons-react/dist/esm/icons/IconPalette.mjs';
+import IconTags from '@tabler/icons-react/dist/esm/icons/IconTags.mjs';
+import IconTool from '@tabler/icons-react/dist/esm/icons/IconTool.mjs';
 import { Glass, animateGlassValue, cubicBezier, glassValue } from '@samasante/liquid-glass';
 import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
@@ -23,6 +32,7 @@ type SettingsCategory = 'appearance' | 'locations';
 type SettingsNavigationItem = {
   id: string;
   label: string;
+  icon: ComponentType<IconProps>;
   category?: SettingsCategory;
 };
 
@@ -30,27 +40,27 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
   {
     label: 'General',
     items: [
-      { id: 'appearance', label: 'Appearance', category: 'appearance' },
-      { id: 'behavior', label: 'Behavior' },
+      { id: 'appearance', label: 'Appearance', icon: IconPalette, category: 'appearance' },
+      { id: 'behavior', label: 'Behavior', icon: IconAdjustments },
     ],
   },
   {
     label: 'Library',
     items: [
-      { id: 'display', label: 'Display' },
-      { id: 'locations', label: 'Locations', category: 'locations' },
-      { id: 'metadata', label: 'Metadata' },
+      { id: 'display', label: 'Display', icon: IconLayoutGrid },
+      { id: 'locations', label: 'Locations', icon: IconMapPin, category: 'locations' },
+      { id: 'metadata', label: 'Metadata', icon: IconTags },
     ],
   },
   {
     label: 'Providers',
-    items: [{ id: 'steam', label: 'Steam' }],
+    items: [{ id: 'steam', label: 'Steam', icon: IconBrandSteam }],
   },
   {
     label: 'System',
     items: [
-      { id: 'storage', label: 'Storage' },
-      { id: 'maintenance', label: 'Maintenance' },
+      { id: 'storage', label: 'Storage', icon: IconDatabase },
+      { id: 'maintenance', label: 'Maintenance', icon: IconTool },
     ],
   },
 ];
@@ -176,7 +186,7 @@ export function SettingsPage(): JSX.Element {
             const isAvailable = item.category !== undefined;
             const isActive = item.category === category;
             const className = `settings-menu-item${isActive ? ' is-active' : ''}${!isAvailable ? ' is-disabled' : ''}`;
-            const itemContent = <strong>{item.label}</strong>;
+            const itemContent = <><item.icon className="settings-menu-item-icon" size={18} stroke={1.8} aria-hidden="true" /><strong>{item.label}</strong></>;
             return as === 'button'
               ? <button type="button" key={item.id} className={className} onClick={isAvailable ? () => setCategory(item.category!) : undefined} aria-current={isActive ? 'page' : undefined} disabled={!isAvailable}>{itemContent}</button>
               : <div key={item.id} className={className} aria-hidden="true">{itemContent}</div>;
