@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../src/prisma-client.js';
 import { config } from '../src/config/index.js';
 import { demoService } from '../src/modules/demo/demo-service.js';
@@ -25,6 +25,11 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await prisma.$disconnect();
+});
+
+afterEach(async () => {
+  await demoService.removeLegacyData();
+  await prisma.game.deleteMany({ where: { entryPath: '/games/real.7z' } });
 });
 
 describe('demoService', () => {
