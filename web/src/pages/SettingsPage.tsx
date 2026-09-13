@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
+import { ScannerSection } from '../components/ScannerSection';
 
 type SettingsCategory = 'appearance' | 'library';
 
@@ -11,7 +12,7 @@ const CATEGORIES: { id: SettingsCategory; label: string; description: string }[]
 ];
 
 export function SettingsPage(): JSX.Element {
-  const [category, setCategory] = useState<SettingsCategory>('appearance');
+  const [category, setCategory] = useState<SettingsCategory>('library');
   const { background, setBackground } = useEffectsSettings();
   const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
   const hasBackgroundEffect = background !== null && BACKGROUND_EFFECTS.some((entry) => entry.id === background);
@@ -43,7 +44,7 @@ export function SettingsPage(): JSX.Element {
 
   const renderLibrary = () => (
     <SettingsPanel title="Library preferences" eyebrow="Library">
-      <div className="settings-placeholder"><strong>More library controls are on their way.</strong><span>Grid density, sorting, and collection behavior will live here.</span></div>
+      <ScannerSection />
     </SettingsPanel>
   );
 

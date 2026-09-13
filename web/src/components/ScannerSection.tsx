@@ -3,40 +3,34 @@ import { api, ApiError } from '../api/client';
 import type {
   JobStartResponse,
   JobStatusResponse,
+  JobState,
   ScanRun,
   ScannerStatus,
-  JobState,
 } from '../api/types';
-import { PageHeader } from '../components/PageHeader';
-import { ScanProgress } from '../components/ScanProgress';
+import { ScanProgress } from './ScanProgress';
 import { formatDateTime } from '../format';
 
-export function ScanPage(): JSX.Element {
+export function ScannerSection(): JSX.Element {
   const [status, setStatus] = useState<ScannerStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [activeScanRunId, setActiveScanRunId] = useState<string | null>(null);
-
   const [refreshState, setRefreshState] = useState<JobState | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [retryState, setRetryState] = useState<JobState | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
-
-  // Request token: a slow status response that resolves after a newer one
-  // (e.g. startScan's refresh racing the mount fetch) must not overwrite
-  // the fresher state.
   const statusToken = useRef(0);
 
   const fetchStatus = useCallback(async () => {
     const token = ++statusToken.current;
     setStatusError(null);
     try {
-      const s = await api.get<ScannerStatus>('/api/scanner/status');
-      if (statusToken.current !== token) return; // superseded
-      setStatus(s);
-      if (s.isRunning && s.runningRun) {
-        setActiveScanRunId(s.runningRun.id);
+      const scannerStatus = await api.get<ScannerStatus>('/api/scanner/status');
+      if (statusToken.current !== token) return;
+      setStatus(scannerStatus);
+      if (scannerStatus.isRunning && scannerStatus.runningRun) {
+        setActiveScanRunId(scannerStatus.runningRun.id);
       }
     } catch (err) {
       if (statusToken.current !== token) return;
@@ -46,19 +40,19 @@ export function ScanPage(): JSX.Element {
 
   const fetchRefreshStatus = useCallback(async () => {
     try {
-      const res = await api.get<JobStatusResponse>('/api/metadata/refresh-all/status');
-      setRefreshState(res.running ? res.state : null);
+      const response = await api.get<JobStatusResponse>('/api/metadata/refresh-all/status');
+      setRefreshState(response.running ? response.state : null);
     } catch {
-      // ignore polling errors
+      // Ignore polling errors.
     }
   }, []);
 
   const fetchRetryStatus = useCallback(async () => {
     try {
-      const res = await api.get<JobStatusResponse>('/api/metadata/retry-matches/status');
-      setRetryState(res.running ? res.state : null);
+      const response = await api.get<JobStatusResponse>('/api/metadata/retry-matches/status');
+      setRetryState(response.running ? response.state : null);
     } catch {
-      // ignore polling errors
+      // Ignore polling errors.
     }
   }, []);
 
@@ -84,8 +78,8 @@ export function ScanPage(): JSX.Element {
     setStarting(true);
     setStartError(null);
     try {
-      const res = await api.post<ScanRun>('/api/scanner/run');
-      setActiveScanRunId(res.id);
+      const response = await api.post<ScanRun>('/api/scanner/run');
+      setActiveScanRunId(response.id);
       void fetchStatus();
     } catch (err) {
       setStartError(err instanceof ApiError ? err.message : 'failed to start scan');
@@ -124,72 +118,38 @@ export function ScanPage(): JSX.Element {
   const running = status?.runningRun ?? null;
 
   return (
-    <div className="page">
-      <PageHeader
-        title="Scanner"
-        subtitle="Scan installer folders and import games"
-        actions={
-          <>
-            <button
-              className="primary"
-              onClick={startScan}
-              disabled={isRunning || starting || !!activeScanRunId}
-            >
-              {isRunning || activeScanRunId
-                ? 'scanning…'
-                : starting
-                  ? 'starting…'
-                  : 'start scan'}
-            </button>
-            <button
-              onClick={handleRetryMatches}
-              disabled={!!retryState}
-            >
-              {retryState ? 'retrying…' : 'retry metadata search'}
-            </button>
-            <button
-              onClick={handleRefreshAll}
-              disabled={!!refreshState}
-            >
-              {refreshState ? 'refreshing…' : 'refresh metadata'}
-            </button>
-          </>
-        }
-      />
+    <div className="scanner-section">
+      <div className="scanner-section-header">
+        <div>
+          <p className="eyebrow">Library</p>
+          <h3>Scanner</h3>
+          <p>Scan installer folders and import games.</p>
+        </div>
+        <div className="scanner-section-actions">
+          <button className="primary" onClick={startScan} disabled={isRunning || starting || !!activeScanRunId}>
+            {isRunning || activeScanRunId ? 'scanning…' : starting ? 'starting…' : 'start scan'}
+          </button>
+          <button onClick={handleRetryMatches} disabled={!!retryState}>
+            {retryState ? 'retrying…' : 'retry metadata search'}
+          </button>
+          <button onClick={handleRefreshAll} disabled={!!refreshState}>
+            {refreshState ? 'refreshing…' : 'refresh metadata'}
+          </button>
+        </div>
+      </div>
+
       {startError && <div className="error">{startError}</div>}
       {statusError && <div className="error">{statusError}</div>}
       {retryError && <div className="error">{retryError}</div>}
       {refreshError && <div className="error">{refreshError}</div>}
 
-      {retryState && (
-        <div className="card">
-          <div className="job-banner">
-            <span>retrying metadata search: {retryState.processed} processed, {retryState.failed} failed</span>
-          </div>
-        </div>
-      )}
+      {retryState && <div className="card"><div className="job-banner"><span>retrying metadata search: {retryState.processed} processed, {retryState.failed} failed</span></div></div>}
+      {refreshState && <div className="card"><div className="job-banner"><span>refreshing metadata: {refreshState.processed} processed, {refreshState.failed} failed</span></div></div>}
+      {activeScanRunId && <ScanProgress scanRunId={activeScanRunId} onDone={onProgressDone} />}
 
-      {refreshState && (
-        <div className="card">
-          <div className="job-banner">
-            <span>refreshing metadata: {refreshState.processed} processed, {refreshState.failed} failed</span>
-          </div>
-        </div>
-      )}
-
-      {activeScanRunId && (
-        <ScanProgress scanRunId={activeScanRunId} onDone={onProgressDone} />
-      )}
-
-      {running && (
-        <section className="card">
-          <h2>Running scan</h2>
-          <ScanRunView run={running} />
-        </section>
-      )}
-
+      {running && <section className="card"><h4>Running scan</h4><ScanRunView run={running} /></section>}
       <section className="card">
-        <h2>Last scan</h2>
+        <h4>Last scan</h4>
         {latest ? <ScanRunView run={latest} /> : <p>no scans yet</p>}
       </section>
     </div>
@@ -210,14 +170,7 @@ function ScanRunView({ run }: { run: ScanRun }): JSX.Element {
         <span>updated: {run.updated}</span>
         <span>failed: {run.failed}</span>
       </div>
-      {run.errors.length > 0 && (
-        <ul className="scan-run-errors">
-          {run.errors.map((e, i) => (
-            <li key={i}>{e}</li>
-          ))}
-        </ul>
-      )}
+      {run.errors.length > 0 && <ul className="scan-run-errors">{run.errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
     </div>
   );
 }
-
