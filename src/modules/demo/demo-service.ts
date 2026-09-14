@@ -104,10 +104,13 @@ export const demoService = {
     const found = seededGames.length;
     let completed = 0;
     let added = 0;
-    emitProgress({ scope, scanRunId: run.id, phase: 'start', found: 0, added: 0, updated: 0, failed: 0 });
+    emitProgress({ scope, scanRunId: run.id, phase: 'start', stage: 'scan', total: found, completed: 0, found: 0, added: 0, updated: 0, failed: 0 });
+    for (const stage of ['metadata', 'artwork'] as const) {
+      emitProgress({ scope, scanRunId: run.id, phase: 'start', stage, total: found, completed: 0, found: 0, added: 0, updated: 0, failed: 0 });
+    }
     await sleep(Math.max(100, config.demoScanStepDelayMs));
     for (const game of seededGames) {
-      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', found, added: completed, updated: 0, failed: 0, currentEntry: game.entryName });
+      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', stage: 'metadata', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
       await sleep(config.demoScanStepDelayMs);
       const entryPath = `${scope ?? '/demo/sessions/legacy/'}${game.entryName}.7z`;
       const existing = await libraryRepository.findByEntryPath(entryPath, scope);
@@ -142,8 +145,14 @@ export const demoService = {
           matchedAt: new Date('2024-01-01T00:00:00.000Z'),
         });
       }
+      emitProgress({ scope, scanRunId: run.id, phase: 'matched', stage: 'metadata', total: found, completed: completed + 1, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
+      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', stage: 'artwork', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
+      await sleep(config.demoScanStepDelayMs);
+      emitProgress({ scope, scanRunId: run.id, phase: 'matched', stage: 'artwork', total: found, completed: completed + 1, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
+      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', stage: 'scan', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
+      await sleep(config.demoScanStepDelayMs);
       completed += 1;
-      emitProgress({ scope, scanRunId: run.id, phase: 'matched', found, added, updated: 0, failed: 0, currentEntry: game.entryName });
+      emitProgress({ scope, scanRunId: run.id, phase: 'matched', stage: 'scan', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
     }
     await scannerRepository.update(run.id, { status: ScanStatus.DONE, finishedAt: new Date(), found, added, updated: 0, failed: 0, errors: [] });
     emitProgress({ scope, scanRunId: run.id, phase: 'done', found, added, updated: 0, failed: 0 });
