@@ -33,14 +33,12 @@ afterEach(async () => {
 });
 
 describe('demoService', () => {
-  it('resets and seeds deterministic library data', async () => {
+  it('resets to an empty library while retaining deterministic catalog', async () => {
     const games = await prisma.game.findMany({ orderBy: { id: 'asc' } });
 
     const expectedGames = DEMO_GAMES.slice(0, config.demoGameCount);
-    expect(games).toHaveLength(expectedGames.length);
-    expect(games.map((game) => game.id).sort()).toEqual(expectedGames.map((game) => game.id).sort());
-    expect(games.every((game) => game.coverUrl?.startsWith('https://example.test/'))).toBe(true);
-    expect(games.every((game) => game.videos !== '[]')).toBe(true);
+    expect(games).toHaveLength(0);
+    expect(expectedGames).toHaveLength(config.demoGameCount);
   });
 
   it('reports demo status without exposing a mutation', () => {

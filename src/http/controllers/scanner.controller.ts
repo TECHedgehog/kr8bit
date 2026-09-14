@@ -7,9 +7,9 @@ import type { ScanProgressEvent } from '../../modules/scanner/scanner.events.js'
 const SSE_HEARTBEAT_MS = 15_000;
 
 export const scannerController = {
-  async run(_req: FastifyRequest, reply: FastifyReply) {
+  async run(req: FastifyRequest, reply: FastifyReply) {
     try {
-      const run = await scannerService.start();
+      const run = await scannerService.start(req.demoSessionScope);
       reply.status(202);
       return run;
     } catch (err) {
@@ -22,8 +22,8 @@ export const scannerController = {
     }
   },
 
-  async status(_req: FastifyRequest, _reply: FastifyReply) {
-    return scannerService.status();
+  async status(req: FastifyRequest, _reply: FastifyReply) {
+    return scannerService.status(req.demoSessionScope);
   },
 
   async progress(req: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -40,6 +40,7 @@ export const scannerController = {
     reply.raw.write(':ok\n\n');
 
     const unsubscribe = onProgress((event: ScanProgressEvent) => {
+      if (event.scope !== req.demoSessionScope) return;
       reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
     });
 

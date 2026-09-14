@@ -99,6 +99,27 @@ describe('libraryRepository', () => {
     expect(paged.items).toHaveLength(2);
   });
 
+  it('scopes demo games to session path', async () => {
+    await libraryRepository.create({
+      entryPath: '/demo/sessions/one/game.7z',
+      entryType: EntryType.ARCHIVE,
+      entryName: 'game.7z',
+      sizeBytes: 1,
+      matchStatus: MatchStatus.PENDING,
+    });
+    await libraryRepository.create({
+      entryPath: '/demo/sessions/two/game.7z',
+      entryType: EntryType.ARCHIVE,
+      entryName: 'game.7z',
+      sizeBytes: 1,
+      matchStatus: MatchStatus.PENDING,
+    });
+
+    expect((await libraryRepository.list({}, '/demo/sessions/one/')).total).toBe(1);
+    expect((await libraryRepository.list({}, '/demo/sessions/two/')).total).toBe(1);
+    expect(await libraryRepository.findByEntryPath('/demo/sessions/two/game.7z', '/demo/sessions/one/')).toBeNull();
+  });
+
   it('searches by title or entryName', async () => {
     await libraryRepository.create({
       entryPath: '/games/Skyrim.7z',
@@ -205,4 +226,3 @@ describe('settingsRepository', () => {
     expect(await settingsRepository.get('foo')).toBeNull();
   });
 });
-

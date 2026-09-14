@@ -51,34 +51,36 @@ export interface ScannerStatusSnapshot {
 }
 
 export class ScannerService {
-  private running = false;
-  private currentRunId: string | null = null;
+  private readonly runningScopes = new Set<string>();
+  private readonly currentRunIds = new Map<string, string>();
 
   constructor(private readonly deps: ScannerDeps = defaultDeps) {}
 
   isRunning(): boolean {
-    return this.running;
+    return this.runningScopes.size > 0;
   }
 
   currentScanRunId(): string | null {
-    return this.currentRunId;
+    return this.currentRunIds.values().next().value ?? null;
   }
 
-  async status(): Promise<ScannerStatusSnapshot> {
+  async status(scope?: string): Promise<ScannerStatusSnapshot> {
+    const key = scope ?? 'normal';
     const [running, latest] = await Promise.all([
-      scannerRepository.findRunning(),
-      scannerRepository.findLatest(),
+      scannerRepository.findRunning(scope),
+      scannerRepository.findLatest(scope),
     ]);
     return {
       runningRun: running,
       latest,
-      isRunning: this.running,
-      currentScanRunId: this.currentRunId,
+      isRunning: this.runningScopes.has(key),
+      currentScanRunId: this.currentRunIds.get(key) ?? null,
     };
   }
 
-  async start(): Promise<ScanRun> {
-    if (this.running) {
+  async start(scope?: string): Promise<ScanRun> {
+    const key = scope ?? 'normal';
+    if (this.runningScopes.has(key)) {
       throw new AppError(409, 'scan already running', 'SCAN_RUNNING');
     }
     if (resetGate.isResetting()) {
@@ -87,29 +89,30 @@ export class ScannerService {
     // Set the flag synchronously BEFORE the first await: two concurrent
     // POST /api/scanner/run calls must not both pass the guard while the
     // ScanRun row is being created.
-    this.running = true;
+    this.runningScopes.add(key);
     let run: ScanRun;
     try {
-      run = await scannerRepository.create({ rootPath: this.deps.libraryRoot });
+      run = await scannerRepository.create({ rootPath: scope ?? this.deps.libraryRoot, scope });
     } catch (err) {
-      this.running = false;
+      this.runningScopes.delete(key);
       throw err;
     }
-    this.currentRunId = run.id;
+    this.currentRunIds.set(key, run.id);
     logger.info({ runId: run.id, rootPath: this.deps.libraryRoot }, 'scan started');
-    void this.executeScan(run).catch((err) => {
+    void this.executeScan(run, scope).catch((err) => {
       logger.error({ runId: run.id, err: (err as Error).message }, 'scanner unexpected failure');
     });
     return run;
   }
 
-  private async executeScan(run: ScanRun): Promise<void> {
+  private async executeScan(run: ScanRun, scope?: string): Promise<void> {
     try {
-      if (config.demoMode) await demoService.runScan(run);
+       if (config.demoMode) await demoService.runScan(run, scope);
       else await this.scanLibrary(run);
     } finally {
-      this.running = false;
-      this.currentRunId = null;
+      const key = scope ?? 'normal';
+      this.runningScopes.delete(key);
+      this.currentRunIds.delete(key);
     }
   }
 

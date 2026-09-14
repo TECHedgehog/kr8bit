@@ -13,6 +13,7 @@ import { metadataRoutes } from './routes/metadata.routes.js';
 import { databaseRoutes } from './routes/database.routes.js';
 import { demoService } from '../modules/demo/demo-service.js';
 import { config } from '../config/index.js';
+import { ensureDemoSession } from './demo-session.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -54,6 +55,7 @@ function registerErrorHandler(app: FastifyInstance): void {
 async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   if (config.demoMode) {
     app.addHook('onRequest', async (req, reply) => {
+      ensureDemoSession(req, reply);
       if (req.url.includes('/metadata') || req.url.startsWith('/api/metadata')) {
         return reply.status(503).send({
           statusCode: 503,

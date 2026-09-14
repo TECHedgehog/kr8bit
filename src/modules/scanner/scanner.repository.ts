@@ -22,9 +22,11 @@ export const scannerRepository = {
     }
   },
 
-  async findById(id: string): Promise<ScanRun> {
+  async findById(id: string, scope?: string): Promise<ScanRun> {
     try {
-      const row = await prisma.scanRun.findUnique({ where: { id } });
+      const row = scope
+        ? await prisma.scanRun.findFirst({ where: { id, rootPath: scope } })
+        : await prisma.scanRun.findUnique({ where: { id } });
       if (!row) throw new NotFoundError('ScanRun', id);
       return toDomain(row);
     } catch (err) {
@@ -32,9 +34,10 @@ export const scannerRepository = {
     }
   },
 
-  async findLatest(): Promise<ScanRun | null> {
+  async findLatest(scope?: string): Promise<ScanRun | null> {
     try {
       const row = await prisma.scanRun.findFirst({
+        where: scope ? { rootPath: scope } : undefined,
         orderBy: { startedAt: 'desc' },
       });
       return row ? toDomain(row) : null;
@@ -43,10 +46,10 @@ export const scannerRepository = {
     }
   },
 
-  async findRunning(): Promise<ScanRun | null> {
+  async findRunning(scope?: string): Promise<ScanRun | null> {
     try {
       const row = await prisma.scanRun.findFirst({
-        where: { status: ScanStatus.RUNNING },
+        where: { status: ScanStatus.RUNNING, ...(scope ? { rootPath: scope } : {}) },
         orderBy: { startedAt: 'desc' },
       });
       return row ? toDomain(row) : null;

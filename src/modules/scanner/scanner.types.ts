@@ -15,6 +15,7 @@ export interface ScanRun {
 
 export interface ScanRunCreateInput {
   rootPath: string;
+  scope?: string;
 }
 
 export interface ScanRunUpdateInput {

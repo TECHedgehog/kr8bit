@@ -85,23 +85,23 @@ export const libraryService = {
   parseListFilter,
   sanitizeGamePatch,
 
-  async list(filter: GameListFilter): Promise<GameListResult> {
-    return libraryRepository.list(filter);
+  async list(filter: GameListFilter, scope?: string): Promise<GameListResult> {
+    return libraryRepository.list(filter, scope);
   },
 
-  async listGenres(): Promise<string[]> {
-    return libraryRepository.findDistinctGenres();
+  async listGenres(scope?: string): Promise<string[]> {
+    return libraryRepository.findDistinctGenres(scope);
   },
 
-  async getById(id: string): Promise<Game> {
-    return libraryRepository.findById(id);
+  async getById(id: string, scope?: string): Promise<Game> {
+    return libraryRepository.findById(id, scope);
   },
 
-  async update(id: string, input: GameUpdateInput): Promise<Game> {
-    return libraryRepository.update(id, input);
+  async update(id: string, input: GameUpdateInput, scope?: string): Promise<Game> {
+    return libraryRepository.update(id, input, scope);
   },
 
-  async delete(id: string): Promise<void> {
-    return libraryRepository.delete(id);
+  async delete(id: string, scope?: string): Promise<void> {
+    return libraryRepository.delete(id, scope);
   },
 };

@@ -21,6 +21,10 @@ export const PENDING_BATCH_SIZE = 500;
 
 type GameOrderBy = Record<string, unknown>;
 
+function scopedWhere(scope?: string): Record<string, unknown> {
+  return scope ? { entryPath: { startsWith: scope } } : {};
+}
+
 function sortToOrderBy(sort: SortKey): GameOrderBy {
   switch (sort) {
     case 'title-asc':
@@ -62,9 +66,11 @@ export const libraryRepository = {
     }
   },
 
-  async findById(id: string): Promise<Game> {
+  async findById(id: string, scope?: string): Promise<Game> {
     try {
-      const row = await prisma.game.findUnique({ where: { id } });
+      const row = scope
+        ? await prisma.game.findFirst({ where: { id, ...scopedWhere(scope) } })
+        : await prisma.game.findUnique({ where: { id } });
       if (!row) throw new NotFoundError('Game', id);
       return toDomain(row);
     } catch (err) {
@@ -72,16 +78,18 @@ export const libraryRepository = {
     }
   },
 
-  async findByEntryPath(entryPath: string): Promise<Game | null> {
+  async findByEntryPath(entryPath: string, scope?: string): Promise<Game | null> {
     try {
-      const row = await prisma.game.findUnique({ where: { entryPath } });
+      const row = scope
+        ? await prisma.game.findFirst({ where: { entryPath, AND: [scopedWhere(scope)] } })
+        : await prisma.game.findUnique({ where: { entryPath } });
       return row ? toDomain(row) : null;
     } catch (err) {
       throw mapPrismaError(err, 'Game', entryPath);
     }
   },
 
-  async list(filter: GameListFilter = {}): Promise<GameListResult> {
+  async list(filter: GameListFilter = {}, scope?: string): Promise<GameListResult> {
     const limit = Math.min(filter.limit ?? 50, MAX_PAGE_SIZE);
     const offset = Math.max(filter.offset ?? 0, 0);
     const orderBy = sortToOrderBy(filter.sort ?? DEFAULT_SORT);
@@ -109,7 +117,8 @@ export const libraryRepository = {
         ),
       });
     }
-    const where = conditions.length ? { AND: conditions } : {};
+    const scopeCondition = scopedWhere(scope);
+    const where = { AND: [...conditions, scopeCondition] };
 
     try {
       const [rows, total] = await Promise.all([
@@ -127,7 +136,7 @@ export const libraryRepository = {
     }
   },
 
-  async update(id: string, input: GameUpdateInput): Promise<Game> {
+  async update(id: string, input: GameUpdateInput, scope?: string): Promise<Game> {
     try {
       const data: Record<string, unknown> = {};
       if (input.steamAppId !== undefined) data.steamAppId = input.steamAppId;
@@ -149,33 +158,41 @@ export const libraryRepository = {
       if (input.matchScore !== undefined) data.matchScore = input.matchScore;
       if (input.matchedAt !== undefined) data.matchedAt = input.matchedAt;
 
-      const row = await prisma.game.update({ where: { id }, data });
+      const existing = scope
+        ? await prisma.game.findFirst({ where: { id, ...scopedWhere(scope) } })
+        : await prisma.game.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundError('Game', id);
+      const row = await prisma.game.update({ where: { id: existing.id }, data });
       return toDomain(row);
     } catch (err) {
       throw mapPrismaError(err, 'Game', id);
     }
   },
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, scope?: string): Promise<void> {
     try {
-      await prisma.game.delete({ where: { id } });
+      const existing = scope
+        ? await prisma.game.findFirst({ where: { id, ...scopedWhere(scope) } })
+        : await prisma.game.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundError('Game', id);
+      await prisma.game.delete({ where: { id: existing.id } });
       logger.info({ gameId: id }, 'game deleted from db');
     } catch (err) {
       throw mapPrismaError(err, 'Game', id);
     }
   },
 
-  async count(): Promise<number> {
+  async count(scope?: string): Promise<number> {
     try {
-      return prisma.game.count();
+      return prisma.game.count({ where: scopedWhere(scope) });
     } catch (err) {
       throw mapPrismaError(err, 'Game', 'count');
     }
   },
 
-  async findDistinctGenres(): Promise<string[]> {
+  async findDistinctGenres(scope?: string): Promise<string[]> {
     try {
-      const rows = await prisma.game.findMany({ select: { genres: true } });
+      const rows = await prisma.game.findMany({ where: scopedWhere(scope), select: { genres: true } });
       const set = new Set<string>();
       for (const row of rows) {
         for (const g of decodeArray(row.genres)) {

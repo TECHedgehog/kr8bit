@@ -1,7 +1,6 @@
 import { prisma } from '../../prisma-client.js';
 import { config } from '../../config/index.js';
 import { logger } from '../../logger/index.js';
-import { encodeArray } from '../../shared/json.js';
 import { MatchStatus, ScanStatus } from '../../shared/enums.js';
 import { scannerRepository } from '../scanner/scanner.repository.js';
 import { libraryRepository } from '../library/library.repository.js';
@@ -13,6 +12,7 @@ import { DEMO_GAMES } from './demo-data.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 let seededGames = DEMO_GAMES;
+let metadataByAppId = new Map<number, GameMetadata>();
 
 async function fetchDemoMetadata(
   games: typeof DEMO_GAMES,
@@ -53,7 +53,6 @@ export const demoService = {
   async resetAndSeed(provider: MetadataProvider = steamProvider): Promise<void> {
     const candidates = DEMO_GAMES.slice(0, config.demoGameCount);
     const available = provider === steamProvider ? [] : await fetchDemoMetadata(candidates, provider);
-    const metadataByAppId = new Map(available.map(({ seed, metadata }) => [seed.appId, metadata]));
     seededGames = candidates;
     await prisma.$transaction([
       prisma.providerMatch.deleteMany(),
@@ -62,81 +61,92 @@ export const demoService = {
       prisma.setting.deleteMany(),
       prisma.steamAppIndex.deleteMany(),
     ]);
-    const matchedAt = new Date('2024-01-01T00:00:00.000Z');
-    await prisma.game.createMany({
-      data: candidates.map((seed) => {
-        const metadata = metadataByAppId.get(seed.appId);
-        return {
-        id: seed.id,
-        entryPath: `/demo/library/${seed.entryName}.7z`,
-        entryType: 'ARCHIVE',
-        entryName: `${seed.entryName}.7z`,
-        sizeBytes: BigInt(seed.sizeBytes),
-        steamAppId: seed.appId,
-        title: metadata?.title ?? null,
-        releaseYear: metadata?.releaseYear ?? null,
-        description: metadata?.description ?? null,
-        developers: encodeArray(metadata ? [...metadata.developers] : []),
-        publishers: encodeArray(metadata ? [...metadata.publishers] : []),
-        genres: encodeArray(metadata ? [...metadata.genres] : []),
-        coverUrl: metadata?.coverUrl ?? null,
-        headerUrl: metadata?.headerUrl ?? null,
-        heroUrl: metadata?.heroUrl ?? null,
-        logoUrl: metadata?.logoUrl ?? null,
-        screenshots: JSON.stringify(metadata?.screenshots ?? []),
-        videos: JSON.stringify(metadata?.videos ?? []),
-        steamDeckCategory: metadata?.steamDeckCompat?.category ?? null,
-        steamDeckItems: JSON.stringify(metadata?.steamDeckCompat?.items ?? []),
-        matchStatus: metadata ? MatchStatus.ACCEPTED : MatchStatus.PENDING,
-        matchScore: metadata ? 100 : null,
-        matchedAt: metadata ? matchedAt : null,
-        };
-      }),
-    });
-    logger.info({ games: candidates.length, metadata: available.length }, 'demo data seeded');
+    metadataByAppId = new Map(available.map(({ seed, metadata }) => [seed.appId, metadata]));
+    logger.info({ games: 0, catalog: candidates.length, metadata: available.length }, 'demo library reset');
   },
 
   async refreshMetadata(provider: MetadataProvider = steamProvider): Promise<void> {
     const available = await fetchDemoMetadata(seededGames, provider);
+    metadataByAppId = new Map(available.map(({ seed, metadata }) => [seed.appId, metadata]));
     const matchedAt = new Date();
     for (const { seed, metadata } of available) {
-      await libraryRepository.update(seed.id, {
-        steamAppId: seed.appId,
-        title: metadata.title,
-        releaseYear: metadata.releaseYear ?? null,
-        description: metadata.description ?? null,
-        developers: [...metadata.developers],
-        publishers: [...metadata.publishers],
-        genres: [...metadata.genres],
-        coverUrl: metadata.coverUrl ?? null,
-        headerUrl: metadata.headerUrl ?? null,
-        heroUrl: metadata.heroUrl ?? null,
-        logoUrl: metadata.logoUrl ?? null,
-        screenshots: metadata.screenshots ?? [],
-        videos: metadata.videos ?? [],
-        steamDeckCategory: metadata.steamDeckCompat?.category ?? null,
-        steamDeckItems: metadata.steamDeckCompat?.items ?? [],
-        matchStatus: MatchStatus.ACCEPTED,
-        matchScore: 100,
-        matchedAt,
+      const rows = await prisma.game.findMany({
+        where: { entryPath: { endsWith: `/${seed.entryName}.7z` } },
+        select: { id: true },
       });
+      for (const row of rows) {
+        await libraryRepository.update(row.id, {
+          steamAppId: seed.appId,
+          title: metadata.title,
+          releaseYear: metadata.releaseYear ?? null,
+          description: metadata.description ?? null,
+          developers: [...metadata.developers],
+          publishers: [...metadata.publishers],
+          genres: [...metadata.genres],
+          coverUrl: metadata.coverUrl ?? null,
+          headerUrl: metadata.headerUrl ?? null,
+          heroUrl: metadata.heroUrl ?? null,
+          logoUrl: metadata.logoUrl ?? null,
+          screenshots: metadata.screenshots ?? [],
+          videos: metadata.videos ?? [],
+          steamDeckCategory: metadata.steamDeckCompat?.category ?? null,
+          steamDeckItems: metadata.steamDeckCompat?.items ?? [],
+          matchStatus: MatchStatus.ACCEPTED,
+          matchScore: 100,
+          matchedAt,
+        });
+      }
     }
     logger.info({ games: available.length }, 'demo metadata refreshed');
   },
 
-  async runScan(run: ScanRun): Promise<void> {
+  async runScan(run: ScanRun, scope?: string): Promise<void> {
     const found = seededGames.length;
     let completed = 0;
-    emitProgress({ scanRunId: run.id, phase: 'start', found: 0, added: 0, updated: 0, failed: 0 });
+    let added = 0;
+    emitProgress({ scope, scanRunId: run.id, phase: 'start', found: 0, added: 0, updated: 0, failed: 0 });
     await sleep(Math.max(100, config.demoScanStepDelayMs));
     for (const game of seededGames) {
-      emitProgress({ scanRunId: run.id, phase: 'candidate', found, added: completed, updated: 0, failed: 0, currentEntry: game.entryName });
+      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', found, added: completed, updated: 0, failed: 0, currentEntry: game.entryName });
       await sleep(config.demoScanStepDelayMs);
+      const entryPath = `${scope ?? '/demo/sessions/legacy/'}${game.entryName}.7z`;
+      const existing = await libraryRepository.findByEntryPath(entryPath, scope);
+      if (!existing) {
+        const metadata = metadataByAppId.get(game.appId);
+        const created = await libraryRepository.create({
+          entryPath,
+          entryType: 'ARCHIVE',
+          entryName: `${game.entryName}.7z`,
+          sizeBytes: game.sizeBytes,
+          matchStatus: metadata ? MatchStatus.ACCEPTED : MatchStatus.PENDING,
+        });
+        added += 1;
+        if (metadata) await libraryRepository.update(created.id, {
+          steamAppId: game.appId,
+          title: metadata.title,
+          releaseYear: metadata.releaseYear ?? null,
+          description: metadata.description ?? null,
+          developers: [...metadata.developers],
+          publishers: [...metadata.publishers],
+          genres: [...metadata.genres],
+          coverUrl: metadata.coverUrl ?? null,
+          headerUrl: metadata.headerUrl ?? null,
+          heroUrl: metadata.heroUrl ?? null,
+          logoUrl: metadata.logoUrl ?? null,
+          screenshots: metadata.screenshots ?? [],
+          videos: metadata.videos ?? [],
+          steamDeckCategory: metadata.steamDeckCompat?.category ?? null,
+          steamDeckItems: metadata.steamDeckCompat?.items ?? [],
+          matchStatus: MatchStatus.ACCEPTED,
+          matchScore: 100,
+          matchedAt: new Date('2024-01-01T00:00:00.000Z'),
+        });
+      }
       completed += 1;
-      emitProgress({ scanRunId: run.id, phase: 'matched', found, added: completed, updated: 0, failed: 0, currentEntry: game.entryName });
+      emitProgress({ scope, scanRunId: run.id, phase: 'matched', found, added, updated: 0, failed: 0, currentEntry: game.entryName });
     }
-    await scannerRepository.update(run.id, { status: ScanStatus.DONE, finishedAt: new Date(), found, added: found, updated: 0, failed: 0, errors: [] });
-    emitProgress({ scanRunId: run.id, phase: 'done', found, added: found, updated: 0, failed: 0 });
+    await scannerRepository.update(run.id, { status: ScanStatus.DONE, finishedAt: new Date(), found, added, updated: 0, failed: 0, errors: [] });
+    emitProgress({ scope, scanRunId: run.id, phase: 'done', found, added, updated: 0, failed: 0 });
   },
 
   status(): { enabled: boolean; offline: boolean } {

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 
 export interface ScanProgressEvent {
+  scope?: string;
   scanRunId: string;
   phase: 'start' | 'candidate' | 'matched' | 'failed' | 'done';
   stage?: 'scan' | 'metadata' | 'artwork' | 'done';
