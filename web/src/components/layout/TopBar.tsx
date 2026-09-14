@@ -345,7 +345,12 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
             <IconDeviceGamepad2 size={24} />
             <span>kr8bit</span>
           </div>
-          {demoMode && <span className="topbar-demo-badge" role="status">Live demo</span>}
+          {demoMode && (
+            <span className="topbar-demo-indicator" role="status">
+              <span className="topbar-demo-light" aria-hidden="true" />
+              <span className="topbar-demo-label">Live demo</span>
+            </span>
+          )}
         </div>
         <div
           ref={themeRef}
