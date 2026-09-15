@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { BackgroundSettingsProvider } from './context/BackgroundSettingsContext';
+import { NavigationPreferencesProvider } from './context/NavigationPreferencesContext';
 import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import '@fontsource/onest/400.css';
@@ -22,11 +23,13 @@ createRoot(rootEl).render(
   <StrictMode>
     <ThemeProvider>
       <BackgroundSettingsProvider>
-        <BrowserRouter>
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
-        </BrowserRouter>
+        <NavigationPreferencesProvider>
+          <BrowserRouter>
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
+          </BrowserRouter>
+        </NavigationPreferencesProvider>
       </BackgroundSettingsProvider>
     </ThemeProvider>
   </StrictMode>,

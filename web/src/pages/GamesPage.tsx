@@ -26,6 +26,7 @@ import { api, ApiError } from '../api/client';
 import type { Game, GameListResult, GenresResult, ScannerStatus, SortKey } from '../api/types';
 import { GameCard } from '../components/GameCard';
 import { IconButton } from '../components/IconButton';
+import { useNavigationPreferences } from '../context/NavigationPreferencesContext';
 
 
 type Panel = 'advanced' | 'settings' | null;
@@ -80,6 +81,7 @@ function buildGameQuery(filters: GameQueryFilters, offset: number): string {
 
 export function GamesPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { rememberLibraryPanel, lastLibraryPanel, setLastLibraryPanel } = useNavigationPreferences();
 
   // Clamp URL params to known values so hand-edited or stale URLs can't
   // produce an invalid sort key, an off-grid card size, or unknown deck ids.
@@ -118,7 +120,7 @@ export function GamesPage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [panelOpen, setPanelOpen] = useState<Panel>(null);
+  const [panelOpen, setPanelOpen] = useState<Panel>(() => rememberLibraryPanel ? lastLibraryPanel : null);
   // Two-phase close for the advanced sidebar: phase 1 adds .is-closing so
   // the panel's inner glass surface fades out (~120ms) before phase 2
   // (closeTimerRef) commits the closed state — the wrapper then snaps shut
@@ -134,6 +136,10 @@ export function GamesPage(): JSX.Element {
   const [genresExpanded, setGenresExpanded] = useState(false);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (rememberLibraryPanel) setLastLibraryPanel(panelOpen);
+  }, [panelOpen, rememberLibraryPanel, setLastLibraryPanel]);
   const searchRef = useRef<HTMLFormElement>(null);
   useTiltGlow(searchRef);
   const gridSizeToggleRef = useRef<HTMLDivElement>(null);

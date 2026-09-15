@@ -17,6 +17,7 @@ import { ScannerSection } from '../components/ScannerSection';
 import { useTheme } from '../context/ThemeContext';
 import { useGlassTune } from '../context/GlassTuneContext';
 import { useGlowFollow } from '../hooks/useGlowFollow';
+import { useNavigationPreferences } from '../context/NavigationPreferencesContext';
 
 const SETTINGS_LENS_MARGIN = 1;
 const SETTINGS_LENS_WIDTH_INSET = 16;
@@ -29,7 +30,7 @@ const SETTINGS_MOVE_ANIMATION = { duration: 0.4, ease: cubicBezier(0.42, 0, 0.58
 const SETTINGS_RAISE_ANIMATION = { duration: 0.25, ease: cubicBezier(0.42, 0, 0.58, 1) };
 const SETTINGS_LOWER_ANIMATION = { duration: 0.2, ease: cubicBezier(0.33, 1, 0.68, 1) };
 
-type SettingsCategory = 'review' | 'appearance' | 'locations';
+type SettingsCategory = 'review' | 'appearance' | 'behavior' | 'locations';
 
 type SettingsNavigationItem = {
   id: string;
@@ -48,7 +49,7 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
     label: 'General',
     items: [
       { id: 'appearance', label: 'Appearance', icon: IconPalette, color: '#a855f7', category: 'appearance' },
-      { id: 'behavior', label: 'Behavior', icon: IconAdjustments, color: '#f59e0b' },
+      { id: 'behavior', label: 'Behavior', icon: IconAdjustments, color: '#f59e0b', category: 'behavior' },
     ],
   },
   {
@@ -74,7 +75,21 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
 
 export function SettingsPage(): JSX.Element {
   const [searchParams] = useSearchParams();
-  const [category, setCategory] = useState<SettingsCategory>('review');
+  const {
+    rememberSettingsCategory,
+    rememberLibraryPanel,
+    lastSettingsCategory,
+    setRememberSettingsCategory,
+    setRememberLibraryPanel,
+    setLastSettingsCategory,
+  } = useNavigationPreferences();
+  const categoryFromUrl = searchParams.get('category');
+  const initialCategory = categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations'
+    ? categoryFromUrl
+    : rememberSettingsCategory && (lastSettingsCategory === 'review' || lastSettingsCategory === 'appearance' || lastSettingsCategory === 'behavior' || lastSettingsCategory === 'locations')
+      ? lastSettingsCategory
+      : 'review';
+  const [category, setCategory] = useState<SettingsCategory>(initialCategory);
   const { theme } = useTheme();
   const { pill } = useGlassTune();
   const menuRef = useRef<HTMLElement>(null);
@@ -92,8 +107,14 @@ export function SettingsPage(): JSX.Element {
   const showShadeSelectors = background !== 'dither';
 
   useLayoutEffect(() => {
-    if (searchParams.get('category') === 'locations') setCategory('locations');
-  }, [searchParams]);
+    if (categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations') {
+      setCategory(categoryFromUrl);
+    }
+  }, [categoryFromUrl]);
+
+  useLayoutEffect(() => {
+    if (rememberSettingsCategory) setLastSettingsCategory(category);
+  }, [category, rememberSettingsCategory, setLastSettingsCategory]);
 
   const renderReview = () => (
     <SettingsPanel title="System review" eyebrow="Review">
@@ -171,7 +192,28 @@ export function SettingsPage(): JSX.Element {
     </SettingsPanel>
   );
 
-  const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, locations: renderLibrary };
+  const renderBehavior = () => (
+    <SettingsPanel title="Navigation" eyebrow="Behavior">
+      <div className="settings-subpanel settings-subpanel--first">
+        <label className="settings-switch">
+          <span><strong>Remember Settings section</strong><small>Restore last section when returning or reloading Settings.</small></span>
+          <span className="settings-switch__control">
+            <input type="checkbox" checked={rememberSettingsCategory} onChange={(event) => setRememberSettingsCategory(event.target.checked)} aria-label="Remember Settings section" />
+            <span className="settings-switch__track" aria-hidden="true"><span className="settings-switch__thumb" /></span>
+          </span>
+        </label>
+        <label className="settings-switch">
+          <span><strong>Remember Library panel</strong><small>Restore Advanced or Settings panel when returning or reloading Library.</small></span>
+          <span className="settings-switch__control">
+            <input type="checkbox" checked={rememberLibraryPanel} onChange={(event) => setRememberLibraryPanel(event.target.checked)} aria-label="Remember Library panel" />
+            <span className="settings-switch__track" aria-hidden="true"><span className="settings-switch__thumb" /></span>
+          </span>
+        </label>
+      </div>
+    </SettingsPanel>
+  );
+
+  const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, behavior: renderBehavior, locations: renderLibrary };
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
