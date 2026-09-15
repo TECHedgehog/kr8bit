@@ -320,7 +320,8 @@ export function GamesPage(): JSX.Element {
     return () => observer.disconnect();
   }, [items.length, firstRowIndex]);
 
-  const isFirstRunEmpty = scannerStatusLoaded && !loading && !error && items.length === 0 && scannerStatus?.latest === null;
+  const isFirstRunEmpty = scannerStatusLoaded && !loading && !error && items.length === 0
+    && (scannerStatus?.emptyReason === 'never-scanned' || scannerStatus?.emptyReason === 'manually-cleared');
   const isLibraryEmpty = scannerStatusLoaded && !loading && !error && items.length === 0;
 
   // Panel height: dynamically set --panel-height so the panel's bottom edge

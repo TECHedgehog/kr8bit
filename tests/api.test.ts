@@ -288,6 +288,9 @@ describe('GET/PATCH/DELETE /api/games/:id', () => {
     expect(del.json().deleted).toBe(true);
     const after = await app.inject({ method: 'GET', url: `/api/games/${id}` });
     expect(after.statusCode).toBe(404);
+
+    const status = await app.inject({ method: 'GET', url: '/api/scanner/status' });
+    expect(status.json().emptyReason).toBe('manually-cleared');
   });
 });
 
@@ -299,6 +302,7 @@ describe('Scanner endpoints', () => {
     expect(body.runningRun).toBeNull();
     expect(body.latest).toBeNull();
     expect(body.isRunning).toBe(false);
+    expect(body.emptyReason).toBe('never-scanned');
   });
 
   it('returns 202 when scan starts', async () => {

@@ -86,6 +86,7 @@ beforeEach(async () => {
   tmpDir = await fs.mkdtemp(tmpBase);
   await prisma.game.deleteMany({});
   await prisma.scanRun.deleteMany({});
+  await prisma.setting.deleteMany({});
 });
 
 afterAll(async () => {
@@ -93,6 +94,19 @@ afterAll(async () => {
 });
 
 describe('ScannerService.start', () => {
+  it('clears manual-empty state when scan starts', async () => {
+    await prisma.setting.create({ data: { key: 'libraryManuallyCleared', value: 'true' } });
+    const service = new ScannerService(makeDeps({ providers: [] }));
+
+    const run = await service.start();
+    await waitForScanComplete(run.id);
+
+    expect(await prisma.setting.findUnique({ where: { key: 'libraryManuallyCleared' } })).toEqual({
+      key: 'libraryManuallyCleared',
+      value: 'false',
+    });
+  });
+
   it('creates games for new candidates and assigns match status', async () => {
     await fs.writeFile(join(tmpDir, 'Skyrim.7z'), 'data');
     await fs.writeFile(join(tmpDir, 'Random Junk.7z'), 'data');

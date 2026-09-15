@@ -15,6 +15,9 @@ import type {
   SortKey,
 } from './library.types.js';
 import { DEFAULT_SORT, MAX_PAGE_SIZE } from './library.types.js';
+import { settingsRepository } from '../settings/settings.repository.js';
+
+export const LIBRARY_MANUALLY_CLEARED_SETTING = 'libraryManuallyCleared';
 
 export const REFRESH_BATCH_SIZE = 500;
 export const PENDING_BATCH_SIZE = 500;
@@ -176,6 +179,9 @@ export const libraryRepository = {
         : await prisma.game.findUnique({ where: { id } });
       if (!existing) throw new NotFoundError('Game', id);
       await prisma.game.delete({ where: { id: existing.id } });
+      if (!scope && (await prisma.game.count()) === 0) {
+        await settingsRepository.set(LIBRARY_MANUALLY_CLEARED_SETTING, 'true');
+      }
       logger.info({ gameId: id }, 'game deleted from db');
     } catch (err) {
       throw mapPrismaError(err, 'Game', id);

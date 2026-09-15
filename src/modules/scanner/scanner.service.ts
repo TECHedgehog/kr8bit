@@ -1,7 +1,7 @@
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
 import { MatchStatus, RE_MATCHABLE_STATUSES } from '../../shared/enums.js';
-import { libraryRepository } from '../library/library.repository.js';
+import { LIBRARY_MANUALLY_CLEARED_SETTING, libraryRepository } from '../library/library.repository.js';
 import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
 import { scanLibraryRoot, fsReader, type DirectoryReader, type ScanCandidate } from './folder-scanner.js';
@@ -16,6 +16,7 @@ import { resetGate } from '../database/reset-gate.js';
 import { emitProgress } from './scanner.events.js';
 import { AppError } from '../../shared/errors.js';
 import { demoService } from '../demo/demo-service.js';
+import { settingsRepository } from '../settings/settings.repository.js';
 
 export interface ScannerDeps {
   providers: MetadataProvider[];
@@ -48,6 +49,7 @@ export interface ScannerStatusSnapshot {
   latest: ScanRun | null;
   isRunning: boolean;
   currentScanRunId: string | null;
+  emptyReason: 'never-scanned' | 'manually-cleared' | null;
 }
 
 export class ScannerService {
@@ -66,15 +68,25 @@ export class ScannerService {
 
   async status(scope?: string): Promise<ScannerStatusSnapshot> {
     const key = scope ?? 'normal';
-    const [running, latest] = await Promise.all([
+    const [running, latest, gameCount, manuallyCleared] = await Promise.all([
       scannerRepository.findRunning(scope),
       scannerRepository.findLatest(scope),
+      libraryRepository.count(scope),
+      settingsRepository.get(LIBRARY_MANUALLY_CLEARED_SETTING),
     ]);
+    const emptyReason = gameCount > 0
+      ? null
+      : manuallyCleared === 'true'
+        ? 'manually-cleared'
+        : latest === null
+          ? 'never-scanned'
+          : null;
     return {
       runningRun: running,
       latest,
       isRunning: this.runningScopes.has(key),
       currentScanRunId: this.currentRunIds.get(key) ?? null,
+      emptyReason,
     };
   }
 
@@ -93,6 +105,7 @@ export class ScannerService {
     let run: ScanRun;
     try {
       run = await scannerRepository.create({ rootPath: scope ?? this.deps.libraryRoot, scope });
+      await settingsRepository.set(LIBRARY_MANUALLY_CLEARED_SETTING, 'false');
     } catch (err) {
       this.runningScopes.delete(key);
       throw err;

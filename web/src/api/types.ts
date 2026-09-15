@@ -70,6 +70,7 @@ export interface ScannerStatus {
   runningRun: ScanRun | null;
   latest: ScanRun | null;
   isRunning: boolean;
+  emptyReason: 'never-scanned' | 'manually-cleared' | null;
 }
 
 export interface ScanProgressEvent {

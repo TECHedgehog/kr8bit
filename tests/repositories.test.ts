@@ -158,6 +158,20 @@ describe('libraryRepository', () => {
     await libraryRepository.delete(game.id);
     expect(await libraryRepository.findByEntryPath(TEST_PATH)).toBeNull();
   });
+
+  it('marks library manually cleared when deleting final game', async () => {
+    const game = await libraryRepository.create({
+      entryPath: TEST_PATH,
+      entryType: EntryType.ARCHIVE,
+      entryName: 'Test Game.7z',
+      sizeBytes: 1,
+      matchStatus: MatchStatus.PENDING,
+    });
+
+    await libraryRepository.delete(game.id);
+
+    expect(await settingsRepository.get('libraryManuallyCleared')).toBe('true');
+  });
 });
 
 describe('scannerRepository', () => {
