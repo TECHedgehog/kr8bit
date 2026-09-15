@@ -10,6 +10,7 @@ interface GlassTuneContextValue {
 }
 
 const STORAGE_KEY = 'kr8bit-glass-pill';
+export const GLASS_FILTER_RESOLUTION = 4;
 const PILL_DEFAULT: Partial<GlassOptics> = {
   curvature: 0.38,
   depth: 0.19,
@@ -33,7 +34,16 @@ const PILL_DEFAULT: Partial<GlassOptics> = {
 function loadStoredOptics(): Partial<GlassOptics> {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as { optics?: Partial<GlassOptics> };
-    return parsed.optics && typeof parsed.optics === 'object' ? parsed.optics : {};
+    if (!parsed.optics || typeof parsed.optics !== 'object') return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed.optics).filter(([key, value]) => {
+        const defaultValue = PILL_DEFAULT[key as keyof GlassOptics];
+        if (typeof defaultValue === 'number') return typeof value === 'number' && Number.isFinite(value);
+        if (typeof defaultValue === 'boolean') return typeof value === 'boolean';
+        return false;
+      }),
+    ) as Partial<GlassOptics>;
   } catch {
     return {};
   }

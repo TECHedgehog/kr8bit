@@ -9,7 +9,7 @@ import {
 import IconDeviceGamepad2 from '@tabler/icons-react/dist/esm/icons/IconDeviceGamepad2.mjs';
 import { useTheme } from '../../context/ThemeContext';
 import { useGlowFollow } from '../../hooks/useGlowFollow';
-import { useGlassTune } from '../../context/GlassTuneContext';
+import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../../context/GlassTuneContext';
 import { NAV_ITEMS } from './navItems';
 import { THEME_ITEMS } from './themeItems';
 
@@ -39,8 +39,6 @@ const LENS_RISE = 20;
 // for edge links). Fully decoupled from geometry sliders — the nav lens is
 // independent.
 const LENS_MARGIN = 1;
-
-// Lens corner radius. Max from the (now removed) slider config was 40.
 const LENS_RADIUS = 40;
 
 // Refraction strength (scale prop overrides optics.strength). 0 = no
@@ -361,13 +359,13 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
               optics={pill.effectiveOptics}
               width={themeLensW}
               height={themeLensH}
-              radius={LENS_RADIUS}
+               radius={LENS_RADIUS}
               center={{ x: themeLensX, y: 0.5 }}
               scale={themeLensScale}
               depth={LENS_DEPTH}
               refract={renderThemeItems('copy')}
               behind={behind}
-              filterResolution={2}
+               filterResolution={GLASS_FILTER_RESOLUTION}
               style={{
                 display: 'flex',
                 width: 'fit-content',
@@ -393,13 +391,13 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
               optics={pill.effectiveOptics}
               width={lensW}
               height={lensH}
-              radius={LENS_RADIUS}
+               radius={LENS_RADIUS}
               center={{ x: lensX, y: 0.5 }}
               scale={lensScale}
               depth={LENS_DEPTH}
               refract={renderNavItems('copy')}
               behind={behind}
-              filterResolution={2}
+               filterResolution={GLASS_FILTER_RESOLUTION}
               style={{
                 display: 'flex',
                 width: 'fit-content',

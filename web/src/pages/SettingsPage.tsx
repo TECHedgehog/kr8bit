@@ -15,7 +15,7 @@ import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
 import { ScannerSection } from '../components/ScannerSection';
 import { useTheme } from '../context/ThemeContext';
-import { useGlassTune } from '../context/GlassTuneContext';
+import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../context/GlassTuneContext';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useNavigationPreferences } from '../context/NavigationPreferencesContext';
 
@@ -307,7 +307,7 @@ export function SettingsPage(): JSX.Element {
         <div className="settings-shell">
           <nav ref={menuRef} className={`settings-menu glow-follow${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
             <div className="settings-menu-glass" aria-hidden="true">
-              <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} refract={renderMenu('copy')} behind={behind} filterResolution={2} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }} />
+               <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} refract={renderMenu('copy')} behind={behind} filterResolution={GLASS_FILTER_RESOLUTION} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }} />
             </div>
             <div className="settings-menu-content">{renderMenu('button')}</div>
           </nav>
