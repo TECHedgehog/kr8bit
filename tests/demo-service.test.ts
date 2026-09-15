@@ -47,6 +47,8 @@ describe('demoService', () => {
 
   it('keeps demo database URL separate from normal database URL', () => {
     expect(config.demoDatabaseUrl).not.toBe(config.databaseUrl);
+    expect(config.databaseUrl).toMatch(/^file:\//);
+    expect(config.demoDatabaseUrl).toMatch(/^file:\/.*\.demo$/);
   });
 
   it('removes legacy demo rows without removing real games', async () => {

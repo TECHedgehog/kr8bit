@@ -114,6 +114,20 @@ describe('PUT /api/settings', () => {
 });
 
 describe('GET /api/games', () => {
+  it('loads normal library records despite demo session cookies', async () => {
+    await createGame({ entryName: 'Persisted.7z' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/games',
+      headers: { cookie: 'kr8bit_demo_session=123e4567-e89b-12d3-a456-426614174000' },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items).toHaveLength(1);
+    expect(res.json().items[0].entryName).toBe('Persisted.7z');
+  });
+
   it('returns paginated list', async () => {
     await createGame({ entryName: 'A.7z' });
     await createGame({ entryName: 'B.7z' });

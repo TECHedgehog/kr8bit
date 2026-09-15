@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { config as loadEnv } from 'dotenv';
+import { isAbsolute, resolve } from 'node:path';
 
 loadEnv();
 
@@ -54,6 +55,10 @@ if (!parsed.success) {
   process.exit(1);
 }
 
+const databasePath = isAbsolute(parsed.data.DB_PATH)
+  ? parsed.data.DB_PATH
+  : resolve('prisma', parsed.data.DB_PATH);
+
 export const config = {
   nodeEnv: parsed.data.NODE_ENV,
   demoMode: parsed.data.DEMO_MODE,
@@ -62,12 +67,12 @@ export const config = {
   demoSteamDelayMs: parsed.data.DEMO_STEAM_DELAY_MS,
   libraryRoot: parsed.data.LIBRARY_ROOT,
   cacheDir: parsed.data.CACHE_DIR,
-  dbPath: parsed.data.DB_PATH,
+  dbPath: databasePath,
   port: parsed.data.PORT,
   host: parsed.data.HOST,
   logLevel: parsed.data.LOG_LEVEL,
-  databaseUrl: `file:${parsed.data.DB_PATH}`,
-  demoDatabaseUrl: `file:${parsed.data.DB_PATH}.demo`,
+  databaseUrl: `file:${databasePath}`,
+  demoDatabaseUrl: `file:${databasePath}.demo`,
   igdb: {
     clientId: parsed.data.IGDB_CLIENT_ID,
     clientSecret: parsed.data.IGDB_CLIENT_SECRET,
