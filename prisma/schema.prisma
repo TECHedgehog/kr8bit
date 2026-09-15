@@ -47,6 +47,22 @@ model Setting {
   value String
 }
 
+model Todo {
+  id        String   @id @default(uuid())
+  title     String
+  completed Boolean  @default(false)
+  sortOrder Int      @default(0)
+  parentId  String?
+  priority  String   @default("")
+  color     String?
+  parent    Todo?    @relation("TodoSubtasks", fields: [parentId], references: [id])
+  children  Todo[]   @relation("TodoSubtasks")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId, completed, sortOrder])
+}
+
 model ProviderMatch {
   id           String   @id @default(uuid())
   gameId       String

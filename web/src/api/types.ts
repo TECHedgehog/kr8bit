@@ -108,3 +108,19 @@ export interface JobStatusResponse {
 export interface JobStartResponse {
   started: boolean;
 }
+
+export interface Todo {
+  id: string;
+  title: string;
+  completed: boolean;
+  sortOrder: number;
+  parentId: string | null;
+  priority: '' | '!' | '!!' | '!!!';
+  color: 'indigo' | 'violet' | 'teal' | 'amber' | 'rose' | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TodoListResult {
+  items: Todo[];
+}

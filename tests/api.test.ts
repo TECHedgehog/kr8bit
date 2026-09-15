@@ -20,6 +20,7 @@ beforeEach(async () => {
   await prisma.game.deleteMany({});
   await prisma.scanRun.deleteMany({});
   await prisma.setting.deleteMany({});
+  await prisma.todo.deleteMany({});
   app = await buildServer();
 });
 
@@ -110,6 +111,63 @@ describe('PUT /api/settings', () => {
     expect(res.statusCode).toBe(400);
     const body = res.json();
     expect(body.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe('todo API', () => {
+  it('supports create, update, list, and delete', async () => {
+    const created = await app.inject({ method: 'POST', url: '/api/todos', payload: { title: 'Ship production build' } });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().title).toBe('Ship production build');
+
+    const id = created.json().id as string;
+    const updated = await app.inject({ method: 'PATCH', url: `/api/todos/${id}`, payload: { completed: true, title: 'Ship stable production build' } });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json()).toMatchObject({ id, title: 'Ship stable production build', completed: true });
+
+    const list = await app.inject({ method: 'GET', url: '/api/todos' });
+    expect(list.statusCode).toBe(200);
+    expect(list.json().items).toHaveLength(1);
+
+    const deleted = await app.inject({ method: 'DELETE', url: `/api/todos/${id}` });
+    expect(deleted.statusCode).toBe(200);
+    expect(deleted.json()).toEqual({ deleted: true, id });
+  });
+
+  it('rejects empty todo titles', async () => {
+    const response = await app.inject({ method: 'POST', url: '/api/todos', payload: { title: '  ' } });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe('VALIDATION_ERROR');
+  });
+
+  it('supports subtasks, priorities, colors, and parent completion', async () => {
+    const parent = await app.inject({ method: 'POST', url: '/api/todos', payload: { title: 'Parent task' } });
+    const parentId = parent.json().id as string;
+    const child = await app.inject({ method: 'POST', url: '/api/todos', payload: { title: 'Child task', parentId } });
+    expect(child.statusCode).toBe(201);
+    const childId = child.json().id as string;
+
+    const styled = await app.inject({ method: 'PATCH', url: `/api/todos/${childId}`, payload: { priority: '!!!', color: 'rose' } });
+    expect(styled.json()).toMatchObject({ parentId, priority: '!!!', color: 'rose' });
+
+    await app.inject({ method: 'PATCH', url: `/api/todos/${parentId}`, payload: { completed: true } });
+    const list = await app.inject({ method: 'GET', url: '/api/todos' });
+    expect(list.json().items.find((item: { id: string }) => item.id === childId).completed).toBe(true);
+  });
+
+  it('reorders tasks within completion groups and cascades deletion', async () => {
+    const first = await app.inject({ method: 'POST', url: '/api/todos', payload: { title: 'First' } });
+    const second = await app.inject({ method: 'POST', url: '/api/todos', payload: { title: 'Second' } });
+    const firstId = first.json().id as string;
+    const secondId = second.json().id as string;
+    const reordered = await app.inject({ method: 'PATCH', url: '/api/todos/reorder', payload: { ids: [secondId, firstId] } });
+    expect(reordered.statusCode).toBe(200);
+
+    const child = await app.inject({ method: 'POST', url: '/api/todos', payload: { title: 'Child', parentId: firstId } });
+    const deleted = await app.inject({ method: 'DELETE', url: `/api/todos/${firstId}` });
+    expect(deleted.statusCode).toBe(200);
+    const list = await app.inject({ method: 'GET', url: '/api/todos' });
+    expect(list.json().items.map((item: { id: string }) => item.id)).not.toContain(child.json().id);
   });
 });
 

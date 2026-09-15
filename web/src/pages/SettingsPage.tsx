@@ -18,6 +18,7 @@ import { useTheme } from '../context/ThemeContext';
 import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../context/GlassTuneContext';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useNavigationPreferences } from '../context/NavigationPreferencesContext';
+import { TodoPanel } from '../components/TodoPanel';
 
 const SETTINGS_LENS_MARGIN = 1;
 const SETTINGS_LENS_WIDTH_INSET = 16;
@@ -97,6 +98,7 @@ export function SettingsPage(): JSX.Element {
   const lastCategoryRef = useRef(category);
   const transitRef = useRef(0);
   const [isLensMoving, setIsLensMoving] = useState(false);
+  const [isTodoOpen, setIsTodoOpen] = useState(false);
   const lensY = useMemo(() => glassValue(0.5), []);
   const lensW = useMemo(() => glassValue(160), []);
   const lensH = useMemo(() => glassValue(160), []);
@@ -304,6 +306,10 @@ export function SettingsPage(): JSX.Element {
   return (
     <div className="page">
       <div className="settings-page">
+        <div className="settings-todo-anchor">
+          <button type="button" className="settings-todo-toggle" onClick={() => setIsTodoOpen((open) => !open)} aria-expanded={isTodoOpen} aria-controls="settings-todo-panel">To-do</button>
+          {isTodoOpen && <div id="settings-todo-panel" className="settings-todo-popover"><TodoPanel /></div>}
+        </div>
         <div className="settings-shell">
           <nav ref={menuRef} className={`settings-menu glow-follow${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
             <div className="settings-menu-glass" aria-hidden="true">

@@ -11,6 +11,7 @@ import { scannerRoutes } from './routes/scanner.routes.js';
 import { libraryRoutes } from './routes/library.routes.js';
 import { metadataRoutes } from './routes/metadata.routes.js';
 import { databaseRoutes } from './routes/database.routes.js';
+import { todosRoutes } from './routes/todos.routes.js';
 import { demoService } from '../modules/demo/demo-service.js';
 import { config } from '../config/index.js';
 import { ensureDemoSession } from './demo-session.js';
@@ -72,6 +73,7 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   await app.register(libraryRoutes);
   await app.register(metadataRoutes);
   await app.register(databaseRoutes);
+  await app.register(todosRoutes);
   app.get('/api/demo/status', async () => demoService.status());
 }
 
