@@ -19,8 +19,8 @@ import { useGlassTune } from '../context/GlassTuneContext';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 
 const SETTINGS_LENS_MARGIN = 1;
-const SETTINGS_LENS_WIDTH_INSET = 1;
-const SETTINGS_LENS_RISE = 20;
+const SETTINGS_LENS_WIDTH_INSET = 16;
+const SETTINGS_LENS_RISE = 24;
 const SETTINGS_LENS_RADIUS = 24;
 const SETTINGS_LENS_DEPTH = 0.7;
 const SETTINGS_LENS_SCALE_IDLE = 0;
