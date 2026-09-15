@@ -6,6 +6,9 @@ import IconCircleCheck from '@tabler/icons-react/dist/esm/icons/IconCircleCheck.
 import IconCircleDashed from '@tabler/icons-react/dist/esm/icons/IconCircleDashed.mjs';
 import IconListDetails from '@tabler/icons-react/dist/esm/icons/IconListDetails.mjs';
 import IconPencil from '@tabler/icons-react/dist/esm/icons/IconPencil.mjs';
+import IconEye from '@tabler/icons-react/dist/esm/icons/IconEye.mjs';
+import IconEyeOff from '@tabler/icons-react/dist/esm/icons/IconEyeOff.mjs';
+import IconPlus from '@tabler/icons-react/dist/esm/icons/IconPlus.mjs';
 import IconRefresh from '@tabler/icons-react/dist/esm/icons/IconRefresh.mjs';
 import IconTrash from '@tabler/icons-react/dist/esm/icons/IconTrash.mjs';
 import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
@@ -35,6 +38,7 @@ export function TodoPanel(): JSX.Element {
   const [priorityFilter, setPriorityFilter] = useState<PriorityValue[]>([]);
   const [colorFilter, setColorFilter] = useState<ColorValue[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>('manual');
+  const [showCompleted, setShowCompleted] = useState(true);
 
   const loadItems = useCallback(async () => {
     const result = await api.get<{ items: Todo[] }>('/api/todos');
@@ -101,6 +105,7 @@ export function TodoPanel(): JSX.Element {
 
   const filteredItems = useMemo(() => {
     const matches = (todo: Todo) => {
+      if (!showCompleted && todo.completed) return false;
       const statusMatches = statusFilter === 'all' || (statusFilter === 'active' ? !todo.completed : todo.completed);
       const priorityMatches = priorityFilter.length === 0 || priorityFilter.includes(todo.priority as PriorityValue);
       const colorMatches = colorFilter.length === 0 || (todo.color !== null && colorFilter.includes(todo.color));
@@ -108,7 +113,7 @@ export function TodoPanel(): JSX.Element {
     };
     const visibleRootIds = new Set(items.filter((todo) => todo.parentId === null && (matches(todo) || items.some((child) => child.parentId === todo.id && matches(child)))).map((todo) => todo.id));
     return items.filter((todo) => todo.parentId === null ? visibleRootIds.has(todo.id) : visibleRootIds.has(todo.parentId) && matches(todo));
-  }, [colorFilter, items, priorityFilter, statusFilter]);
+  }, [colorFilter, items, priorityFilter, showCompleted, statusFilter]);
 
   const sortItems = (todoList: Todo[]) => [...todoList].sort((a, b) => {
     if (sortMode === 'priority') {
@@ -171,13 +176,13 @@ export function TodoPanel(): JSX.Element {
   const roots = sortItems(filteredItems.filter((item) => item.parentId === null));
   return (
     <section className="todo-panel" aria-label="To-do list">
-      <div className="todo-panel__heading"><div><p className="eyebrow">Reminders</p><h2>To-do list</h2></div><span>{items.filter((item) => !item.completed).length} remaining</span></div>
-      <form className="todo-panel__form" onSubmit={(event) => void submitTodo(event)}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add a reminder" aria-label="New reminder" maxLength={200} /><button type="submit">Add</button></form>
+      <div className="todo-panel__heading"><div><p className="eyebrow">Reminders</p><h2>To-do list</h2></div><div className="todo-panel__summary"><span>{items.filter((item) => !item.completed).length} remaining / {items.filter((item) => item.completed).length} completed</span><button type="button" className="todo-icon-button" onClick={() => setShowCompleted((visible) => !visible)} aria-label={showCompleted ? 'Hide completed tasks' : 'Show completed tasks'} title={showCompleted ? 'Hide completed' : 'Show completed'}>{showCompleted ? <IconEyeOff size={15} stroke={2} /> : <IconEye size={15} stroke={2} />}</button></div></div>
+      <form className="todo-panel__form" onSubmit={(event) => void submitTodo(event)}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add a reminder" aria-label="New reminder" maxLength={200} /><button type="submit" className="todo-icon-button" aria-label="Add reminder" title="Add reminder"><IconPlus size={16} stroke={2} /></button></form>
       <div className="todo-panel__filters" aria-label="Todo filters and sorting">
         <div className="todo-filter-group"><button type="button" className={`todo-filter-chip todo-filter-icon${statusFilter === 'active' ? ' is-active' : ''}`} onClick={() => setStatusFilter(statusFilter === 'active' ? 'all' : 'active')} aria-label="Active tasks" title="Active tasks"><IconCircleDashed size={15} stroke={2} /></button><button type="button" className={`todo-filter-chip todo-filter-icon${statusFilter === 'completed' ? ' is-active' : ''}`} onClick={() => setStatusFilter(statusFilter === 'completed' ? 'all' : 'completed')} aria-label="Completed tasks" title="Completed tasks"><IconCircleCheck size={15} stroke={2} /></button></div>
         <div className="todo-filter-group">{(['!', '!!', '!!!'] as const).map((value) => <button type="button" key={value} className={`todo-filter-chip${priorityFilter.includes(value) ? ' is-active' : ''}`} onClick={() => setPriorityFilter(priorityFilter.includes(value) ? priorityFilter.filter((item) => item !== value) : [...priorityFilter, value])}>{value}</button>)}</div>
         <div className="todo-filter-group">{COLORS.map((color) => <button type="button" key={color.id} className={`todo-filter-chip todo-filter-chip--${color.id}${colorFilter.includes(color.id) ? ' is-active' : ''}`} onClick={() => setColorFilter(colorFilter.includes(color.id) ? colorFilter.filter((item) => item !== color.id) : [...colorFilter, color.id])} aria-label={`${color.label} color`} />)}</div>
-        <button type="button" className="todo-filter-chip todo-filter-icon" onClick={() => { setStatusFilter('all'); setPriorityFilter([]); setColorFilter([]); setSortMode('manual'); }} aria-label="Reset filters" title="Reset filters"><IconRefresh size={15} stroke={2} /></button>
+        <button type="button" className="todo-filter-chip todo-filter-icon" onClick={() => { setStatusFilter('all'); setPriorityFilter([]); setColorFilter([]); setSortMode('manual'); setShowCompleted(true); }} aria-label="Reset filters" title="Reset filters"><IconRefresh size={15} stroke={2} /></button>
       </div>
       <div className="todo-panel__filters todo-panel__filters--sort" aria-label="Todo sorting"><div className="todo-filter-group">{(['manual', 'priority', 'title'] as const).map((value) => <button type="button" key={value} className={`todo-filter-chip${sortMode === value ? ' is-active' : ''}`} onClick={() => setSortMode(value)}>{value[0].toUpperCase() + value.slice(1)}</button>)}</div></div>
       {error && <p className="todo-panel__error">{error}</p>}
