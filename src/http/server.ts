@@ -15,6 +15,7 @@ import { todosRoutes } from './routes/todos.routes.js';
 import { demoService } from '../modules/demo/demo-service.js';
 import { config } from '../config/index.js';
 import { ensureDemoSession } from './demo-session.js';
+import { developerRoutes } from './routes/developer.routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +69,7 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
     });
   }
   await app.register(healthRoutes);
+  await app.register(developerRoutes);
   await app.register(settingsRoutes);
   await app.register(scannerRoutes);
   await app.register(libraryRoutes);

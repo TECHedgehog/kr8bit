@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { DeveloperAccessProvider } from './context/DeveloperAccessContext';
 
 // Route-level code splitting: the games grid and detail dialog (vidstack +
 // hls.js) each load on first visit instead of weighing down the initial bundle.
@@ -16,7 +17,8 @@ const SettingsPage = lazy(() =>
 export function App(): JSX.Element {
   return (
     <Suspense fallback={<div className="muted">Loading…</div>}>
-      <Routes>
+      <DeveloperAccessProvider>
+        <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/games" replace />} />
           <Route path="/games" element={<GamesPage />}>
@@ -26,7 +28,8 @@ export function App(): JSX.Element {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
-      </Routes>
+        </Routes>
+      </DeveloperAccessProvider>
     </Suspense>
   );
 }

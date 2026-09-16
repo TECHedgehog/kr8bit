@@ -7,6 +7,7 @@ loadEnv();
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
   DEMO_MODE: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+  DEVELOPER_TOOLS_ENABLED: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
   DEMO_SCAN_STEP_DELAY_MS: z.coerce.number().int().nonnegative().default(350),
   DEMO_GAME_COUNT: z.coerce.number().int().positive().default(50),
   DEMO_STEAM_DELAY_MS: z.coerce.number().int().nonnegative().default(250),
@@ -62,6 +63,9 @@ const databasePath = isAbsolute(parsed.data.DB_PATH)
 export const config = {
   nodeEnv: parsed.data.NODE_ENV,
   demoMode: parsed.data.DEMO_MODE,
+  developerTools: {
+    enabled: parsed.data.DEVELOPER_TOOLS_ENABLED,
+  },
   demoScanStepDelayMs: parsed.data.DEMO_SCAN_STEP_DELAY_MS,
   demoGameCount: parsed.data.DEMO_GAME_COUNT,
   demoSteamDelayMs: parsed.data.DEMO_STEAM_DELAY_MS,
