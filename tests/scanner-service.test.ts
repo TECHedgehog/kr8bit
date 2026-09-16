@@ -260,6 +260,40 @@ describe('ScannerService.start', () => {
     await waitForScanComplete(run1.id);
   });
 
+  it('cancels after the current game and skips remaining games', async () => {
+    await fs.writeFile(join(tmpDir, 'A Game.7z'), 'data');
+    await fs.writeFile(join(tmpDir, 'B Game.7z'), 'data');
+    const events: ScanProgressEvent[] = [];
+    let service: ScannerService;
+    const completion = new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('scan cancellation timeout')), 5000);
+      const unsubscribe = onProgress((event) => {
+        if (!service || event.scanRunId !== service.currentScanRunId()) return;
+        events.push(event);
+        if (event.stage === 'scan' && event.completed === 1) {
+          const runId = event.scanRunId;
+          service.requestStop(runId);
+        }
+        if (event.phase === 'done') {
+          clearTimeout(timeout);
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+    service = new ScannerService(makeDeps());
+
+    const run = await service.start();
+    await completion;
+
+    const cancelled = await scannerRepository.findById(run.id);
+    expect(cancelled.status).toBe('CANCELLED');
+    expect(cancelled.found).toBe(2);
+    expect(cancelled.added).toBe(1);
+    expect((await libraryRepository.list({ limit: 100 })).total).toBe(1);
+    expect(events.at(-1)?.message).toBe('scan cancelled');
+  });
+
   it('detects DIRECTORY entries with setup.exe', async () => {
     await fs.mkdir(join(tmpDir, 'Some Game'));
     await fs.writeFile(join(tmpDir, 'Some Game', 'setup.exe'), 'binary');

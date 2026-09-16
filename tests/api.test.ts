@@ -422,6 +422,17 @@ describe('Scanner endpoints', () => {
     expect(res.json().code).toBe('SCAN_RUNNING');
     startSpy.mockRestore();
   });
+
+  it('requests stop for an active scan', async () => {
+    const stopSpy = vi.spyOn(scannerService, 'requestStop').mockImplementation(() => undefined);
+
+    const res = await app.inject({ method: 'POST', url: '/api/scanner/run/run-1/stop' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ stopping: true });
+    expect(stopSpy).toHaveBeenCalledWith('run-1', undefined);
+    stopSpy.mockRestore();
+  });
 });
 
 describe('Metadata endpoints', () => {

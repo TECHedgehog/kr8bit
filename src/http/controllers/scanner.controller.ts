@@ -26,6 +26,11 @@ export const scannerController = {
     return scannerService.status(req.demoSessionScope);
   },
 
+  async stop(req: FastifyRequest<{ Params: { runId: string } }>, _reply: FastifyReply) {
+    scannerService.requestStop(req.params.runId, req.demoSessionScope);
+    return { stopping: true };
+  },
+
   async progress(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     // Take over the raw socket from Fastify: after the handler resolves,
     // Fastify would retry writeHead on the already-written response and

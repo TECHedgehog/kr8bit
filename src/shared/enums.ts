@@ -17,6 +17,7 @@ export const ScanStatus = {
   RUNNING: 'RUNNING',
   DONE: 'DONE',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
 } as const;
 export type ScanStatus = (typeof ScanStatus)[keyof typeof ScanStatus];
 

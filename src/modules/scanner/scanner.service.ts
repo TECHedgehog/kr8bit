@@ -1,6 +1,6 @@
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
-import { MatchStatus, RE_MATCHABLE_STATUSES } from '../../shared/enums.js';
+import { MatchStatus, RE_MATCHABLE_STATUSES, ScanStatus } from '../../shared/enums.js';
 import { LIBRARY_MANUALLY_CLEARED_SETTING, libraryRepository } from '../library/library.repository.js';
 import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
@@ -55,6 +55,7 @@ export interface ScannerStatusSnapshot {
 export class ScannerService {
   private readonly runningScopes = new Set<string>();
   private readonly currentRunIds = new Map<string, string>();
+  private readonly stopRequested = new Set<string>();
 
   constructor(private readonly deps: ScannerDeps = defaultDeps) {}
 
@@ -111,11 +112,20 @@ export class ScannerService {
       throw err;
     }
     this.currentRunIds.set(key, run.id);
+    this.stopRequested.delete(run.id);
     logger.info({ runId: run.id, rootPath: this.deps.libraryRoot }, 'scan started');
     void this.executeScan(run, scope).catch((err) => {
       logger.error({ runId: run.id, err: (err as Error).message }, 'scanner unexpected failure');
     });
     return run;
+  }
+
+  requestStop(runId: string, scope?: string): void {
+    const key = scope ?? 'normal';
+    if (this.currentRunIds.get(key) !== runId || !this.runningScopes.has(key)) {
+      throw new AppError(409, 'scan is not running', 'SCAN_NOT_RUNNING');
+    }
+    this.stopRequested.add(runId);
   }
 
   private async executeScan(run: ScanRun, scope?: string): Promise<void> {
@@ -126,6 +136,7 @@ export class ScannerService {
       const key = scope ?? 'normal';
       this.runningScopes.delete(key);
       this.currentRunIds.delete(key);
+      this.stopRequested.delete(run.id);
     }
   }
 
@@ -264,6 +275,32 @@ export class ScannerService {
         failed,
         currentEntry: candidate.entryName,
       });
+
+      if (this.stopRequested.has(runId)) {
+        await scannerRepository.update(runId, {
+          status: ScanStatus.CANCELLED,
+          finishedAt: this.deps.now(),
+          found: candidates.length,
+          added,
+          updated,
+          failed,
+          errors,
+        });
+        emitProgress({
+          scanRunId: runId,
+          phase: 'done',
+          stage: 'done',
+          total: candidates.length,
+          completed: index + 1,
+          found: candidates.length,
+          added,
+          updated,
+          failed,
+          message: 'scan cancelled',
+        });
+        logger.info({ runId, found: candidates.length, added, updated, failed }, 'scan cancelled');
+        return;
+      }
     }
 
     await scannerRepository.update(runId, {

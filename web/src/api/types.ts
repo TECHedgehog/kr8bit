@@ -1,6 +1,6 @@
 export type EntryType = 'ARCHIVE' | 'DIRECTORY';
 
-export type ScanStatus = 'RUNNING' | 'DONE' | 'FAILED';
+export type ScanStatus = 'RUNNING' | 'DONE' | 'FAILED' | 'CANCELLED';
 
 export type ScanPhase = 'start' | 'candidate' | 'matched' | 'failed' | 'done';
 

@@ -13,7 +13,9 @@ export function ScannerSection(): JSX.Element {
   const [status, setStatus] = useState<ScannerStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [stopError, setStopError] = useState<string | null>(null);
   const [activeScanRunId, setActiveScanRunId] = useState<string | null>(null);
   const [liveProgress, setLiveProgress] = useState<ScanProgressEvent | null>(null);
   const statusToken = useRef(0);
@@ -50,6 +52,7 @@ export function ScannerSection(): JSX.Element {
     if (!activeScanRunId || !status || status.isRunning || status.latest?.id !== activeScanRunId) return;
     setLiveProgress(null);
     setActiveScanRunId(null);
+    setStopping(false);
   }, [activeScanRunId, status]);
 
   async function startScan() {
@@ -67,10 +70,24 @@ export function ScannerSection(): JSX.Element {
     }
   }
 
+  async function stopScan() {
+    if (!activeScanRunId) return;
+    setStopping(true);
+    setStopError(null);
+    try {
+      await api.post<{ stopping: boolean }>(`/api/scanner/run/${activeScanRunId}/stop`);
+      void fetchStatus();
+    } catch (err) {
+      setStopError(err instanceof ApiError ? err.message : 'failed to stop scan');
+      setStopping(false);
+    }
+  }
+
   const onProgressDone = useCallback(() => {
     void fetchStatus();
     setLiveProgress(null);
     setActiveScanRunId(null);
+    setStopping(false);
   }, [fetchStatus]);
 
   const isRunning = status?.isRunning ?? false;
@@ -87,10 +104,11 @@ export function ScannerSection(): JSX.Element {
           <span className={`scanner-status${isRunning ? ' is-running' : ''}`}><span />{isRunning ? 'Scanning now' : 'Ready to scan'}</span>
           {activeRun?.rootPath && <LocationInfo path={activeRun.rootPath} />}
         </div>
-        <ScanAction starting={starting} isRunning={isRunning} activeScanRunId={activeScanRunId} onStart={startScan} />
+        <ScanAction starting={starting} stopping={stopping} isRunning={isRunning} activeScanRunId={activeScanRunId} onStart={startScan} onStop={stopScan} />
       </div>}
 
       {startError && <div className="error">{startError}</div>}
+      {stopError && <div className="error">{stopError}</div>}
       {statusError && <div className="error">{statusError}</div>}
 
       {showLivePanel && <section className="scanner-card scanner-card--active scanner-current-card">
@@ -104,7 +122,7 @@ export function ScannerSection(): JSX.Element {
           </div>
           <div className="scanner-current-actions">
             <span>Live</span>
-            <ScanAction starting={starting} isRunning={isRunning} activeScanRunId={activeScanRunId} onStart={startScan} />
+            <ScanAction starting={starting} stopping={stopping} isRunning={isRunning} activeScanRunId={activeScanRunId} onStart={startScan} onStop={stopScan} />
           </div>
         </div>
         <ScanProgress scanRunId={activeScanRunId} onDone={onProgressDone} onEvent={setLiveProgress} />
@@ -152,10 +170,13 @@ function LocationInfo({ path }: { path: string }): JSX.Element {
   </span>;
 }
 
-function ScanAction({ starting, isRunning, activeScanRunId, onStart }: { starting: boolean; isRunning: boolean; activeScanRunId: string | null; onStart: () => void }): JSX.Element {
+function ScanAction({ starting, stopping, isRunning, activeScanRunId, onStart, onStop }: { starting: boolean; stopping: boolean; isRunning: boolean; activeScanRunId: string | null; onStart: () => void; onStop: () => void }): JSX.Element {
+  const active = isRunning || activeScanRunId !== null;
   return <div className="scanner-section-actions">
-    <button className="primary" onClick={onStart} disabled={isRunning || starting || !!activeScanRunId}>
-      {isRunning || activeScanRunId ? 'scanning…' : starting ? 'starting…' : 'scan now'}
-    </button>
+    {active ? <button className="danger" onClick={onStop} disabled={stopping}>
+      {stopping ? 'stopping…' : 'stop scan'}
+    </button> : <button className="primary" onClick={onStart} disabled={starting}>
+      {starting ? 'starting…' : 'scan now'}
+    </button>}
   </div>;
 }
