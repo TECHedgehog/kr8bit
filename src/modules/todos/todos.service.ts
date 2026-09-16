@@ -48,6 +48,14 @@ export function parseUpdateInput(body: unknown): TodoUpdateInput {
   }
   if ('priority' in raw) input.priority = validatePriority(raw.priority);
   if ('color' in raw) input.color = validateColor(raw.color);
+  if ('collapsed' in raw) {
+    if (typeof raw.collapsed !== 'boolean') throw new ValidationError('collapsed must be a boolean');
+    input.collapsed = raw.collapsed;
+  }
+  if ('parentId' in raw) {
+    if (typeof raw.parentId !== 'string' || !raw.parentId) throw new ValidationError('parentId must be a valid id');
+    input.parentId = raw.parentId;
+  }
   if (Object.keys(input).length === 0) throw new ValidationError('at least one field is required');
   return input;
 }
@@ -65,6 +73,14 @@ export const todosService = {
   async update(id: string, input: TodoUpdateInput) {
     const existing = await todosRepository.get(id);
     if (!existing) throw new ValidationError('task not found');
+    if (input.parentId !== undefined) {
+      if (input.parentId === id) throw new ValidationError('task cannot be its own parent');
+      const parent = await todosRepository.get(input.parentId);
+      if (!parent) throw new ValidationError('parent task not found');
+      if (parent.parentId) throw new ValidationError('subtasks cannot have subtasks');
+      const children = await todosRepository.countChildren(id);
+      if (children > 0) throw new ValidationError('tasks with subtasks cannot become subtasks');
+    }
     return todosRepository.update(id, input);
   },
   delete: (id: string) => todosRepository.delete(id),

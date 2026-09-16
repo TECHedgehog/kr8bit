@@ -31,7 +31,12 @@ export const todosRepository = {
   async update(id: string, input: TodoUpdateInput) {
     try {
       return await prisma.$transaction(async (tx) => {
-        const todo = await tx.todo.update({ where: { id }, data: input });
+        const current = await tx.todo.findUniqueOrThrow({ where: { id } });
+        const isReparenting = input.parentId !== undefined && input.parentId !== current.parentId;
+        const sortOrder = isReparenting
+          ? await tx.todo.count({ where: { parentId: input.parentId, completed: input.completed ?? current.completed, id: { not: id } } })
+          : undefined;
+        const todo = await tx.todo.update({ where: { id }, data: { ...input, ...(sortOrder === undefined ? {} : { sortOrder }) } });
         if (input.completed !== undefined) {
           await tx.todo.updateMany({ where: { parentId: id }, data: { completed: input.completed } });
         }
@@ -40,6 +45,10 @@ export const todosRepository = {
     } catch (err) {
       throw mapPrismaError(err, 'Todo', id);
     }
+  },
+
+  async countChildren(id: string) {
+    return prisma.todo.count({ where: { parentId: id } });
   },
 
   async delete(id: string): Promise<void> {

@@ -14,18 +14,20 @@ import type { FastifyInstance } from 'fastify';
 const tmpBase = join(os.tmpdir(), 'kr8bit-api-');
 let tmpDir: string;
 let app: FastifyInstance;
+let todoIdsBeforeTest: Set<string>;
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(tmpBase);
   await prisma.game.deleteMany({});
   await prisma.scanRun.deleteMany({});
   await prisma.setting.deleteMany({});
-  await prisma.todo.deleteMany({});
+  todoIdsBeforeTest = new Set((await prisma.todo.findMany({ select: { id: true } })).map((todo) => todo.id));
   app = await buildServer();
 });
 
 afterEach(async () => {
   if (app) await app.close();
+  await prisma.todo.deleteMany({ where: { id: { notIn: [...todoIdsBeforeTest] } } });
 });
 
 afterAll(async () => {
@@ -129,7 +131,7 @@ describe('todo API', () => {
 
     const list = await app.inject({ method: 'GET', url: '/api/todos', headers: todoHeaders() });
     expect(list.statusCode).toBe(200);
-    expect(list.json().items).toHaveLength(1);
+    expect(list.json().items.some((item: { id: string }) => item.id === id)).toBe(true);
 
     const deleted = await app.inject({ method: 'DELETE', url: `/api/todos/${id}`, headers: todoHeaders() });
     expect(deleted.statusCode).toBe(200);
@@ -170,6 +172,33 @@ describe('todo API', () => {
     expect(deleted.statusCode).toBe(200);
     const list = await app.inject({ method: 'GET', url: '/api/todos', headers: todoHeaders() });
     expect(list.json().items.map((item: { id: string }) => item.id)).not.toContain(child.json().id);
+  });
+
+  it('persists collapse state and reparents leaf tasks', async () => {
+    const source = await app.inject({ method: 'POST', url: '/api/todos', headers: todoHeaders(), payload: { title: 'Source' } });
+    const target = await app.inject({ method: 'POST', url: '/api/todos', headers: todoHeaders(), payload: { title: 'Target' } });
+    const sourceId = source.json().id as string;
+    const targetId = target.json().id as string;
+    await app.inject({ method: 'PATCH', url: `/api/todos/${sourceId}`, headers: todoHeaders(), payload: { completed: true } });
+
+    const collapsed = await app.inject({ method: 'PATCH', url: `/api/todos/${targetId}`, headers: todoHeaders(), payload: { collapsed: true } });
+    expect(collapsed.json()).toMatchObject({ id: targetId, collapsed: true });
+
+    const moved = await app.inject({ method: 'PATCH', url: `/api/todos/${sourceId}`, headers: todoHeaders(), payload: { parentId: targetId } });
+    expect(moved.json()).toMatchObject({ id: sourceId, parentId: targetId, completed: true });
+
+    const list = await app.inject({ method: 'GET', url: '/api/todos', headers: todoHeaders() });
+    expect(list.json().items.find((item: { id: string }) => item.id === targetId).collapsed).toBe(true);
+  });
+
+  it('rejects nesting tasks that already have subtasks', async () => {
+    const source = await app.inject({ method: 'POST', url: '/api/todos', headers: todoHeaders(), payload: { title: 'Source' } });
+    const target = await app.inject({ method: 'POST', url: '/api/todos', headers: todoHeaders(), payload: { title: 'Target' } });
+    await app.inject({ method: 'POST', url: '/api/todos', headers: todoHeaders(), payload: { title: 'Child', parentId: source.json().id } });
+
+    const moved = await app.inject({ method: 'PATCH', url: `/api/todos/${source.json().id}`, headers: todoHeaders(), payload: { parentId: target.json().id } });
+    expect(moved.statusCode).toBe(400);
+    expect(moved.json().code).toBe('VALIDATION_ERROR');
   });
 });
 

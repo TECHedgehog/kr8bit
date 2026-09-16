@@ -4,6 +4,8 @@ import type { Todo } from '../api/types';
 import IconCheck from '@tabler/icons-react/dist/esm/icons/IconCheck.mjs';
 import IconCircleCheck from '@tabler/icons-react/dist/esm/icons/IconCircleCheck.mjs';
 import IconCircleDashed from '@tabler/icons-react/dist/esm/icons/IconCircleDashed.mjs';
+import IconChevronDown from '@tabler/icons-react/dist/esm/icons/IconChevronDown.mjs';
+import IconChevronRight from '@tabler/icons-react/dist/esm/icons/IconChevronRight.mjs';
 import IconListDetails from '@tabler/icons-react/dist/esm/icons/IconListDetails.mjs';
 import IconPencil from '@tabler/icons-react/dist/esm/icons/IconPencil.mjs';
 import IconEye from '@tabler/icons-react/dist/esm/icons/IconEye.mjs';
@@ -103,6 +105,16 @@ export function TodoPanel(): JSX.Element {
     }
   };
 
+  const moveInto = async (event: DragEvent<HTMLSpanElement>, target: Todo) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const sourceId = event.dataTransfer.getData('text/plain') || draggingId;
+    const source = items.find((item) => item.id === sourceId);
+    if (!source || source.id === target.id || target.parentId !== null || items.some((item) => item.parentId === source.id)) return;
+    setDraggingId(null);
+    await updateTodo(source.id, { parentId: target.id });
+  };
+
   const filteredItems = useMemo(() => {
     const matches = (todo: Todo) => {
       if (!showCompleted && todo.completed) return false;
@@ -133,6 +145,7 @@ export function TodoPanel(): JSX.Element {
 
   const renderTodo = (todo: Todo, depth = 0): JSX.Element => {
     const children = sortItems(filteredItems.filter((item) => item.parentId === todo.id));
+    const hasChildren = items.some((item) => item.parentId === todo.id);
     const isEditing = editingId === todo.id;
     return (
       <li
@@ -143,32 +156,33 @@ export function TodoPanel(): JSX.Element {
         onDragEnd={() => setDraggingId(null)}
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => void reorder(event, todo)}
-        style={{ '--todo-accent': COLORS.find((color) => color.id === todo.color)?.value ?? 'var(--accent)' } as React.CSSProperties}
+        style={{ '--todo-accent': depth === 0 ? COLORS.find((color) => color.id === todo.color)?.value ?? 'var(--accent)' : 'transparent' } as React.CSSProperties}
       >
         <span className="todo-item__handle" aria-hidden="true">⋮⋮</span>
         <input type="checkbox" checked={todo.completed} onChange={() => void updateTodo(todo.id, { completed: !todo.completed })} aria-label={`Complete ${todo.title}`} />
         <div className="todo-item__body">
           <div className="todo-item__title-row">
-            {isEditing ? <input className="todo-item__edit" value={editingTitle} onChange={(event) => setEditingTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void updateTodo(todo.id, { title: editingTitle }).then(() => setEditingId(null)); if (event.key === 'Escape') setEditingId(null); }} autoFocus maxLength={200} aria-label="Edit reminder" /> : <span className="todo-item__title">{todo.title}</span>}
+            {isEditing ? <input className="todo-item__edit" value={editingTitle} onChange={(event) => setEditingTitle(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void updateTodo(todo.id, { title: editingTitle }).then(() => setEditingId(null)); if (event.key === 'Escape') setEditingId(null); }} autoFocus maxLength={200} aria-label="Edit reminder" /> : <span className="todo-item__title" onDragOver={(event) => event.preventDefault()} onDrop={(event) => void moveInto(event, todo)}>{todo.title}</span>}
             {todo.priority && <span className={`todo-priority-badge todo-priority-badge--${todo.priority.length}`} aria-label={`Priority ${todo.priority}`}>{todo.priority}</span>}
           </div>
           {isEditing && <div className="todo-item__edit-controls">
             <div className="todo-priority-toggles" role="group" aria-label={`Priority for ${todo.title}`}>
               {(['!', '!!', '!!!'] as const).map((priority) => <button type="button" key={priority} className={`todo-priority-toggle${todo.priority === priority ? ' is-active' : ''}`} onClick={() => void updateTodo(todo.id, { priority: todo.priority === priority ? '' : priority })} aria-pressed={todo.priority === priority}>{priority}</button>)}
             </div>
-            <div className="todo-item__colors" role="group" aria-label={`Color for ${todo.title}`}>
+             {depth === 0 && <div className="todo-item__colors" role="group" aria-label={`Color for ${todo.title}`}>
               <button type="button" className={`todo-color todo-color--none${todo.color === null ? ' is-active' : ''}`} onClick={() => void updateTodo(todo.id, { color: null })} aria-label="No color" aria-pressed={todo.color === null} />
               {COLORS.map((color) => <button type="button" key={color.id} className={`todo-color todo-color--${color.id}${todo.color === color.id ? ' is-active' : ''}`} onClick={() => void updateTodo(todo.id, { color: color.id })} aria-label={color.label} aria-pressed={todo.color === color.id} />)}
-            </div>
+             </div>}
           </div>}
         </div>
         <div className="todo-item__actions">
           {isEditing ? <><button type="button" className="todo-icon-button" onClick={() => void updateTodo(todo.id, { title: editingTitle }).then(() => setEditingId(null))} aria-label="Save reminder" title="Save reminder"><IconCheck size={15} stroke={2} /></button><button type="button" className="todo-icon-button" onClick={() => setEditingId(null)} aria-label="Cancel editing" title="Cancel editing"><IconX size={15} stroke={2} /></button></> : <button type="button" className="todo-icon-button" onClick={() => { setEditingId(todo.id); setEditingTitle(todo.title); }} aria-label={`Edit ${todo.title}`} title="Edit"><IconPencil size={15} stroke={2} /></button>}
-          {depth === 0 && <button type="button" className="todo-icon-button" onClick={() => setSubtaskParentId(todo.id)} aria-label={`Add subtask to ${todo.title}`} title="Add subtask"><IconListDetails size={15} stroke={2} /></button>}
+           {depth === 0 && <button type="button" className="todo-icon-button" onClick={() => setSubtaskParentId(todo.id)} aria-label={`Add subtask to ${todo.title}`} title="Add subtask"><IconListDetails size={15} stroke={2} /></button>}
+           {hasChildren && <button type="button" className="todo-icon-button" onClick={() => void updateTodo(todo.id, { collapsed: !todo.collapsed })} aria-label={`${todo.collapsed ? 'Expand' : 'Collapse'} ${todo.title}`} aria-expanded={!todo.collapsed} title={todo.collapsed ? 'Expand subtasks' : 'Collapse subtasks'}>{todo.collapsed ? <IconChevronRight size={15} stroke={2} /> : <IconChevronDown size={15} stroke={2} />}</button>}
           <button type="button" className="todo-icon-button" onClick={() => void deleteTodo(todo.id)} aria-label={`Delete ${todo.title}`} title="Delete"><IconTrash size={15} stroke={2} /></button>
         </div>
         {subtaskParentId === todo.id && <form className="todo-subtask-form" onSubmit={(event) => void submitTodo(event, todo.id)}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Add subtask" autoFocus maxLength={200} /><button type="submit">Add</button></form>}
-        {children.length > 0 && <ul className="todo-list todo-list--nested">{children.map((child) => renderTodo(child, 1))}</ul>}
+         {!todo.collapsed && children.length > 0 && <ul className="todo-list todo-list--nested">{children.map((child) => renderTodo(child, 1))}</ul>}
       </li>
     );
   };

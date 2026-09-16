@@ -1,0 +1,1 @@
+ALTER TABLE "Todo" ADD COLUMN "collapsed" BOOLEAN NOT NULL DEFAULT false;

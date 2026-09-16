@@ -2,6 +2,7 @@ export interface Todo {
   id: string;
   title: string;
   completed: boolean;
+  collapsed: boolean;
   sortOrder: number;
   parentId: string | null;
   priority: TodoPriority;
@@ -22,6 +23,8 @@ export interface TodoUpdateInput {
   completed?: boolean;
   priority?: TodoPriority;
   color?: TodoColor;
+  collapsed?: boolean;
+  parentId?: string;
 }
 
 export type TodoPriority = '' | '!' | '!!' | '!!!';
