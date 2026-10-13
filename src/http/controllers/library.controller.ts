@@ -29,4 +29,15 @@ export const libraryController = {
     await libraryService.delete(id, req.demoSessionScope);
     return { deleted: true, id };
   },
+
+  async rename(req: FastifyRequest, _reply: FastifyReply) {
+    const body = req.body as { ids?: unknown; format?: unknown };
+    const ids = Array.isArray(body?.ids) ? body.ids.filter((id): id is string => typeof id === 'string') : [];
+    return libraryService.rename(ids, req.demoSessionScope, typeof body?.format === 'string' ? body.format : undefined);
+  },
+
+  async renamePreview(req: FastifyRequest, _reply: FastifyReply) {
+    const body = req.body as { format?: unknown };
+    return { items: await libraryService.previewRename(req.demoSessionScope, typeof body?.format === 'string' ? body.format : undefined) };
+  },
 };

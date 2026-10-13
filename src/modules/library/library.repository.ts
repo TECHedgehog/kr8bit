@@ -53,6 +53,10 @@ export const libraryRepository = {
           entryPath: input.entryPath,
           entryType: input.entryType,
           entryName: input.entryName,
+          originalEntryName: input.originalEntryName ?? input.entryName,
+          releaseVersion: input.releaseVersion,
+          releaseDlcs: encodeArray(input.releaseDlcs ?? []),
+          releaseGroup: input.releaseGroup,
           sizeBytes: BigInt(input.sizeBytes),
           matchStatus: input.matchStatus,
           developers: encodeArray([]),
@@ -89,6 +93,16 @@ export const libraryRepository = {
       return row ? toDomain(row) : null;
     } catch (err) {
       throw mapPrismaError(err, 'Game', entryPath);
+    }
+  },
+
+  async findByTitleAndDirectory(title: string, directory: string, scope?: string): Promise<Game | null> {
+    try {
+      const rows = await prisma.game.findMany({ where: { title, ...scopedWhere(scope) } });
+      const row = rows.find((candidate) => candidate.entryPath.slice(0, candidate.entryPath.lastIndexOf('/')) === directory);
+      return row ? toDomain(row) : null;
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', title);
     }
   },
 
@@ -139,9 +153,22 @@ export const libraryRepository = {
     }
   },
 
+  async listAll(scope?: string): Promise<Game[]> {
+    try {
+      const rows = await prisma.game.findMany({ where: scopedWhere(scope), orderBy: { title: 'asc' } });
+      return rows.map(toDomain);
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', 'list-all');
+    }
+  },
+
   async update(id: string, input: GameUpdateInput, scope?: string): Promise<Game> {
     try {
       const data: Record<string, unknown> = {};
+      if (input.originalEntryName !== undefined) data.originalEntryName = input.originalEntryName;
+      if (input.releaseVersion !== undefined) data.releaseVersion = input.releaseVersion;
+      if (input.releaseDlcs !== undefined) data.releaseDlcs = encodeArray(input.releaseDlcs);
+      if (input.releaseGroup !== undefined) data.releaseGroup = input.releaseGroup;
       if (input.steamAppId !== undefined) data.steamAppId = input.steamAppId;
       if (input.title !== undefined) data.title = input.title;
       if (input.releaseYear !== undefined) data.releaseYear = input.releaseYear;
@@ -166,6 +193,19 @@ export const libraryRepository = {
         : await prisma.game.findUnique({ where: { id } });
       if (!existing) throw new NotFoundError('Game', id);
       const row = await prisma.game.update({ where: { id: existing.id }, data });
+      return toDomain(row);
+    } catch (err) {
+      throw mapPrismaError(err, 'Game', id);
+    }
+  },
+
+  async updateEntry(id: string, entryPath: string, entryName: string, scope?: string): Promise<Game> {
+    try {
+      const existing = scope
+        ? await prisma.game.findFirst({ where: { id, ...scopedWhere(scope) } })
+        : await prisma.game.findUnique({ where: { id } });
+      if (!existing) throw new NotFoundError('Game', id);
+      const row = await prisma.game.update({ where: { id: existing.id }, data: { entryPath, entryName } });
       return toDomain(row);
     } catch (err) {
       throw mapPrismaError(err, 'Game', id);

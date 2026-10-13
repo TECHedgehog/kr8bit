@@ -17,6 +17,8 @@ import { emitProgress } from './scanner.events.js';
 import { AppError } from '../../shared/errors.js';
 import { demoService } from '../demo/demo-service.js';
 import { settingsRepository } from '../settings/settings.repository.js';
+import { parseReleaseFilename } from '../../shared/parse-release-filename.js';
+import { dirname } from 'node:path';
 
 export interface ScannerDeps {
   providers: MetadataProvider[];
@@ -334,7 +336,10 @@ export class ScannerService {
   }
 
   private async processCandidate(candidate: ScanCandidate): Promise<CandidateOutcome> {
-    const existing = await libraryRepository.findByEntryPath(candidate.entryPath);
+    const normalized = normalizeGameName(candidate.entryName);
+    const releaseInfo = parseReleaseFilename(candidate.entryName);
+    const existing = await libraryRepository.findByEntryPath(candidate.entryPath)
+      ?? await libraryRepository.findByTitleAndDirectory(normalized.query, dirname(candidate.entryPath));
 
     if (existing) {
       if (existing.matchStatus === MatchStatus.ACCEPTED || existing.matchStatus === MatchStatus.MANUAL) {
@@ -344,9 +349,16 @@ export class ScannerService {
       if (!RE_MATCHABLE.has(existing.matchStatus)) {
         return 'skipped';
       }
+      if (!existing.originalEntryName) {
+        await libraryRepository.update(existing.id, {
+          originalEntryName: candidate.entryName,
+          releaseVersion: releaseInfo.version,
+          releaseDlcs: releaseInfo.dlcs,
+          releaseGroup: releaseInfo.group,
+        });
+      }
     }
 
-    const normalized = normalizeGameName(candidate.entryName);
     const results = await searchAllProviders(normalized.query, this.deps.providers, {
       entry: candidate.entryPath,
     });
@@ -372,6 +384,10 @@ export class ScannerService {
       entryName: candidate.entryName,
       sizeBytes: candidate.sizeBytes,
       matchStatus: decision.status,
+      originalEntryName: candidate.entryName,
+      releaseVersion: releaseInfo.version,
+      releaseDlcs: releaseInfo.dlcs,
+      releaseGroup: releaseInfo.group,
     });
 
     await applyDecisionToGame(created.id, decision, this.deps.now());

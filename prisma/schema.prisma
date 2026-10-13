@@ -13,6 +13,10 @@ model Game {
   entryPath   String  @unique
   entryType   String // EntryType enum mirror: ARCHIVE | DIRECTORY
   entryName   String
+  originalEntryName String?
+  releaseVersion String?
+  releaseDlcs String @default("[]")
+  releaseGroup String?
   sizeBytes   BigInt
   steamAppId  Int?
   title       String?

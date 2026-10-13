@@ -168,9 +168,9 @@ export function GameDetailCard(): JSX.Element {
               <SteamDeckBadge game={game} />
               <div className="game-detail-title-row">
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div ref={viewportRef} className="game-detail-title marquee-viewport">
-                    <span ref={textRef} className="marquee-text">{game.displayName}</span>
-                  </div>
+                   <div ref={viewportRef} className="game-detail-title marquee-viewport">
+                     <span ref={textRef} className="marquee-text">{game.displayName}</span>
+                   </div>
                   <div className="game-detail-subtitle" />
                 </div>
               </div>
@@ -193,7 +193,14 @@ export function GameDetailCard(): JSX.Element {
 
                 <div className="game-detail-col-right">
                   <section className="detail-section">
-                    <div className="detail-meta">
+                      <div className="detail-meta">
+                      <div className="detail-row">
+                        <span className="detail-label">Original filename</span>
+                        <span className="detail-value">{game.originalEntryName ?? game.entryName}</span>
+                      </div>
+                      {game.releaseVersion && <div className="detail-row"><span className="detail-label">Package version</span><span className="detail-value">{game.releaseVersion}</span></div>}
+                      {game.releaseGroup && <div className="detail-row"><span className="detail-label">Release group</span><span className="detail-value">{game.releaseGroup}</span></div>}
+                      {game.releaseDlcs.length > 0 && <div className="detail-row"><span className="detail-label">Included DLC</span><span className="detail-value">{game.releaseDlcs.join(', ')}</span></div>}
                       <div className="detail-row">
                         <span className="detail-label">Release Date</span>
                         <span className="detail-value">

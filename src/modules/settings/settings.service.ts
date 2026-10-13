@@ -2,6 +2,7 @@ import { ValidationError } from '../../shared/errors.js';
 import { settingsRepository } from './settings.repository.js';
 import type { Setting } from './settings.types.js';
 import { config } from '../../config/index.js';
+import { DEFAULT_FORMAT_SETTING, CUSTOM_FORMAT_SETTING, validateFilenameFormat } from '../library/filename-format.js';
 
 export interface SettingsEnvSnapshot {
   libraryRoot: string;
@@ -35,6 +36,13 @@ export function parseSettingsUpsert(body: unknown): { key: string; value: string
     }
     if (typeof value !== 'string') {
       throw new ValidationError(`invalid value for ${key}: expected string`);
+    }
+    if (key === DEFAULT_FORMAT_SETTING || key === CUSTOM_FORMAT_SETTING) {
+      try {
+        if (key === DEFAULT_FORMAT_SETTING || value.trim()) validateFilenameFormat(value);
+      } catch (err) {
+        throw new ValidationError((err as Error).message);
+      }
     }
     if (value.length > MAX_VALUE_LENGTH) {
       throw new ValidationError(`value too long (max ${MAX_VALUE_LENGTH}) for ${key}`);

@@ -14,6 +14,7 @@ import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
 import { ScannerSection } from '../components/ScannerSection';
+import { LibraryNamingSection } from '../components/LibraryNamingSection';
 import { useTheme } from '../context/ThemeContext';
 import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../context/GlassTuneContext';
 import { useGlowFollow } from '../hooks/useGlowFollow';
@@ -193,6 +194,11 @@ export function SettingsPage(): JSX.Element {
   const renderLibrary = () => (
     <SettingsPanel title="Scan activity" eyebrow="Locations">
       <ScannerSection />
+      <div className="settings-library-naming">
+        <SettingsPanel title="Library naming">
+          <LibraryNamingSection />
+        </SettingsPanel>
+      </div>
     </SettingsPanel>
   );
 

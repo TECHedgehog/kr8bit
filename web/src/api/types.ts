@@ -22,6 +22,10 @@ export interface Game {
   entryPath: string;
   entryType: EntryType;
   entryName: string;
+  originalEntryName: string | null;
+  releaseVersion: string | null;
+  releaseDlcs: string[];
+  releaseGroup: string | null;
   sizeBytes: number;
   steamAppId: number | null;
   title: string | null;
@@ -47,6 +51,14 @@ export interface Game {
 export interface GameListResult {
   items: Game[];
   total: number;
+}
+
+export interface GameRenamePreview {
+  id: string;
+  oldName: string;
+  newName: string | null;
+  status: 'ready' | 'unchanged' | 'conflict' | 'unavailable';
+  message?: string;
 }
 
 export interface GenresResult {

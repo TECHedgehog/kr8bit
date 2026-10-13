@@ -6,6 +6,21 @@
   initial-value: #08090c;
 }
 
+.settings-library-naming { margin-top: var(--space-6); }
+.filename-format-control { display: flex; align-items: center; gap: var(--space-3); }
+.filename-format-control label { display: flex; flex: 0 1 32rem; align-items: flex-start; gap: var(--space-3); white-space: nowrap; }
+.filename-format-control label > span { line-height: 2.25rem; }
+.filename-format-control input { width: 32rem; }
+.filename-format-field { display: grid; gap: var(--space-2); }
+.rename-preview-log { display: grid; max-height: 20rem; overflow-y: auto; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-2); }
+.rename-preview-row { display: flex; align-items: center; gap: var(--space-3); min-width: 0; font-family: var(--font-mono); font-size: var(--text-xs); }
+.rename-preview-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rename-preview-old { color: var(--text-muted); }
+.rename-preview-arrow { color: var(--text-muted); }
+.rename-preview-new { color: color-mix(in srgb, var(--accent) 72%, var(--text-primary)); }
+.rename-preview-row--conflict, .rename-preview-row--unavailable { color: var(--text-muted); }
+.rename-preview-actions { display: flex; gap: var(--space-3); }
+
 @property --surface-1 {
   syntax: '<color>';
   inherits: true;

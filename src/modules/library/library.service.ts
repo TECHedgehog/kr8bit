@@ -6,6 +6,10 @@ import {
   isSortKey,
 } from './library.types.js';
 import type { Game, GameListFilter, GameListResult, GameUpdateInput, SortKey } from './library.types.js';
+import type { GameRenamePreview, GameRenameResult } from './library.types.js';
+import { filesystemRenameService, targetPath } from './filesystem-rename.service.js';
+import { CUSTOM_FORMAT_SETTING, DEFAULT_FILENAME_FORMAT, validateFilenameFormat } from './filename-format.js';
+import { settingsRepository } from '../settings/settings.repository.js';
 
 export interface NormalizedListFilter {
   search?: string;
@@ -103,5 +107,61 @@ export const libraryService = {
 
   async delete(id: string, scope?: string): Promise<void> {
     return libraryRepository.delete(id, scope);
+  },
+
+  async rename(ids: string[], scope?: string, formatOverride?: string): Promise<GameRenameResult[]> {
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > 10000) {
+      throw new ValidationError('ids must contain between 1 and 10000 game IDs');
+    }
+    const results: GameRenameResult[] = [];
+    const settings = await settingsRepository.list();
+    const defaultFormat = DEFAULT_FILENAME_FORMAT;
+    const customFormat = formatOverride ?? settings.find((entry) => entry.key === CUSTOM_FORMAT_SETTING)?.value;
+    const format = customFormat?.trim() || defaultFormat;
+    validateFilenameFormat(format);
+    for (const id of [...new Set(ids)]) {
+      const game = await libraryRepository.findById(id, scope);
+      try {
+        const paths = await filesystemRenameService.rename(game, format);
+        if (paths.oldPath === paths.newPath) {
+          results.push({ id, oldPath: paths.oldPath, newPath: paths.newPath, status: 'skipped', message: 'already named' });
+          continue;
+        }
+        await libraryRepository.updateEntry(id, paths.newPath, paths.newPath.split(/[\\/]/).pop() ?? game.entryName, scope);
+        results.push({ id, ...paths, status: 'renamed' });
+      } catch (err) {
+        results.push({ id, oldPath: game.entryPath, newPath: null, status: 'failed', message: (err as Error).message });
+      }
+    }
+    return results;
+  },
+
+  async previewRename(scope?: string, formatOverride?: string): Promise<GameRenamePreview[]> {
+    const settings = await settingsRepository.list();
+    const customFormat = formatOverride ?? settings.find((entry) => entry.key === CUSTOM_FORMAT_SETTING)?.value;
+    const format = customFormat?.trim() || DEFAULT_FILENAME_FORMAT;
+    validateFilenameFormat(format);
+    const games = await libraryRepository.listAll(scope);
+    const previews: GameRenamePreview[] = [];
+    for (const game of games) {
+      if (!game.title?.trim()) {
+        previews.push({ id: game.id, oldName: game.entryName, newName: null, status: 'unavailable', message: 'missing metadata title' });
+        continue;
+      }
+      try {
+        const newPath = targetPath(game, format);
+        const newName = newPath.split(/[\\/]/).pop() ?? newPath;
+        if (newPath === game.entryPath) {
+          previews.push({ id: game.id, oldName: game.entryName, newName, status: 'unchanged', message: 'already named' });
+        } else if (await filesystemRenameService.targetExists(newPath)) {
+          previews.push({ id: game.id, oldName: game.entryName, newName, status: 'conflict', message: 'target already exists' });
+        } else {
+          previews.push({ id: game.id, oldName: game.entryName, newName, status: 'ready' });
+        }
+      } catch (err) {
+        previews.push({ id: game.id, oldName: game.entryName, newName: null, status: 'unavailable', message: (err as Error).message });
+      }
+    }
+    return previews;
   },
 };

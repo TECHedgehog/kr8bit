@@ -6,6 +6,10 @@ export interface Game {
   entryPath: string;
   entryType: EntryType;
   entryName: string;
+  originalEntryName: string | null;
+  releaseVersion: string | null;
+  releaseDlcs: string[];
+  releaseGroup: string | null;
   sizeBytes: number;
   steamAppId: number | null;
   title: string | null;
@@ -36,9 +40,37 @@ export interface GameCreateInput {
   entryName: string;
   sizeBytes: number;
   matchStatus: MatchStatus;
+  originalEntryName?: string;
+  releaseVersion?: string | null;
+  releaseDlcs?: string[];
+  releaseGroup?: string | null;
+}
+
+export interface GameRenameInput {
+  ids: string[];
+}
+
+export interface GameRenameResult {
+  id: string;
+  oldPath: string;
+  newPath: string | null;
+  status: 'renamed' | 'skipped' | 'failed';
+  message?: string;
+}
+
+export interface GameRenamePreview {
+  id: string;
+  oldName: string;
+  newName: string | null;
+  status: 'ready' | 'unchanged' | 'conflict' | 'unavailable';
+  message?: string;
 }
 
 export interface GameUpdateInput {
+  originalEntryName?: string | null;
+  releaseVersion?: string | null;
+  releaseDlcs?: string[];
+  releaseGroup?: string | null;
   steamAppId?: number | null;
   title?: string | null;
   releaseYear?: number | null;
