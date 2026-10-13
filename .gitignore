@@ -7,6 +7,8 @@ data
 *.log
 .DS_Store
 var/
+games/
+kr8bit-data/
 .opencode/
 .openchamber/
 

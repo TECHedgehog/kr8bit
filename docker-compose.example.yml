@@ -7,6 +7,7 @@ services:
       - "8080:8080"
     environment:
       LIBRARY_ROOT: /games
+      DEMO_MODE: "false"
       CACHE_DIR: /data/cache
       DB_PATH: /data/kr8bit.db
       PORT: "8080"
@@ -14,5 +15,5 @@ services:
       LOG_LEVEL: info
       STEAM_INDEX_REFRESH_INTERVAL_HOURS: "24"
     volumes:
-      - /path/to/your/games:/games:ro
+      - ./games:/games:ro
       - ./kr8bit-data:/data
