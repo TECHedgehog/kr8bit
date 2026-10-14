@@ -383,6 +383,80 @@ describe('GET/PATCH/DELETE /api/games/:id', () => {
   });
 });
 
+describe('game rename endpoints', () => {
+  it('previews every game and marks colliding target names', async () => {
+    const first = await createGame({ entryName: 'Original One.7z' });
+    const second = await createGame({ entryName: 'Original Two.7z' });
+    await libraryRepository.update(first, { title: 'Same Target' });
+    await libraryRepository.update(second, { title: 'Same Target' });
+
+    const response = await app.inject({ method: 'POST', url: '/api/games/rename/preview', payload: { format: '{title}' } });
+    expect(response.statusCode).toBe(200);
+    const items = response.json().items;
+    expect(items).toHaveLength(2);
+    expect(items.map((item: { status: string }) => item.status)).toEqual(['conflict', 'conflict']);
+    expect(items.map((item: { newName: string }) => item.newName)).toEqual(['Same Target.7z', 'Same Target.7z']);
+  });
+
+  it('previews games beyond the normal page-size limit', async () => {
+    for (let index = 0; index < 205; index += 1) {
+      await createGame({ entryName: `Unmatched ${index}.7z` });
+    }
+    const response = await app.inject({ method: 'POST', url: '/api/games/rename/preview', payload: {} });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().items).toHaveLength(205);
+  });
+
+  it('shows games without metadata title as unavailable', async () => {
+    await createGame({ entryName: 'No Match.7z' });
+    const response = await app.inject({ method: 'POST', url: '/api/games/rename/preview', payload: {} });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().items[0]).toMatchObject({ status: 'unavailable', message: 'missing metadata title' });
+  });
+
+  it('rejects malformed IDs instead of silently filtering them', async () => {
+    const response = await app.inject({ method: 'POST', url: '/api/games/rename', payload: { ids: ['valid-id', 5] } });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('rejects an oversized filename format', async () => {
+    const response = await app.inject({
+      method: 'POST', url: '/api/games/rename/preview', payload: { format: '{title}' + 'x'.repeat(1000) },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it('reports a missing game as a per-item failure without aborting batch', async () => {
+    const id = await createGame({ entryName: 'Rename Me.7z' });
+    const path = join(tmpDir, 'Rename Me.7z');
+    await fs.writeFile(path, 'payload');
+    await libraryRepository.update(id, { title: 'Renamed Game' });
+    const response = await app.inject({
+      method: 'POST', url: '/api/games/rename', payload: { ids: ['missing-id', id], format: '{title}' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().map((entry: { status: string }) => entry.status)).toEqual(['failed', 'renamed']);
+    expect(await fs.readFile(join(tmpDir, 'Renamed Game.7z'), 'utf8')).toBe('payload');
+  });
+
+  it('restores archive when database path update fails', async () => {
+    const id = await createGame({ entryName: 'Database Source.7z' });
+    const destinationId = await createGame({ entryName: 'Database Target.7z' });
+    await libraryRepository.update(id, { title: 'Database Target' });
+    await libraryRepository.update(destinationId, { title: 'Other Game' });
+    const oldPath = join(tmpDir, 'Database Source.7z');
+    await fs.writeFile(oldPath, 'keep source');
+
+    const response = await app.inject({
+      method: 'POST', url: '/api/games/rename', payload: { ids: [id], format: '{title}' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()[0].status).toBe('failed');
+    expect(await fs.readFile(oldPath, 'utf8')).toBe('keep source');
+    await expect(fs.stat(join(tmpDir, 'Database Target.7z'))).rejects.toThrow();
+  });
+});
+
 describe('Scanner endpoints', () => {
   it('GET /api/scanner/status with no runs', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/scanner/status' });

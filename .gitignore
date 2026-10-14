@@ -8,7 +8,7 @@ data
 .DS_Store
 var/
 games/
-games*/
+/games (copy *)/
 kr8bit-data/
 .opencode/
 .openchamber/

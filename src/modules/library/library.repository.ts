@@ -16,6 +16,8 @@ import type {
 } from './library.types.js';
 import { DEFAULT_SORT, MAX_PAGE_SIZE } from './library.types.js';
 import { settingsRepository } from '../settings/settings.repository.js';
+import { dirname, sep } from 'node:path';
+import { normalizeForMatch, normalizeGameName } from '../../shared/normalize.js';
 
 export const LIBRARY_MANUALLY_CLEARED_SETTING = 'libraryManuallyCleared';
 
@@ -98,8 +100,21 @@ export const libraryRepository = {
 
   async findByTitleAndDirectory(title: string, directory: string, scope?: string): Promise<Game | null> {
     try {
-      const rows = await prisma.game.findMany({ where: { title, ...scopedWhere(scope) } });
-      const row = rows.find((candidate) => candidate.entryPath.slice(0, candidate.entryPath.lastIndexOf('/')) === directory);
+      const parentPrefix = directory.endsWith(sep) ? directory : `${directory}${sep}`;
+      const rows = await prisma.game.findMany({
+        where: { AND: [{ entryPath: { startsWith: parentPrefix } }, scopedWhere(scope)] },
+      });
+      const normalizedTitle = normalizeForMatch(title);
+      const row = rows.find((candidate) => {
+        const sameDirectory = dirname(candidate.entryPath) === directory;
+        const normalizedEntry = normalizeForMatch(normalizeGameName(candidate.entryName).query);
+        const normalizedMetadata = normalizeForMatch(normalizeGameName(candidate.title ?? '').query);
+        return sameDirectory && (
+          normalizedEntry === normalizedTitle
+          || normalizedMetadata === normalizedTitle
+          || normalizedMetadata.includes(normalizedTitle)
+        );
+      });
       return row ? toDomain(row) : null;
     } catch (err) {
       throw mapPrismaError(err, 'Game', title);

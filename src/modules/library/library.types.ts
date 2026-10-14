@@ -48,7 +48,10 @@ export interface GameCreateInput {
 
 export interface GameRenameInput {
   ids: string[];
+  format?: string;
 }
+
+export const MAX_RENAME_IDS = 10_000;
 
 export interface GameRenameResult {
   id: string;
@@ -62,7 +65,7 @@ export interface GameRenamePreview {
   id: string;
   oldName: string;
   newName: string | null;
-  status: 'ready' | 'unchanged' | 'conflict' | 'unavailable';
+  status: 'ready' | 'unchanged' | 'conflict' | 'unavailable' | 'renamed' | 'failed';
   message?: string;
 }
 

@@ -337,18 +337,11 @@ export class ScannerService {
 
   private async processCandidate(candidate: ScanCandidate): Promise<CandidateOutcome> {
     const normalized = normalizeGameName(candidate.entryName);
-    const releaseInfo = parseReleaseFilename(candidate.entryName);
+    const releaseInfo = parseReleaseFilename(candidate.entryName, candidate.entryType);
     const existing = await libraryRepository.findByEntryPath(candidate.entryPath)
       ?? await libraryRepository.findByTitleAndDirectory(normalized.query, dirname(candidate.entryPath));
 
     if (existing) {
-      if (existing.matchStatus === MatchStatus.ACCEPTED || existing.matchStatus === MatchStatus.MANUAL) {
-        logger.debug({ entry: candidate.entryPath }, 'scan: skipping accepted/manual');
-        return 'skipped';
-      }
-      if (!RE_MATCHABLE.has(existing.matchStatus)) {
-        return 'skipped';
-      }
       if (!existing.originalEntryName) {
         await libraryRepository.update(existing.id, {
           originalEntryName: candidate.entryName,
@@ -356,6 +349,13 @@ export class ScannerService {
           releaseDlcs: releaseInfo.dlcs,
           releaseGroup: releaseInfo.group,
         });
+      }
+      if (existing.matchStatus === MatchStatus.ACCEPTED || existing.matchStatus === MatchStatus.MANUAL) {
+        logger.debug({ entry: candidate.entryPath }, 'scan: skipping accepted/manual');
+        return 'skipped';
+      }
+      if (!RE_MATCHABLE.has(existing.matchStatus)) {
+        return 'skipped';
       }
     }
 

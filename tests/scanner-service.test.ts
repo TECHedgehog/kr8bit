@@ -163,6 +163,52 @@ describe('ScannerService.start', () => {
     expect((await libraryRepository.list({ limit: 100 })).total).toBe(1);
   });
 
+  it('backfills original release details for existing accepted games', async () => {
+    await fs.writeFile(join(tmpDir, 'Skyrim v1.6.0 + DLC: Dawnguard (FitGirl).7z'), 'data');
+    const service = new ScannerService(makeDeps());
+    const firstRun = await service.start();
+    await waitForScanComplete(firstRun.id);
+    const path = join(tmpDir, 'Skyrim v1.6.0 + DLC: Dawnguard (FitGirl).7z');
+    const game = await libraryRepository.findByEntryPath(path);
+    expect(game).not.toBeNull();
+
+    await libraryRepository.update(game!.id, {
+      originalEntryName: null,
+      releaseVersion: null,
+      releaseDlcs: [],
+      releaseGroup: null,
+    });
+    const secondRun = await service.start();
+    const stats = await waitForScanComplete(secondRun.id);
+    expect(stats.updated).toBe(0);
+    const updated = await libraryRepository.findById(game!.id);
+    expect(updated.originalEntryName).toBe('Skyrim v1.6.0 + DLC: Dawnguard (FitGirl).7z');
+    expect(updated.releaseVersion).toBe('1.6.0');
+    expect(updated.releaseDlcs).toEqual(['Dawnguard']);
+    expect(updated.releaseGroup).toBe('FitGirl');
+  });
+
+  it('recognizes renamed paths by matched title in same directory', async () => {
+    const oldName = 'Skyrim.7z';
+    const newName = 'The Elder Scrolls V Skyrim.7z';
+    const oldPath = join(tmpDir, oldName);
+    const newPath = join(tmpDir, newName);
+    await fs.writeFile(oldPath, 'data');
+    const provider = mockProvider([{ providerName: 'steam', remoteId: '72850', title: 'The Elder Scrolls V Skyrim', score: 95 }]);
+    const service = new ScannerService(makeDeps({ providers: [provider] }));
+    const firstRun = await service.start();
+    await waitForScanComplete(firstRun.id);
+    const game = await libraryRepository.findByEntryPath(oldPath);
+    expect(game).not.toBeNull();
+
+    await fs.rename(oldPath, newPath);
+    await libraryRepository.updateEntry(game!.id, newPath, newName);
+    const secondRun = await service.start();
+    const stats = await waitForScanComplete(secondRun.id);
+    expect(stats.added).toBe(0);
+    expect((await libraryRepository.list({ limit: 100 })).total).toBe(1);
+  });
+
   it('re-matches FLAGGED games on re-scan', async () => {
     await fs.writeFile(join(tmpDir, 'Skyr.7z'), 'data');
 
