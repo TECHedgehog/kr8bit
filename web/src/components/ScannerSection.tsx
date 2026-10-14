@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import IconInfoCircle from '@tabler/icons-react/dist/esm/icons/IconInfoCircle.mjs';
 import { api, ApiError } from '../api/client';
 import type {
   ScanRun,
@@ -93,7 +92,6 @@ export function ScannerSection(): JSX.Element {
   const isRunning = status?.isRunning ?? false;
   const latest = status?.latest ?? null;
   const running = status?.runningRun ?? null;
-  const activeRun = running ?? latest;
   const liveRun = running ?? latest;
   const showLivePanel = activeScanRunId !== null;
 
@@ -102,7 +100,6 @@ export function ScannerSection(): JSX.Element {
       {!showLivePanel && <div className="scanner-section-header">
         <div className="scanner-status-line">
           <span className={`scanner-status${isRunning ? ' is-running' : ''}`}><span />{isRunning ? 'Scanning now' : 'Ready to scan'}</span>
-          {activeRun?.rootPath && <LocationInfo path={activeRun.rootPath} />}
         </div>
         <ScanAction starting={starting} stopping={stopping} isRunning={isRunning} activeScanRunId={activeScanRunId} onStart={startScan} onStop={stopScan} />
       </div>}
@@ -116,7 +113,6 @@ export function ScannerSection(): JSX.Element {
           <div>
             <div className="scanner-status-line">
               <span className="scanner-status is-running"><span />Current scan</span>
-              {liveRun?.rootPath && <LocationInfo path={liveRun.rootPath} />}
             </div>
             <p className="scanner-current-entry" title={liveProgress?.currentEntry}>{liveProgress?.currentEntry ?? 'Preparing scanner…'}</p>
           </div>
@@ -130,8 +126,11 @@ export function ScannerSection(): JSX.Element {
       </section>}
 
       <section className="scanner-card">
-        <div className="scanner-card-heading"><h3>Recent activity</h3>{latest && <span>{formatDateTime(latest.finishedAt ?? latest.startedAt)}</span>}</div>
-        {latest ? <ScanRunView run={latest} /> : <p className="scanner-empty">No scans yet</p>}
+        <div className="scanner-card-heading">
+          <h3>Recent activity</h3>
+          {latest && <div className="scanner-recent-meta"><span className="scanner-run-status">{latest.status}</span><span>{formatDateTime(latest.finishedAt ?? latest.startedAt)}</span></div>}
+        </div>
+        {latest ? <ScanRunView run={latest} /> : <div className="scanner-empty"><strong>No scans yet</strong><span>Start a scan to find games in this library location.</span></div>}
       </section>
     </div>
   );
@@ -142,7 +141,7 @@ function ScanRunView({ run }: { run: ScanRun }): JSX.Element {
 }
 
 function ScanMetrics({ run, progress }: { run: ScanRun | null; progress?: ScanProgressEvent | null }): JSX.Element {
-  const status = progress?.phase ?? run?.status ?? 'starting';
+  const [showAllErrors, setShowAllErrors] = useState(false);
   const found = progress?.found ?? run?.found ?? 0;
   const added = progress?.added ?? run?.added ?? 0;
   const updated = progress?.updated ?? run?.updated ?? 0;
@@ -151,23 +150,20 @@ function ScanMetrics({ run, progress }: { run: ScanRun | null; progress?: ScanPr
   return (
     <div className="scan-run">
       <div className="scan-run-summary">
-        <div><strong>{status}</strong><span>status</span></div>
         <div><strong>{found}</strong><span>found</span></div>
         <div><strong>{added}</strong><span>added</span></div>
         <div><strong>{updated}</strong><span>updated</span></div>
         <div><strong>{failed}</strong><span>failed</span></div>
       </div>
       {run && <div className="scan-run-meta"><span>started {formatDateTime(run.startedAt)}</span><span>finished {formatDateTime(run.finishedAt)}</span></div>}
-      {run && run.errors.length > 0 && <ul className="scan-run-errors">{run.errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
+      {run && run.errors.length > 0 && <div className="scan-run-error-panel">
+        <ul className="scan-run-errors">{run.errors.slice(0, showAllErrors ? run.errors.length : 3).map((error, index) => <li key={index}>{error}</li>)}</ul>
+        {run.errors.length > 3 && <button type="button" className="scan-run-errors-toggle" onClick={() => setShowAllErrors((show) => !show)} aria-expanded={showAllErrors}>
+          {showAllErrors ? 'Show fewer errors' : `Show ${run.errors.length - 3} more`}
+        </button>}
+      </div>}
     </div>
   );
-}
-
-function LocationInfo({ path }: { path: string }): JSX.Element {
-  return <span className="scanner-location-info">
-    <button type="button" aria-label="Show configured library path" aria-describedby="scanner-location-path"><IconInfoCircle size={16} stroke={1.8} aria-hidden="true" /></button>
-    <span id="scanner-location-path" role="tooltip">{path}</span>
-  </span>;
 }
 
 function ScanAction({ starting, stopping, isRunning, activeScanRunId, onStart, onStop }: { starting: boolean; stopping: boolean; isRunning: boolean; activeScanRunId: string | null; onStart: () => void; onStop: () => void }): JSX.Element {

@@ -15,6 +15,7 @@ import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
 import { ScannerSection } from '../components/ScannerSection';
+import { LibraryLocationSection } from '../components/LibraryLocationSection';
 import { LibraryNamingSection } from '../components/LibraryNamingSection';
 import { useTheme } from '../context/ThemeContext';
 import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../context/GlassTuneContext';
@@ -233,12 +234,21 @@ export function SettingsPage(): JSX.Element {
   );
 
   const renderLibrary = () => (
-    <SettingsPanel title="Scan activity" eyebrow="Locations">
-      <ScannerSection />
-      <div className="settings-subpanel settings-library-naming">
-        <h3>Library naming</h3>
+    <SettingsPanel title="Locations" eyebrow="Library">
+      <section className="settings-subpanel settings-subpanel--first locations-subsection">
+        <div className="settings-subpanel-heading locations-subsection-heading">
+          <div><h3>Library location</h3><p>Configured game library folder</p></div>
+        </div>
+        <LibraryLocationSection />
+      </section>
+      <section className="settings-subpanel locations-subsection">
+        <div className="settings-subpanel-heading locations-subsection-heading"><h3>Scan activity</h3></div>
+        <ScannerSection />
+      </section>
+      <section className="settings-subpanel settings-library-naming locations-subsection">
+        <div className="settings-subpanel-heading locations-subsection-heading"><h3>Library naming</h3></div>
         <LibraryNamingSection />
-      </div>
+      </section>
     </SettingsPanel>
   );
 

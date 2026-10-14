@@ -89,7 +89,7 @@ export function LibraryNamingSection(): JSX.Element {
 
   const readyCount = preview?.filter((item) => item.status === 'ready' && !excluded.has(item.id)).length ?? 0;
 
-  return <div className="settings-subpanel settings-subpanel--first">
+  return <div className="library-naming-content">
     <div className="filename-format-control">
       <label><span>Filename format</span><div className="filename-format-field"><input value={format} onChange={(event) => { setFormat(event.target.value); setPreview(null); setError(null); }} placeholder={DEFAULT_FORMAT} disabled={processing || saving} /><small>Tags: {TAGS}</small></div></label>
       {format.trim() !== savedFormat.trim() && <button type="button" onClick={() => void save()} disabled={saving || processing}>{saving ? 'Saving…' : 'Save'}</button>}
