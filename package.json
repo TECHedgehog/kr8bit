@@ -9,7 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch scripts/dev.ts",
     "predev": "npm run prisma:generate",
     "build": "tsc -p tsconfig.json",
     "prebuild": "npm run prisma:generate",
@@ -17,8 +17,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --ext .ts",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
+    "prisma:migrate": "tsx scripts/prisma-db.ts migrate dev",
+    "prisma:deploy": "tsx scripts/prisma-db.ts migrate deploy",
     "test": "vitest run",
     "test:watch": "vitest",
     "web:dev": "npm --prefix web run dev",
