@@ -194,10 +194,9 @@ export function SettingsPage(): JSX.Element {
   const renderLibrary = () => (
     <SettingsPanel title="Scan activity" eyebrow="Locations">
       <ScannerSection />
-      <div className="settings-library-naming">
-        <SettingsPanel title="Library naming">
-          <LibraryNamingSection />
-        </SettingsPanel>
+      <div className="settings-subpanel settings-library-naming">
+        <h3>Library naming</h3>
+        <LibraryNamingSection />
       </div>
     </SettingsPanel>
   );
