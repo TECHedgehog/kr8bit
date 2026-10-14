@@ -114,6 +114,9 @@ model RepackGame {
   matchScore           Float?
   matchCandidates      String       @default("[]")
   metadataSnapshot     String?
+  genres               String       @default("[]")
+  steamDeckCategory    Int?
+  latestPostAt         DateTime?
   posts                RepackPost[]
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt

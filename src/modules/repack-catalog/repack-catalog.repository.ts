@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../../prisma-client.js';
-import type { RepackMatchCandidate, RepackMetadataSnapshot, RepackPostInput } from './repack-catalog.types.js';
+import type { RepackCatalogQuery, RepackMatchCandidate, RepackMetadataSnapshot, RepackPostInput } from './repack-catalog.types.js';
 
 function parseJson<T>(value: string, fallback: T): T {
   try { return JSON.parse(value) as T; } catch { return fallback; }
@@ -38,27 +38,41 @@ export const repackCatalogRepository = {
   },
 
   async upsertPost(input: RepackPostInput) {
-    const game = await prisma.repackGame.upsert({
-      where: { normalizedTitle: input.normalizedTitle },
-      create: { title: input.gameTitle, normalizedTitle: input.normalizedTitle },
-      update: { title: input.gameTitle },
-    });
-    return prisma.repackPost.upsert({
-      where: { source_sourceUrl: { source: input.source, sourceUrl: input.sourceUrl } },
-      create: {
-        source: input.source, sourceUrl: input.sourceUrl, title: input.title,
-        normalizedTitle: input.normalizedTitle, publishedAt: input.publishedAt,
-        tags: JSON.stringify(input.tags), details: JSON.stringify(input.details),
-        downloadOptions: JSON.stringify(input.downloadOptions), postKind: input.postKind,
-        contentHash: input.contentHash, gameId: game.id,
-      },
-      update: {
-        title: input.title, tags: JSON.stringify(input.tags), details: JSON.stringify(input.details),
-        downloadOptions: JSON.stringify(input.downloadOptions), contentHash: input.contentHash,
-        normalizedTitle: input.normalizedTitle, publishedAt: input.publishedAt,
-        postKind: input.postKind, lastSeenAt: new Date(), gameId: game.id,
-      },
-      include: { game: true },
+    return prisma.$transaction(async (tx) => {
+      const game = await tx.repackGame.upsert({
+        where: { normalizedTitle: input.normalizedTitle },
+        create: { title: input.gameTitle, normalizedTitle: input.normalizedTitle },
+        update: { title: input.gameTitle },
+      });
+      const previousPost = await tx.repackPost.findUnique({
+        where: { source_sourceUrl: { source: input.source, sourceUrl: input.sourceUrl } },
+        select: { gameId: true },
+      });
+      await tx.repackPost.upsert({
+        where: { source_sourceUrl: { source: input.source, sourceUrl: input.sourceUrl } },
+        create: {
+          source: input.source, sourceUrl: input.sourceUrl, title: input.title,
+          normalizedTitle: input.normalizedTitle, publishedAt: input.publishedAt,
+          tags: JSON.stringify(input.tags), details: JSON.stringify(input.details),
+          downloadOptions: JSON.stringify(input.downloadOptions), postKind: input.postKind,
+          contentHash: input.contentHash, gameId: game.id,
+        },
+        update: {
+          title: input.title, tags: JSON.stringify(input.tags), details: JSON.stringify(input.details),
+          downloadOptions: JSON.stringify(input.downloadOptions), contentHash: input.contentHash,
+          normalizedTitle: input.normalizedTitle, publishedAt: input.publishedAt,
+          postKind: input.postKind, lastSeenAt: new Date(), gameId: game.id,
+        },
+      });
+      const affectedGameIds = new Set([game.id, previousPost?.gameId].filter((id): id is string => Boolean(id)));
+      for (const gameId of affectedGameIds) {
+        const latest = await tx.repackPost.aggregate({ where: { gameId }, _max: { publishedAt: true } });
+        await tx.repackGame.update({ where: { id: gameId }, data: { latestPostAt: latest._max.publishedAt } });
+      }
+      return tx.repackPost.findUniqueOrThrow({
+        where: { source_sourceUrl: { source: input.source, sourceUrl: input.sourceUrl } },
+        include: { game: true },
+      });
     });
   },
 
@@ -83,21 +97,46 @@ export const repackCatalogRepository = {
     });
   },
 
-  async listGames(options: { offset: number; limit: number; query?: string }) {
-    const where = options.query ? { title: { contains: options.query } } : undefined;
+  async listGames(options: RepackCatalogQuery) {
+    const conditions: Record<string, unknown>[] = [];
+    if (options.query) conditions.push({ title: { contains: options.query } });
+    if (options.genres?.length) {
+      conditions.push({ OR: options.genres.map((genre) => ({ genres: { contains: JSON.stringify(genre) } })) });
+    }
+    if (options.steamDeck?.length) {
+      conditions.push({
+        OR: options.steamDeck.map((category) => category === 0
+          ? { OR: [{ steamDeckCategory: null }, { steamDeckCategory: 0 }] }
+          : { steamDeckCategory: category }),
+      });
+    }
+    if (options.matchStatus?.length) conditions.push({ matchStatus: { in: options.matchStatus } });
+    const where = conditions.length ? { AND: conditions } : undefined;
+    const orderBy = options.sort === 'title-desc'
+      ? [{ title: 'desc' as const }]
+      : options.sort === 'newest'
+        ? [{ latestPostAt: 'desc' as const }, { title: 'asc' as const }]
+        : options.sort === 'oldest'
+          ? [{ latestPostAt: 'asc' as const }, { title: 'asc' as const }]
+          : [{ title: 'asc' as const }];
     const [rows, total] = await prisma.$transaction([
       prisma.repackGame.findMany({
         where, skip: options.offset, take: options.limit,
         select: {
           id: true, title: true, normalizedTitle: true, providerName: true,
           providerRemoteId: true, matchStatus: true, matchScore: true,
-          createdAt: true, updatedAt: true,
+          createdAt: true, updatedAt: true, latestPostAt: true,
           posts: { select: POST_SUMMARY, orderBy: { publishedAt: 'desc' } },
-        }, orderBy: { title: 'asc' },
+        }, orderBy,
       }),
       prisma.repackGame.count({ where }),
     ]);
     return { items: rows, total };
+  },
+
+  async listGenres(): Promise<string[]> {
+    const rows = await prisma.repackGame.findMany({ select: { genres: true } });
+    return [...new Set(rows.flatMap((row) => parseJson<string[]>(row.genres, [])))].sort((a, b) => a.localeCompare(b));
   },
 
   async getGame(id: string) {
@@ -116,6 +155,19 @@ export const repackCatalogRepository = {
         details: parseJson<Record<string, string>>(post.details, {}),
         downloadOptions: parseJson<Array<{ label: string; url: string }>>(post.downloadOptions, []),
       })),
+    };
+  },
+
+  async getArtworkGame(id: string) {
+    const game = await prisma.repackGame.findUnique({
+      where: { id }, select: { providerName: true, metadataSnapshot: true },
+    });
+    if (!game) return null;
+    return {
+      providerName: game.providerName,
+      metadataSnapshot: game.metadataSnapshot
+        ? parseJson<RepackMetadataSnapshot | null>(game.metadataSnapshot, null)
+        : null,
     };
   },
 
@@ -143,6 +195,8 @@ export const repackCatalogRepository = {
       providerName: candidate.providerName, providerRemoteId: candidate.remoteId,
       matchStatus: 'MATCHED', matchScore: candidate.score,
       metadataSnapshot: JSON.stringify(metadataSnapshot),
+      genres: JSON.stringify(metadataSnapshot.genres),
+      steamDeckCategory: metadataSnapshot.steamDeckCompat?.category ?? null,
     } });
   },
 
@@ -150,14 +204,16 @@ export const repackCatalogRepository = {
     return prisma.repackGame.update({ where: { id }, data: {
       providerName: null, providerRemoteId: null, matchStatus: 'REJECTED', matchScore: null,
       metadataSnapshot: null,
+      genres: '[]', steamDeckCategory: null,
     } });
   },
 
   async regroupGames(normalize: (title: string) => { gameTitle: string; normalizedTitle: string }) {
     await prisma.$transaction(async (tx) => {
-      const games = await tx.repackGame.findMany({ include: { posts: { select: { id: true, title: true } } } });
+      const games = await tx.repackGame.findMany({ include: { posts: { select: { id: true, title: true, publishedAt: true } } } });
       const groups = new Map<string, { gameTitle: string; normalizedTitle: string; posts: string[]; games: typeof games }>();
       const postOwners = new Map(games.flatMap((game) => game.posts.map((post) => [post.id, game.id] as const)));
+      const postPublishedAt = new Map(games.flatMap((game) => game.posts.map((post) => [post.id, post.publishedAt] as const)));
       const winnerDetails = new Map<string, { title: string; normalizedTitle: string }>();
 
       for (const game of games) {
@@ -214,7 +270,14 @@ export const repackCatalogRepository = {
         const winnerId = winners.get(normalizedTitle)!;
         await tx.repackGame.update({
           where: { id: winnerId },
-          data: { title: group.gameTitle, normalizedTitle },
+          data: {
+            title: group.gameTitle,
+            normalizedTitle,
+            latestPostAt: group.posts.reduce<Date | null>((latest, postId) => {
+              const publishedAt = postPublishedAt.get(postId);
+              return publishedAt && (!latest || publishedAt > latest) ? publishedAt : latest;
+            }, null),
+          },
         });
       }
     });

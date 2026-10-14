@@ -52,6 +52,52 @@ describe('repackCatalogRepository', () => {
     expect(detail?.metadataSnapshot).toMatchObject({ title: 'Portal 2' });
   });
 
+  it('filters repacks by genre, Deck compatibility, and match status', async () => {
+    const first = await repackCatalogRepository.upsertPost({
+      ...post('https://fitgirl.test/filter-alpha/'), gameTitle: 'Alpha Game', normalizedTitle: 'alpha game',
+      publishedAt: new Date('2024-01-01T00:00:00.000Z'),
+    });
+    const second = await repackCatalogRepository.upsertPost({
+      ...post('https://fitgirl.test/filter-beta/'), gameTitle: 'Beta Game', normalizedTitle: 'beta game',
+      publishedAt: new Date('2025-01-01T00:00:00.000Z'),
+    });
+    await repackCatalogRepository.acceptMatch(first.gameId!, {
+      providerName: 'steam', remoteId: '1', title: 'Alpha Game', score: 95,
+    }, {
+      remoteId: '1', title: 'Alpha Game', developers: [], publishers: [], genres: ['RPG'],
+      steamDeckCompat: { category: 3, items: [] },
+    });
+    await repackCatalogRepository.acceptMatch(second.gameId!, {
+      providerName: 'steam', remoteId: '2', title: 'Beta Game', score: 95,
+    }, {
+      remoteId: '2', title: 'Beta Game', developers: [], publishers: [], genres: ['RPG'],
+      steamDeckCompat: { category: 2, items: [] },
+    });
+
+    const filtered = await repackCatalogRepository.listGames({
+      offset: 0, limit: 20, genres: ['RPG'], steamDeck: [3], matchStatus: ['MATCHED'],
+    });
+    expect(filtered.items.map((game) => game.id)).toEqual([first.gameId]);
+    expect(await repackCatalogRepository.listGenres()).toEqual(['RPG']);
+  });
+
+  it('sorts by latest source post date and tracks latest date after upsert', async () => {
+    const older = await repackCatalogRepository.upsertPost({
+      ...post('https://fitgirl.test/older/'), gameTitle: 'Older Game', normalizedTitle: 'older game',
+      publishedAt: new Date('2023-01-01T00:00:00.000Z'),
+    });
+    const newer = await repackCatalogRepository.upsertPost({
+      ...post('https://fitgirl.test/newer/'), gameTitle: 'Newer Game', normalizedTitle: 'newer game',
+      publishedAt: new Date('2025-01-01T00:00:00.000Z'),
+    });
+
+    const newest = await repackCatalogRepository.listGames({ offset: 0, limit: 20, sort: 'newest' });
+    const oldest = await repackCatalogRepository.listGames({ offset: 0, limit: 20, sort: 'oldest' });
+    expect(newest.items.map((game) => game.id)).toEqual([newer.gameId, older.gameId]);
+    expect(oldest.items.map((game) => game.id)).toEqual([older.gameId, newer.gameId]);
+    expect(newest.items[0].latestPostAt?.toISOString()).toBe('2025-01-01T00:00:00.000Z');
+  });
+
   it('lists pending, review, and rejected games for retry', async () => {
     const pending = await repackCatalogRepository.upsertPost(post('https://fitgirl.test/pending/'));
     const review = await repackCatalogRepository.upsertPost({ ...post('https://fitgirl.test/review/'), normalizedTitle: 'review game' });

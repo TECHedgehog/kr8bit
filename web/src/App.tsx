@@ -15,6 +15,7 @@ const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
 const RepackCatalogPage = lazy(() => import('./pages/RepackCatalogPage').then((m) => ({ default: m.RepackCatalogPage })));
+const RepackDetailCard = lazy(() => import('./components/RepackDetailCard').then((m) => ({ default: m.RepackDetailCard })));
 
 export function App(): JSX.Element {
   return (
@@ -29,7 +30,10 @@ export function App(): JSX.Element {
             <Route path=":id" element={<GameDetailCard />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/repack-catalog" element={<RepackCatalogPage />} />
+          <Route path="/repack-catalog" element={<RepackCatalogPage />}>
+            <Route index element={null} />
+            <Route path=":id" element={<RepackDetailCard />} />
+          </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         </Routes>

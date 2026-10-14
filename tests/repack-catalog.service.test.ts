@@ -70,8 +70,8 @@ describe('RepackCatalogService', () => {
     expect(snapshot.remoteId).toBe('1');
     expect(snapshot).toMatchObject({ coverUrl: 'cover-url', headerUrl: 'header-url', heroUrl: 'hero-url', logoUrl: 'logo-url' });
     expect(snapshot.steamDeckCompat).toEqual({ category: 3, items: [{ displayType: 1, locToken: 'playable' }] });
-    expect(snapshot).not.toHaveProperty('screenshots');
-    expect(snapshot).not.toHaveProperty('videos');
+    expect(snapshot.screenshots).toEqual([{ url: 'screenshot', thumbnailUrl: 'thumb' }]);
+    expect(snapshot.videos).toEqual([{ url: 'video', thumbnailUrl: 'thumb' }]);
   });
 
   it('does not start full-history discovery on recent sync', async () => {

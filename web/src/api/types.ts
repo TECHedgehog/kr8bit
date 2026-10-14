@@ -91,6 +91,8 @@ export interface RepackCatalogGame {
   normalizedTitle: string;
   matchStatus: 'PENDING' | 'MATCHED' | 'REVIEW' | 'REJECTED';
   matchScore: number | null;
+  updatedAt: string;
+  latestPostAt: string | null;
   providerName: string | null;
   providerRemoteId: string | null;
   posts: RepackPostSummary[];
@@ -111,6 +113,8 @@ export interface RepackCatalogGameDetail extends RepackCatalogGame {
     headerUrl?: string;
     heroUrl?: string;
     logoUrl?: string;
+    screenshots?: { url: string; thumbnailUrl: string }[];
+    videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
     steamDeckCompat?: { category: number; items: Array<{ displayType: number; locToken: string }> };
   } | null;
   posts: Array<RepackPostSummary & {

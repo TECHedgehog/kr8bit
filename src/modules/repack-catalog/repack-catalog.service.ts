@@ -51,6 +51,8 @@ function snapshotFrom(metadata: GameMetadata): RepackMetadataSnapshot {
     headerUrl: metadata.headerUrl,
     heroUrl: metadata.heroUrl,
     logoUrl: metadata.logoUrl,
+    screenshots: metadata.screenshots,
+    videos: metadata.videos,
     steamDeckCompat: metadata.steamDeckCompat ? {
       category: metadata.steamDeckCompat.category,
       items: metadata.steamDeckCompat.items.map((item) => ({ displayType: item.displayType, locToken: item.locToken })),
@@ -212,8 +214,10 @@ export class RepackCatalogService {
     }
   }
 
-  list(options: { offset: number; limit: number; query?: string }) { return repackCatalogRepository.listGames(options); }
+  list(options: { offset: number; limit: number; query?: string; genres?: string[]; steamDeck?: number[]; matchStatus?: RepackMatchStatus[]; sort?: 'title-asc' | 'title-desc' | 'newest' | 'oldest' }) { return repackCatalogRepository.listGames(options); }
+  genres() { return repackCatalogRepository.listGenres(); }
   getGame(id: string) { return repackCatalogRepository.getGame(id); }
+  getArtworkGame(id: string) { return repackCatalogRepository.getArtworkGame(id); }
   review(options: { offset: number; limit: number }) { return repackCatalogRepository.listReview(options); }
   statusSnapshot() { return this.jobStatus(); }
 

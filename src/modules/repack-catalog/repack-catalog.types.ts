@@ -47,6 +47,8 @@ export interface RepackMetadataSnapshot {
   headerUrl?: string;
   heroUrl?: string;
   logoUrl?: string;
+  screenshots?: { url: string; thumbnailUrl: string }[];
+  videos?: { url: string; thumbnailUrl: string; name?: string; hlsUrl?: string }[];
   steamDeckCompat?: {
     category: number;
     items: Array<{ displayType: number; locToken: string }>;
@@ -57,4 +59,8 @@ export interface RepackCatalogQuery {
   offset: number;
   limit: number;
   query?: string;
+  genres?: string[];
+  steamDeck?: number[];
+  matchStatus?: RepackMatchStatus[];
+  sort?: 'title-asc' | 'title-desc' | 'newest' | 'oldest';
 }
