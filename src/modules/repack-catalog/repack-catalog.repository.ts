@@ -69,7 +69,10 @@ export const repackCatalogRepository = {
   async findRematchableGames() {
     return prisma.repackGame.findMany({
       where: { matchStatus: { in: ['PENDING', 'REVIEW', 'REJECTED'] } },
-      select: { id: true, title: true, normalizedTitle: true },
+      select: {
+        id: true, title: true, normalizedTitle: true,
+        posts: { select: { title: true }, orderBy: { lastSeenAt: 'desc' }, take: 1 },
+      },
       orderBy: { updatedAt: 'asc' },
     });
   },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeGameName, normalizeForMatch } from '../src/shared/normalize.js';
+import { cleanGameTitle, normalizeGameName, normalizeForMatch, stripEditionPhrase } from '../src/shared/normalize.js';
 
 describe('normalizeGameName', () => {
   it('strips .7z extension', () => {
@@ -170,5 +170,34 @@ describe('normalizeForMatch', () => {
 
   it('collapses whitespace', () => {
     expect(normalizeForMatch('  Game   Title  ')).toBe('game title');
+  });
+});
+
+describe('cleanGameTitle', () => {
+  it('removes known editions and trailing repack noise but preserves punctuation', () => {
+    expect(cleanGameTitle('Dragon’s Dogma 2: Deluxe Edition* –')).toBe('Dragon’s Dogma 2');
+    expect(cleanGameTitle('Superhero Simulator + Bonus OST')).toBe('Superhero Simulator');
+  });
+
+  it('preserves unknown edition names for provider fallback', () => {
+    expect(cleanGameTitle('Bubsy 4D: Digital Pawsome Edition')).toBe('Bubsy 4D: Digital Pawsome Edition');
+  });
+});
+
+describe('stripEditionPhrase', () => {
+  it('extracts base title from an unknown trailing edition phrase', () => {
+    expect(stripEditionPhrase('Bubsy 4D: Digital Pawsome Edition')).toBe('Bubsy 4D');
+  });
+
+  it('trims trailing punctuation around edition phrase', () => {
+    expect(stripEditionPhrase('Dragon’s Dogma 2: Deluxe Edition* –')).toBe('Dragon’s Dogma 2');
+  });
+
+  it('strips bare Edition suffixes', () => {
+    expect(stripEditionPhrase('LEGO Party! Edition')).toBe('LEGO Party!');
+  });
+
+  it('returns null when title has no edition phrase', () => {
+    expect(stripEditionPhrase('Superhero Simulator')).toBeNull();
   });
 });

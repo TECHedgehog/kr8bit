@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { FitGirlSource, normalizeFitGirlGameTitle, parseFitGirlListing, parseFitGirlPost } from '../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js';
+import { fitGirlGameTitle, FitGirlSource, normalizeFitGirlGameTitle, parseFitGirlListing, parseFitGirlPost } from '../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js';
 import { SourceHttpClient } from '../src/modules/repack-catalog/source-http-client.js';
 
 const listingFixture = new URL('./fixtures/fitgirl/listing.html', import.meta.url);
@@ -34,6 +34,16 @@ describe('FitGirl parser', () => {
     expect(normalizeFitGirlGameTitle('GTA V v1')).toBe('gta v');
     expect(normalizeFitGirlGameTitle('GTA V v2')).toBe('gta v');
     expect(normalizeFitGirlGameTitle('GTA V v2 + 10 DLCs')).toBe('gta v');
+  });
+
+  it('cleans display titles without stripping unknown editions', () => {
+    expect(fitGirlGameTitle('Dragon’s Dogma 2: Deluxe Edition* –')).toBe('Dragon’s Dogma 2');
+    expect(fitGirlGameTitle('Bubsy 4D: Digital Pawsome Edition')).toBe('Bubsy 4D: Digital Pawsome Edition');
+    expect(fitGirlGameTitle('Superhero Simulator + Bonus OST')).toBe('Superhero Simulator');
+    expect(fitGirlGameTitle('MechWarrior 5: Mercenaries – Succession Wars Edition, v1.15.398 + 10 DLCs/Bonuses'))
+      .toBe('MechWarrior 5: Mercenaries – Succession Wars Edition');
+    expect(fitGirlGameTitle('LEGO Party! Soundtrack Edition, v1.6.62 + 2 DLCs/Bonuses')).toBe('LEGO Party! Edition');
+    expect(fitGirlGameTitle('Invincible VS, Season 2 Patch + 22 DLCs')).toBe('Invincible VS');
   });
 
   it('decodes numeric entities before normalizing FitGirl titles', async () => {

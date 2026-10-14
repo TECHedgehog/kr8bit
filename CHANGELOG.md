@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Repack matching now uses library acceptance thresholds and retries unresolved entries during sync
+- Repack matching tries accepted provider candidates in score order and falls back to base titles for edition/season suffixes
 - Repack catalog drops stored full article text; provider snapshots exclude screenshots/videos while preserving selected metadata and artwork URLs
 - **Breaking:** `DB_PATH` is now the only database variable — `DATABASE_URL` removed from compose/Unraid/`.env.example`; the app derives the Prisma datasource and the entrypoint exports it for the CLI (ADR-030)
 - **Breaking:** job-start endpoints (`/api/scanner/run`, `/api/metadata/refresh-all`, `/api/metadata/retry-matches`) return `202 {started:true}` and `409` when already running; scanner status field `running` renamed `runningRun` (ADR-031)

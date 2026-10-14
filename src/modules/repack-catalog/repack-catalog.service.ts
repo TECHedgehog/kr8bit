@@ -1,5 +1,6 @@
 import { logger } from '../../logger/index.js';
-import { normalizeGameName } from '../../shared/normalize.js';
+import { decodeHtmlEntities } from '../../shared/html-entities.js';
+import { normalizeGameName, stripEditionPhrase } from '../../shared/normalize.js';
 import { MatchStatus } from '../../shared/enums.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { providerRegistry } from '../metadata/provider-registry.js';
@@ -10,7 +11,7 @@ import { FitGirlSource, fitGirlGameTitle, normalizeFitGirlGameTitle } from './so
 import { repackSourceRegistry } from './sources/source-registry.js';
 import { SourceBlockedError } from './source-http-client.js';
 import type { RepackMatchCandidate, RepackMatchStatus, RepackMetadataSnapshot, RepackSource } from './repack-catalog.types.js';
-import { decideMatch } from '../scanner/match-policy.js';
+import { ACCEPT_THRESHOLD, decideMatch } from '../scanner/match-policy.js';
 
 export const REPACK_ENABLED = 'repackCatalogEnabled';
 export const REPACK_BASE_URL = 'repackCatalogFitGirlBaseUrl';
@@ -113,7 +114,7 @@ export class RepackCatalogService {
       const attemptedGames = new Set(rematchable.map((game) => game.normalizedTitle));
       await mapWithLimit(rematchable, SCRAPE_CONCURRENCY, async (game) => {
         try {
-          await this.matchGame(game.id, game.title);
+          await this.matchGame(game.id, game.posts?.[0]?.title ?? game.title);
         } catch (error) {
           logger.warn({ gameId: game.id, err: (error as Error).message }, 'repack metadata retry failed');
         }
@@ -137,7 +138,7 @@ export class RepackCatalogService {
           const game = saved.game;
           if (game && !attemptedGames.has(game.normalizedTitle) && game.matchStatus === 'PENDING') {
             attemptedGames.add(game.normalizedTitle);
-            await this.matchGame(game.id, game.title);
+            await this.matchGame(game.id, post.title);
           }
         } catch (error) {
           if (abortController.signal.aborted) return;
@@ -273,24 +274,66 @@ export class RepackCatalogService {
   }
 
   private async matchGame(id: string, title: string): Promise<void> {
-    const candidates = await this.findCandidates(title);
-    const decision = decideMatch(candidates);
-    const status: RepackMatchStatus = decision.status === MatchStatus.ACCEPTED ? 'MATCHED'
-      : decision.status === MatchStatus.FLAGGED ? 'REVIEW'
-        : decision.status === MatchStatus.REJECTED ? 'REJECTED' : 'PENDING';
-    if (decision.status !== MatchStatus.ACCEPTED || !decision.result) {
-      await repackCatalogRepository.saveCandidates(id, candidates, status, decision.score);
+    const displayTitle = fitGirlGameTitle(decodeHtmlEntities(title));
+    const fullQuery = normalizeGameName(displayTitle).query;
+    let candidates = await this.findCandidates(fullQuery);
+    let decision = decideMatch(candidates);
+    let reviewCandidates: RepackMatchCandidate[] | null = null;
+    let reviewScore = -1;
+    let reviewWasFlagged = false;
+
+    if (decision.status === MatchStatus.ACCEPTED) {
+      if (await this.acceptBestCandidate(id, candidates)) return;
+      reviewCandidates = candidates;
+      reviewScore = decision.score;
+    } else if (decision.status === MatchStatus.FLAGGED) {
+      reviewCandidates = candidates;
+      reviewScore = decision.score;
+      reviewWasFlagged = true;
+    }
+
+    const baseTitle = stripEditionPhrase(displayTitle);
+    const baseQuery = baseTitle ? normalizeGameName(baseTitle).query : '';
+    if (baseQuery && baseQuery !== fullQuery) {
+      const baseCandidates = await this.findCandidates(baseQuery);
+      const baseDecision = decideMatch(baseCandidates);
+      if (baseDecision.status === MatchStatus.ACCEPTED) {
+        if (await this.acceptBestCandidate(id, baseCandidates)) return;
+        if (!reviewWasFlagged || baseDecision.score > reviewScore) {
+          reviewCandidates = baseCandidates;
+          reviewScore = baseDecision.score;
+          reviewWasFlagged = false;
+        }
+      } else if (baseDecision.status === MatchStatus.FLAGGED && (!reviewWasFlagged || baseDecision.score >= reviewScore)) {
+        reviewCandidates = baseCandidates;
+        reviewScore = baseDecision.score;
+        reviewWasFlagged = true;
+      }
+    }
+
+    if (reviewCandidates) {
+      await repackCatalogRepository.saveCandidates(id, reviewCandidates, 'REVIEW', reviewScore);
       return;
     }
 
-    const candidate = candidates.find((item) => item.providerName === decision.result?.providerName && item.remoteId === decision.result.remoteId);
-    const provider: MetadataProvider | null = candidate ? providerRegistry.resolve(candidate.providerName) : null;
-    const metadata = candidate && provider ? await provider.getGame(candidate.remoteId).catch(() => null) : null;
-    if (!candidate || !metadata) {
-      await repackCatalogRepository.saveCandidates(id, candidates, 'REVIEW', decision.score);
-      return;
+    const status: RepackMatchStatus = decision.status === MatchStatus.REJECTED ? 'REJECTED' : 'PENDING';
+    await repackCatalogRepository.saveCandidates(id, candidates, status, decision.score);
+  }
+
+  private async acceptBestCandidate(id: string, candidates: RepackMatchCandidate[]): Promise<boolean> {
+    for (const candidate of candidates) {
+      if (candidate.score < ACCEPT_THRESHOLD) break;
+      const provider: MetadataProvider | null = providerRegistry.resolve(candidate.providerName);
+      if (!provider) continue;
+      const metadata = await provider.getGame(candidate.remoteId).catch((error) => {
+        logger.warn({ provider: provider.name, remoteId: candidate.remoteId, err: (error as Error).message }, 'repack metadata fetch failed');
+        return null;
+      });
+      if (!metadata) continue;
+      await repackCatalogRepository.acceptMatch(id, candidate, snapshotFrom(metadata));
+      return true;
     }
-    await repackCatalogRepository.acceptMatch(id, candidate, snapshotFrom(metadata));
+    return false;
   }
 }
 

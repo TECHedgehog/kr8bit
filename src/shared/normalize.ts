@@ -92,6 +92,8 @@ const VERSION_PATTERN = /\bv\d+(\.\d+)*\b/gi;
 const BUILD_PATTERN = /\bbuild\s*\d+/gi;
 const SEPARATOR_PATTERN = /[._]/g;
 const MULTI_WHITESPACE = /\s+/g;
+const GENERIC_EDITION_SUFFIX = /(?:\s*[:,;–—-]\s*)([\p{L}\p{N}][\p{L}\p{N}'’‘&-]*(?:\s+[\p{L}\p{N}'’‘&-]+)*\s+Edition)[\s*!?.–—-]*$/iu;
+const BARE_EDITION_SUFFIX = /\s+Edition[\s*!?.–—-]*$/iu;
 
 export interface NormalizedName {
   query: string;
@@ -184,6 +186,36 @@ export function normalizeGameName(rawName: string): NormalizedName {
     query: name,
     yearDetected: yearResult.year,
   };
+}
+
+/** Remove known release noise while preserving title case and punctuation. */
+export function cleanGameTitle(rawName: string): string {
+  let title = rawName.replace(ARCHIVE_EXTENSION_PATTERN, '');
+  title = stripTags(title);
+  title = stripRegion(title);
+  title = stripDisc(title);
+  title = stripDevStage(title);
+  title = stripNoise(title);
+  title = stripEditions(title);
+  title = title.replace(VERSION_PATTERN, ' ');
+  title = title.replace(BUILD_PATTERN, ' ');
+  title = title.replace(/[^\p{L}\p{N}\s\-'’‘":!?,.&()+–—-]/gu, ' ');
+  return title
+    .replace(MULTI_WHITESPACE, ' ')
+    .trim()
+    .replace(/^[\s:;,.!?+*–—-]+|[\s:;,.!?+*–—-]+$/gu, '')
+    .trim();
+}
+
+/** Return base title when a colon/dash introduces an unknown edition phrase. */
+export function stripEditionPhrase(title: string): string | null {
+  const trimmedTitle = title.trim();
+  const match = GENERIC_EDITION_SUFFIX.exec(trimmedTitle);
+  const baseTitle = match && match.index !== undefined
+    ? trimmedTitle.slice(0, match.index).trim().replace(/[\s:;,.!?+*–—-]+$/gu, '').trim()
+    : trimmedTitle.replace(BARE_EDITION_SUFFIX, '').trim();
+  if (baseTitle === trimmedTitle) return null;
+  return baseTitle || null;
 }
 
 const NON_ALPHANUMERIC = /[^a-z0-9]+/g;

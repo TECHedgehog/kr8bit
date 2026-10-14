@@ -127,6 +127,138 @@ describe('RepackCatalogService', () => {
     expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-existing', expect.any(Object), expect.any(Object));
   });
 
+  it('searches using the library-normalized title', async () => {
+    mocks.findRematchableGames.mockResolvedValue([{
+      id: 'catalog-dragon', title: 'Dragon’s Dogma 2', normalizedTitle: 'dragon s dogma 2',
+      posts: [{ title: 'Dragon’s Dogma 2: Deluxe Edition* –' }],
+    }]);
+    mocks.createSource.mockReturnValue({
+      name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
+    });
+    const service = new RepackCatalogService();
+
+    await service.sync();
+
+    expect(mocks.providerSearch).toHaveBeenCalledTimes(1);
+    expect(mocks.providerSearch).toHaveBeenCalledWith('Dragon s Dogma 2:');
+  });
+
+  it('falls back from unknown edition to base game when edition has no match', async () => {
+    mocks.findRematchableGames.mockResolvedValue([{
+      id: 'catalog-bubsy', title: 'Bubsy 4D: Digital Pawsome Edition', normalizedTitle: 'bubsy 4d digital pawsome edition',
+      posts: [{ title: 'Bubsy 4D: Digital Pawsome Edition' }],
+    }]);
+    mocks.createSource.mockReturnValue({
+      name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
+    });
+    mocks.providerSearch.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { providerName: 'steam', remoteId: 'bubsy-base', title: 'Bubsy 4D', score: 96 },
+    ]);
+    mocks.providerGetGame.mockResolvedValue({
+      remoteId: 'bubsy-base', title: 'Bubsy 4D', developers: [], publishers: [], genres: [],
+    });
+    const service = new RepackCatalogService();
+
+    await service.sync();
+
+    expect(mocks.providerSearch).toHaveBeenNthCalledWith(1, 'Bubsy 4D: Digital Pawsome Edition');
+    expect(mocks.providerSearch).toHaveBeenNthCalledWith(2, 'Bubsy 4D');
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-base' }), expect.any(Object));
+  });
+
+  it('keeps a confident edition-specific match without base fallback', async () => {
+    mocks.findRematchableGames.mockResolvedValue([{
+      id: 'catalog-bubsy', title: 'Bubsy 4D: Digital Pawsome Edition', normalizedTitle: 'bubsy 4d digital pawsome edition',
+      posts: [{ title: 'Bubsy 4D: Digital Pawsome Edition' }],
+    }]);
+    mocks.createSource.mockReturnValue({
+      name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
+    });
+    mocks.providerSearch.mockResolvedValueOnce([
+      { providerName: 'steam', remoteId: 'bubsy-edition', title: 'Bubsy 4D: Digital Pawsome Edition', score: 96 },
+    ]);
+    const service = new RepackCatalogService();
+
+    await service.sync();
+
+    expect(mocks.providerSearch).toHaveBeenCalledTimes(1);
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-edition' }), expect.any(Object));
+  });
+
+  it('tries other accepted candidates when best provider has no metadata', async () => {
+    const steamProvider = { name: 'steam', search: mocks.providerSearch, getGame: mocks.providerGetGame };
+    const igdbProvider = { name: 'igdb', search: mocks.providerSearch, getGame: mocks.providerGetGame };
+    mocks.providerOrder.mockReturnValue([steamProvider, igdbProvider]);
+    mocks.findRematchableGames.mockResolvedValue([{
+      id: 'catalog-towerfolk', title: 'Towerfolk', normalizedTitle: 'towerfolk', posts: [{ title: 'Towerfolk' }],
+    }]);
+    mocks.createSource.mockReturnValue({
+      name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
+    });
+    mocks.providerSearch.mockResolvedValueOnce([
+      { providerName: 'steam', remoteId: '3948100', title: 'Towerfolk', score: 100 },
+    ]).mockResolvedValueOnce([
+      { providerName: 'igdb', remoteId: '360959', title: 'Towerfolk', score: 100 },
+    ]);
+    mocks.providerGetGame.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      remoteId: '360959', title: 'Towerfolk', developers: [], publishers: [], genres: [],
+    });
+    const service = new RepackCatalogService();
+
+    await service.sync();
+
+    expect(mocks.providerGetGame).toHaveBeenNthCalledWith(1, '3948100');
+    expect(mocks.providerGetGame).toHaveBeenNthCalledWith(2, '360959');
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-towerfolk', expect.objectContaining({
+      providerName: 'igdb', remoteId: '360959',
+    }), expect.any(Object));
+  });
+
+  it('tries base-game fallback after edition candidate metadata fetch fails', async () => {
+    mocks.findRematchableGames.mockResolvedValue([{
+      id: 'catalog-bubsy', title: 'Bubsy 4D: Digital Pawsome Edition', normalizedTitle: 'bubsy 4d digital pawsome edition',
+      posts: [{ title: 'Bubsy 4D: Digital Pawsome Edition' }],
+    }]);
+    mocks.createSource.mockReturnValue({
+      name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
+    });
+    mocks.providerSearch.mockResolvedValueOnce([
+      { providerName: 'steam', remoteId: 'bubsy-edition', title: 'Bubsy 4D: Digital Pawsome Edition', score: 98 },
+    ]).mockResolvedValueOnce([
+      { providerName: 'steam', remoteId: 'bubsy-base', title: 'Bubsy 4D', score: 96 },
+    ]);
+    mocks.providerGetGame.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      remoteId: 'bubsy-base', title: 'Bubsy 4D', developers: [], publishers: [], genres: [],
+    });
+    const service = new RepackCatalogService();
+
+    await service.sync();
+
+    expect(mocks.providerSearch).toHaveBeenNthCalledWith(1, 'Bubsy 4D: Digital Pawsome Edition');
+    expect(mocks.providerSearch).toHaveBeenNthCalledWith(2, 'Bubsy 4D');
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-base' }), expect.any(Object));
+  });
+
+  it('uses base-game candidates for review when fallback is flagged', async () => {
+    mocks.findRematchableGames.mockResolvedValue([{
+      id: 'catalog-bubsy', title: 'Bubsy 4D: Digital Pawsome Edition', normalizedTitle: 'bubsy 4d digital pawsome edition',
+      posts: [{ title: 'Bubsy 4D: Digital Pawsome Edition' }],
+    }]);
+    mocks.createSource.mockReturnValue({
+      name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
+    });
+    mocks.providerSearch.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { providerName: 'steam', remoteId: 'bubsy-base', title: 'Bubsy 4D', score: 80 },
+    ]);
+    const service = new RepackCatalogService();
+
+    await service.sync();
+
+    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-bubsy', [
+      { providerName: 'steam', remoteId: 'bubsy-base', title: 'Bubsy 4D', releaseYear: undefined, coverUrl: undefined, score: 80 },
+    ], 'REVIEW', 80);
+  });
+
   it('cancels in-flight source requests when disabled', async () => {
     let markStarted!: () => void;
     const started = new Promise<void>((resolve) => { markStarted = resolve; });
