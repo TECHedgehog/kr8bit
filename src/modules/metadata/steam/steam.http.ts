@@ -11,6 +11,7 @@ import {
   withRetry,
   RetryableHttpError,
 } from '../../../shared/http-client.js';
+import { decodeHtmlEntities } from '../../../shared/html-entities.js';
 
 export interface SteamHttpClient {
   searchStore(term: string): Promise<SteamStoreSearchResponse>;
@@ -24,15 +25,6 @@ function steamOptions() {
     headersTimeoutMs: config.steam.httpTimeoutMs,
     bodyTimeoutMs: config.steam.httpTimeoutMs,
   };
-}
-
-function decodeHtmlEntities(input: string): string {
-  return input
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
 }
 
 function isSteamDeckCompatibilityItem(value: unknown): value is { display_type: number; loc_token: string } {

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Shared HTML entity decoding for FitGirl and Steam source titles
+- FitGirl repack catalog with selected per-post details/tags, grouped version/DLC entries, provider snapshots, and manual reassignment
 - GitHub Actions workflow (`.github/workflows/docker-publish.yml`) publishing the image to GHCR (`linux/amd64`) on push to `main` and version tags
 - Unraid Community Applications template pointing at `ghcr.io/techedgehog/kr8bit`
 - CI workflow (`.github/workflows/ci.yml`) — lint, web lint, typecheck, web typecheck, tests, web build on PRs; image publishes are gated on it (ADR-032)
@@ -27,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Repack matching now uses library acceptance thresholds and retries unresolved entries during sync
+- Repack catalog drops stored full article text; provider snapshots exclude screenshots/videos while preserving selected metadata and artwork URLs
 - **Breaking:** `DB_PATH` is now the only database variable — `DATABASE_URL` removed from compose/Unraid/`.env.example`; the app derives the Prisma datasource and the entrypoint exports it for the CLI (ADR-030)
 - **Breaking:** job-start endpoints (`/api/scanner/run`, `/api/metadata/refresh-all`, `/api/metadata/retry-matches`) return `202 {started:true}` and `409` when already running; scanner status field `running` renamed `runningRun` (ADR-031)
 - Match threshold lowered: auto-accept ≥ 85, flag 70-84

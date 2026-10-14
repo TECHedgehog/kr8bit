@@ -1,14 +1,16 @@
 import { logger } from '../../logger/index.js';
 import { normalizeGameName } from '../../shared/normalize.js';
+import { MatchStatus } from '../../shared/enums.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { providerRegistry } from '../metadata/provider-registry.js';
 import { settingsRepository } from '../settings/settings.repository.js';
-import type { MetadataProvider, SearchResult } from '../../shared/types.js';
+import type { GameMetadata, MetadataProvider, SearchResult } from '../../shared/types.js';
 import { repackCatalogRepository } from './repack-catalog.repository.js';
-import { FitGirlSource } from './sources/fitgirl/fitgirl.source.js';
+import { FitGirlSource, fitGirlGameTitle, normalizeFitGirlGameTitle } from './sources/fitgirl/fitgirl.source.js';
 import { repackSourceRegistry } from './sources/source-registry.js';
 import { SourceBlockedError } from './source-http-client.js';
-import type { RepackMatchCandidate, RepackSource } from './repack-catalog.types.js';
+import type { RepackMatchCandidate, RepackMatchStatus, RepackMetadataSnapshot, RepackSource } from './repack-catalog.types.js';
+import { decideMatch } from '../scanner/match-policy.js';
 
 export const REPACK_ENABLED = 'repackCatalogEnabled';
 export const REPACK_BASE_URL = 'repackCatalogFitGirlBaseUrl';
@@ -19,8 +21,6 @@ export const REPACK_FULL_IMPORT_COMPLETE = 'repackCatalogFullImportComplete';
 const DEFAULT_BASE_URL = 'https://fitgirl-repacks.site/';
 const FULL_IMPORT_SETTING = REPACK_FULL_IMPORT_COMPLETE;
 const SCRAPE_CONCURRENCY = 2;
-const AUTO_MATCH_THRESHOLD = 85;
-const AUTO_MATCH_MARGIN = 8;
 
 repackSourceRegistry.register('fitgirl', (url) => new FitGirlSource(url));
 
@@ -35,6 +35,33 @@ function candidateFrom(result: SearchResult): RepackMatchCandidate {
     providerName: result.providerName, remoteId: result.remoteId, title: result.title,
     releaseYear: result.releaseYear, coverUrl: result.coverUrl, score: result.score ?? 0,
   };
+}
+
+function snapshotFrom(metadata: GameMetadata): RepackMetadataSnapshot {
+  return {
+    remoteId: metadata.remoteId,
+    title: metadata.title,
+    releaseYear: metadata.releaseYear,
+    description: metadata.description,
+    developers: metadata.developers,
+    publishers: metadata.publishers,
+    genres: metadata.genres,
+    coverUrl: metadata.coverUrl,
+    headerUrl: metadata.headerUrl,
+    heroUrl: metadata.heroUrl,
+    logoUrl: metadata.logoUrl,
+    steamDeckCompat: metadata.steamDeckCompat ? {
+      category: metadata.steamDeckCompat.category,
+      items: metadata.steamDeckCompat.items.map((item) => ({ displayType: item.displayType, locToken: item.locToken })),
+    } : undefined,
+  };
+}
+
+async function regroupCatalog(): Promise<void> {
+  await repackCatalogRepository.regroupGames((title) => ({
+    gameTitle: fitGirlGameTitle(title),
+    normalizedTitle: normalizeFitGirlGameTitle(title),
+  }));
 }
 
 async function mapWithLimit<T>(items: T[], limit: number, work: (item: T) => Promise<void>): Promise<void> {
@@ -81,6 +108,16 @@ export class RepackCatalogService {
       const config = await this.settings();
       const source = this.sourceForBase(config.baseUrl);
       if (!source) throw new Error('FitGirl source not registered');
+      await regroupCatalog();
+      const rematchable = await repackCatalogRepository.findRematchableGames();
+      const attemptedGames = new Set(rematchable.map((game) => game.normalizedTitle));
+      await mapWithLimit(rematchable, SCRAPE_CONCURRENCY, async (game) => {
+        try {
+          await this.matchGame(game.id, game.title);
+        } catch (error) {
+          logger.warn({ gameId: game.id, err: (error as Error).message }, 'repack metadata retry failed');
+        }
+      });
       const urls = await source.discoverPostUrls({ fullArchive, signal: abortController.signal });
       const known = await repackCatalogRepository.knownUrls(source.name, urls);
       const pending = urls.filter((url) => !known.has(url));
@@ -89,8 +126,6 @@ export class RepackCatalogService {
       let stoppedAfterErrors = false;
       let failures = 0;
       let consecutiveFailures = 0;
-      const attemptedGames = new Set<string>();
-
       await mapWithLimit(pending, SCRAPE_CONCURRENCY, async (url) => {
         if (blocked || stoppedAfterErrors || abortController.signal.aborted) return;
         try {
@@ -163,6 +198,7 @@ export class RepackCatalogService {
           }
         }
       });
+      await regroupCatalog();
       this.status.phase = abortController.signal.aborted ? 'cancelled' : blocked ? 'blocked' : stoppedAfterErrors ? 'stopped' : 'done';
       return { processed: this.status.processed, skipped: this.status.skipped, failed: this.status.failed, blocked, stoppedAfterErrors, cancelled: abortController.signal.aborted };
     } catch (error) {
@@ -186,7 +222,7 @@ export class RepackCatalogService {
     const search = normalizeGameName(query?.trim() || game.title).query;
     if (!search) throw new ValidationError('search query must not be empty');
     const candidates = await this.findCandidates(search);
-    await repackCatalogRepository.saveCandidates(id, candidates, candidates.length ? 'REVIEW' : 'PENDING');
+    await repackCatalogRepository.saveCandidates(id, candidates, candidates.length ? 'REVIEW' : 'PENDING', candidates[0]?.score ?? null);
     return candidates;
   }
 
@@ -201,7 +237,7 @@ export class RepackCatalogService {
     if (!provider) throw new ValidationError(`unknown provider: ${providerName}`);
     const snapshot = await provider.getGame(remoteId);
     if (!snapshot) throw new NotFoundError('ProviderGame', remoteId);
-    return repackCatalogRepository.acceptMatch(id, candidate, snapshot);
+    return repackCatalogRepository.acceptMatch(id, candidate, snapshotFrom(snapshot));
   }
 
   async previewCandidate(id: string, providerName: string, remoteId: string) {
@@ -238,21 +274,23 @@ export class RepackCatalogService {
 
   private async matchGame(id: string, title: string): Promise<void> {
     const candidates = await this.findCandidates(title);
-    if (!candidates.length) return;
-    const best = candidates[0];
-    const runnerUp = candidates[1];
-    const confident = best.score >= AUTO_MATCH_THRESHOLD && (!runnerUp || best.score - runnerUp.score >= AUTO_MATCH_MARGIN);
-    if (!confident) {
-      await repackCatalogRepository.saveCandidates(id, candidates, 'REVIEW');
+    const decision = decideMatch(candidates);
+    const status: RepackMatchStatus = decision.status === MatchStatus.ACCEPTED ? 'MATCHED'
+      : decision.status === MatchStatus.FLAGGED ? 'REVIEW'
+        : decision.status === MatchStatus.REJECTED ? 'REJECTED' : 'PENDING';
+    if (decision.status !== MatchStatus.ACCEPTED || !decision.result) {
+      await repackCatalogRepository.saveCandidates(id, candidates, status, decision.score);
       return;
     }
-    const provider: MetadataProvider | null = providerRegistry.resolve(best.providerName);
-    const metadata = provider ? await provider.getGame(best.remoteId).catch(() => null) : null;
-    if (!metadata) {
-      await repackCatalogRepository.saveCandidates(id, candidates, 'REVIEW');
+
+    const candidate = candidates.find((item) => item.providerName === decision.result?.providerName && item.remoteId === decision.result.remoteId);
+    const provider: MetadataProvider | null = candidate ? providerRegistry.resolve(candidate.providerName) : null;
+    const metadata = candidate && provider ? await provider.getGame(candidate.remoteId).catch(() => null) : null;
+    if (!candidate || !metadata) {
+      await repackCatalogRepository.saveCandidates(id, candidates, 'REVIEW', decision.score);
       return;
     }
-    await repackCatalogRepository.acceptMatch(id, best, metadata);
+    await repackCatalogRepository.acceptMatch(id, candidate, snapshotFrom(metadata));
   }
 }
 

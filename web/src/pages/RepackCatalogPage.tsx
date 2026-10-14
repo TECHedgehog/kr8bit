@@ -105,7 +105,8 @@ export function RepackCatalogPage(): JSX.Element {
     setWorking(true); setError('');
     try {
       const result = await api.post<{ candidates: RepackMatchCandidate[] }>(`/api/repack-catalog/${game.id}/candidates/search`, { query: searchText });
-      setReview((current) => ({ ...current, items: current.items.map((item) => item.id === game.id ? { ...item, matchCandidates: result.candidates } : item) }));
+      await Promise.all([loadReview(), loadCatalog()]);
+      setDetail((current) => current?.id === game.id ? { ...current, matchStatus: result.candidates.length ? 'REVIEW' : 'PENDING', matchCandidates: result.candidates } : current);
       setMessage(`Found ${result.candidates.length} metadata candidates.`);
     } catch (cause) { setError((cause as Error).message || 'Candidate search failed'); }
     finally { setWorking(false); }
@@ -175,7 +176,17 @@ export function RepackCatalogPage(): JSX.Element {
             {catalog.items.length === 0 && <div className="repack-empty">{settings?.enabled ? 'No games imported yet. Sync recent entries to begin.' : 'Enable FitGirl source to populate catalog.'}</div>}
             {catalog.total > PAGE_SIZE && <div className="repack-pagination"><button type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>Previous</button><span>{offset + 1}–{Math.min(offset + PAGE_SIZE, catalog.total)} of {catalog.total}</span><button type="button" disabled={offset + PAGE_SIZE >= catalog.total} onClick={() => setOffset(offset + PAGE_SIZE)}>Next</button></div>}
           </section>
-          <RepackDetail detail={detail} />
+          <RepackDetail
+            detail={detail}
+            searchText={searchText}
+            setSearchText={setSearchText}
+            selectedCandidate={selectedCandidate}
+            preview={preview}
+            working={working}
+            onSearch={searchCandidates}
+            onInspect={inspectCandidate}
+            onResolve={resolveMatch}
+          />
         </div>
       ) : (
         <ReviewPanel
@@ -199,17 +210,37 @@ export function RepackCatalogPage(): JSX.Element {
   );
 }
 
-function RepackDetail({ detail }: { detail: RepackCatalogGameDetail | null }): JSX.Element {
+function RepackDetail({ detail, searchText, setSearchText, selectedCandidate, preview, working, onSearch, onInspect, onResolve }: {
+  detail: RepackCatalogGameDetail | null;
+  searchText: string;
+  setSearchText: (value: string) => void;
+  selectedCandidate: RepackMatchCandidate | null;
+  preview: ProviderPreview | null;
+  working: boolean;
+  onSearch: (game: RepackCatalogGameDetail) => void;
+  onInspect: (gameId: string, candidate: RepackMatchCandidate) => void;
+  onResolve: (id: string, action: 'accept' | 'reject', candidate?: RepackMatchCandidate) => void;
+}): JSX.Element {
   if (!detail) return <aside className="repack-detail repack-detail--empty">Choose a game to inspect source posts.</aside>;
   return <aside className="repack-detail">
     <header className="repack-detail__header"><div><p className="eyebrow">{detail.matchStatus.toLowerCase()} match</p><h2>{detail.title}</h2><p>{detail.posts.length} source posts</p></div></header>
-    {detail.metadataSnapshot && <section className="repack-official"><h3>Official metadata</h3><strong>{detail.metadataSnapshot.title}{detail.metadataSnapshot.releaseYear ? ` (${detail.metadataSnapshot.releaseYear})` : ''}</strong><p>{detail.metadataSnapshot.description}</p><p>{detail.metadataSnapshot.developers.join(', ')}{detail.metadataSnapshot.genres.length ? ` · ${detail.metadataSnapshot.genres.join(', ')}` : ''}</p></section>}
+    {detail.metadataSnapshot && <section className="repack-official"><h3>Provider metadata</h3><strong>{detail.metadataSnapshot.title}{detail.metadataSnapshot.releaseYear ? ` (${detail.metadataSnapshot.releaseYear})` : ''}</strong><p>{detail.metadataSnapshot.description}</p><p>{detail.metadataSnapshot.developers.join(', ')}{detail.metadataSnapshot.publishers.length ? ` · ${detail.metadataSnapshot.publishers.join(', ')}` : ''}{detail.metadataSnapshot.genres.length ? ` · ${detail.metadataSnapshot.genres.join(', ')}` : ''}</p></section>}
+    <section className="repack-review-detail">
+      <h3>Provider match</h3>
+      <div className="repack-candidate-search"><input value={searchText} onChange={(event) => setSearchText(event.target.value)} aria-label="Metadata search query" placeholder={detail.title} /><button type="button" onClick={() => onSearch(detail)} disabled={working}>Search providers</button>{detail.matchStatus === 'MATCHED' && <button type="button" className="danger" onClick={() => onResolve(detail.id, 'reject')} disabled={working}>Unmatch</button>}</div>
+      <div className="repack-candidates">{detail.matchCandidates.map((candidate) => <button type="button" key={`${candidate.providerName}:${candidate.remoteId}`} className={`repack-candidate${selectedCandidate?.remoteId === candidate.remoteId && selectedCandidate.providerName === candidate.providerName ? ' is-selected' : ''}`} onClick={() => onInspect(detail.id, candidate)}>
+        {candidate.coverUrl && <img src={candidate.coverUrl} alt="" loading="lazy" />}
+        <span><strong>{candidate.title}</strong><small>{candidate.providerName} · {candidate.releaseYear ?? 'Year unknown'} · score {candidate.score}</small></span>
+      </button>)}</div>
+      {selectedCandidate && <div className="repack-comparison"><div><p className="eyebrow">FitGirl title</p><h3>{detail.title}</h3></div><div><p className="eyebrow">Provider result</p><h3>{preview?.title ?? selectedCandidate.title}</h3><p>{preview?.releaseYear ?? selectedCandidate.releaseYear ?? 'Year unknown'} · {selectedCandidate.providerName}</p>{preview?.description && <p>{preview.description}</p>}{preview?.developers?.length ? <p>Developers: {preview.developers.join(', ')}</p> : null}{preview?.genres?.length ? <p>Genres: {preview.genres.join(', ')}</p> : null}<button type="button" className="primary" disabled={working || !preview} onClick={() => onResolve(detail.id, 'accept', selectedCandidate)}>Accept this match</button></div></div>}
+    </section>
+    {detail.tags.length > 0 && <section className="repack-facts"><h3>FitGirl tags</h3><p>{detail.tags.join(', ')}</p></section>}
     {detail.posts.map((post) => <article className="repack-post" key={post.id}>
       <header><span className={`repack-post-kind repack-post-kind--${post.postKind.toLowerCase()}`}>{post.postKind}</span><a href={post.sourceUrl} target="_blank" rel="noreferrer">Open source ↗</a></header>
       <h3>{post.title}</h3>
       {Object.entries(post.details).length > 0 && <dl className="repack-facts">{Object.entries(post.details).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
+      {post.tags.length > 0 && <p className="repack-post__tags">FitGirl tags: {post.tags.join(', ')}</p>}
       {post.downloadOptions.length > 0 && <section><h4>Download options</h4><ul className="repack-downloads">{post.downloadOptions.map((option) => <li key={option.url}><a href={option.url} target="_blank" rel="noreferrer">{option.label}</a></li>)}</ul></section>}
-      <details><summary>Full post text</summary><p className="repack-post-text">{post.contentText}</p></details>
     </article>)}
   </aside>;
 }

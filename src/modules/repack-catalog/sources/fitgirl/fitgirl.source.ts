@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { normalizeForMatch, normalizeGameName } from '../../../../shared/normalize.js';
+import { decodeHtmlEntities } from '../../../../shared/html-entities.js';
 import type { RepackDownloadOption, RepackPostInput, RepackSource } from '../../repack-catalog.types.js';
 import { SourceHttpClient } from '../../source-http-client.js';
 
@@ -10,15 +11,8 @@ const ARTICLE_PATTERN = /<article\b[^>]*>[\s\S]*?<\/article>/gi;
 const TITLE_PATTERN = /<h[1-3]\b[^>]*class=["'][^"']*entry-title[^"']*["'][^>]*>([\s\S]*?)<\/h[1-3]>/i;
 const ANCHOR_PATTERN = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
-function decodeHtml(value: string): string {
-  const entities: Record<string, string> = {
-    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&nbsp;': ' ',
-  };
-  return value.replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, (entity) => entities[entity] ?? entity);
-}
-
 export function visibleText(html: string): string {
-  return decodeHtml(html
+  return decodeHtmlEntities(html
     .replace(/<!--([\s\S]*?)-->/g, ' ')
     .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<br\s*\/?\s*>|<\/(?:p|div|li|h[1-6]|tr|section)>/gi, '\n')
@@ -30,8 +24,7 @@ export function visibleText(html: string): string {
 
 function extractDetails(text: string): Record<string, string> {
   const labels = [
-    'Repack Features', 'Repack Size', 'Size After Install', 'Languages', 'Selective Download',
-    'Game Description', 'DLCs', 'Included', 'Installation', 'Repack Info', 'Based on',
+    'Repack Features', 'Repack Size', 'Size After Install', 'Languages', 'Installation', 'Based on',
   ];
   const details: Record<string, string> = {};
   for (const label of labels) {
@@ -42,11 +35,36 @@ function extractDetails(text: string): Record<string, string> {
   return details;
 }
 
+function extractFitGirlTags(html: string): string[] {
+  const tagAnchors = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  const tags = new Set<string>();
+  const addAnchors = (scope: string) => {
+    for (const match of scope.matchAll(tagAnchors)) {
+      const attributes = match[1];
+      const rel = attributes.match(/\brel=["']([^"']+)["']/i)?.[1] ?? '';
+      const className = attributes.match(/\bclass=["']([^"']+)["']/i)?.[1] ?? '';
+      if (/\btag\b/i.test(rel) || /\b(?:tag-links|tags-links|post-tags|entry-tags|cat-links)\b/i.test(className)) {
+        const tag = visibleText(match[2]);
+        if (tag) tags.add(tag);
+      }
+    }
+  };
+  addAnchors(html);
+  const containers = /<(?:div|span|p|footer)\b[^>]*class=["'][^"']*(?:tag-links|tags-links|post-tags|entry-tags|cat-links)[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|p|footer)>/gi;
+  for (const match of html.matchAll(containers)) {
+    for (const anchor of match[1].matchAll(tagAnchors)) {
+      const tag = visibleText(anchor[2]);
+      if (tag) tags.add(tag);
+    }
+  }
+  return [...tags];
+}
+
 function parseDownloadOptions(html: string, baseUrl: string): RepackDownloadOption[] {
   const options: RepackDownloadOption[] = [];
   for (const match of html.matchAll(ANCHOR_PATTERN)) {
     let url: URL;
-    try { url = new URL(decodeHtml(match[1]), baseUrl); } catch { continue; }
+    try { url = new URL(decodeHtmlEntities(match[1]), baseUrl); } catch { continue; }
     if (!['http:', 'https:', 'magnet:'].includes(url.protocol)) continue;
     const label = visibleText(match[2]);
     const linkText = `${label} ${url.hostname} ${url.pathname}`;
@@ -58,15 +76,24 @@ function parseDownloadOptions(html: string, baseUrl: string): RepackDownloadOpti
 
 function postKind(title: string): RepackPostInput['postKind'] {
   if (/\bDLC\b/i.test(title)) return 'DLC';
-  if (/\b(update|patch|hotfix|build)\b/i.test(title)) return 'UPDATE';
+  if (/\b(update|patch|hotfix|build|v\d+(?:\.\d+)*)\b/i.test(title)) return 'UPDATE';
   return 'GAME';
 }
 
 export function normalizeFitGirlGameTitle(title: string): string {
+  return normalizeForMatch(normalizeGameName(fitGirlGameTitle(title)).query);
+}
+
+export function fitGirlGameTitle(title: string): string {
   const baseTitle = title
     .replace(/[\s:–-]+(?:update|patch|hotfix|build)\b.*$/i, '')
-    .replace(/[\s:–-]+DLC\b.*$/i, '');
-  return normalizeForMatch(normalizeGameName(baseTitle).query);
+    .replace(/[\s:–-]+v\d+(?:\.\d+)*(?:\s*(?:\+|and)?\s*\d*\s*DLCs?)?.*$/i, '')
+    .replace(/\s*(?:\+|and)\s*\d+\s*DLCs?\b.*$/i, '')
+    .replace(/\s+\d+\s+DLCs?\b.*$/i, '')
+    .replace(/\s+all\s+DLCs?\b.*$/i, '')
+    .replace(/[\s:–-]+DLC\b.*$/i, '')
+    .replace(/\s+(?:FitGirl\s+)?Repack$/i, '');
+  return decodeHtmlEntities(baseTitle).replace(/\s+/g, ' ').trim();
 }
 
 export function parseFitGirlPost(html: string, pageUrl: string): RepackPostInput | null {
@@ -80,16 +107,17 @@ export function parseFitGirlPost(html: string, pageUrl: string): RepackPostInput
 
   const urlMatch = [...article.matchAll(ANCHOR_PATTERN)].find((match) => visibleText(match[2]) === title);
   let sourceUrl: string;
-  try { sourceUrl = new URL(decodeHtml(urlMatch?.[1] ?? pageUrl), pageUrl).href.split('#')[0]; }
+  try { sourceUrl = new URL(decodeHtmlEntities(urlMatch?.[1] ?? pageUrl), pageUrl).href.split('#')[0]; }
   catch { return null; }
   const dateValue = article.match(/<time\b[^>]*datetime=["']([^"']+)["']/i)?.[1];
   const parsedDate = dateValue ? new Date(dateValue) : undefined;
 
   return {
     source: 'fitgirl', sourceUrl, title,
+    gameTitle: fitGirlGameTitle(title),
     normalizedTitle: normalizeFitGirlGameTitle(title),
     publishedAt: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : undefined,
-    contentText: text, details: extractDetails(text),
+    details: extractDetails(text), tags: extractFitGirlTags(article),
     downloadOptions: parseDownloadOptions(article, sourceUrl), postKind: postKind(title),
     contentHash: createHash('sha256').update(text).digest('hex'),
   };
@@ -105,7 +133,7 @@ export function parseFitGirlListing(html: string, pageUrl: string): string[] {
     const titleAnchor = [...article.matchAll(ANCHOR_PATTERN)].find((match) => visibleText(match[2]) === visibleText(titleMatch[1]));
     if (!titleAnchor) continue;
     try {
-      const url = new URL(decodeHtml(titleAnchor[1]), pageUrl);
+      const url = new URL(decodeHtmlEntities(titleAnchor[1]), pageUrl);
       if (url.hostname === new URL(pageUrl).hostname && url.pathname !== '/') urls.add(`${url.origin}${url.pathname}`);
     } catch { /* malformed site link */ }
   }
@@ -122,7 +150,7 @@ function nextPageUrl(html: string, currentUrl: string): string | null {
   const href = anchor?.[1].match(/\bhref=["']([^"']+)["']/i)?.[1];
   if (!href) return null;
   try {
-    const next = new URL(decodeHtml(href), currentUrl);
+    const next = new URL(decodeHtmlEntities(href), currentUrl);
     return next.hostname === new URL(currentUrl).hostname ? next.href : null;
   } catch { return null; }
 }

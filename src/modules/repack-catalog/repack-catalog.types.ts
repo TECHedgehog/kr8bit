@@ -10,10 +10,11 @@ export interface RepackPostInput {
   source: string;
   sourceUrl: string;
   title: string;
+  gameTitle: string;
   normalizedTitle: string;
   publishedAt?: Date;
-  contentText: string;
   details: Record<string, string>;
+  tags: string[];
   downloadOptions: RepackDownloadOption[];
   postKind: RepackPostKind;
   contentHash: string;
@@ -32,6 +33,24 @@ export interface RepackMatchCandidate {
   releaseYear?: number;
   coverUrl?: string;
   score: number;
+}
+
+export interface RepackMetadataSnapshot {
+  remoteId: string;
+  title: string;
+  releaseYear?: number;
+  description?: string;
+  developers: string[];
+  publishers: string[];
+  genres: string[];
+  coverUrl?: string;
+  headerUrl?: string;
+  heroUrl?: string;
+  logoUrl?: string;
+  steamDeckCompat?: {
+    category: number;
+    items: Array<{ displayType: number; locToken: string }>;
+  };
 }
 
 export interface RepackCatalogQuery {

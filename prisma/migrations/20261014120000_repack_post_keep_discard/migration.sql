@@ -1,0 +1,2 @@
+ALTER TABLE "RepackPost" ADD COLUMN "tags" TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE "RepackPost" DROP COLUMN "contentText";

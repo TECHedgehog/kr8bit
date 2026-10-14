@@ -98,7 +98,9 @@ export interface RepackCatalogGame {
 
 export interface RepackCatalogGameDetail extends RepackCatalogGame {
   matchCandidates: RepackMatchCandidate[];
+  tags: string[];
   metadataSnapshot: {
+    remoteId: string;
     title: string;
     releaseYear?: number;
     description?: string;
@@ -106,9 +108,13 @@ export interface RepackCatalogGameDetail extends RepackCatalogGame {
     publishers: string[];
     genres: string[];
     coverUrl?: string;
+    headerUrl?: string;
+    heroUrl?: string;
+    logoUrl?: string;
+    steamDeckCompat?: { category: number; items: Array<{ displayType: number; locToken: string }> };
   } | null;
   posts: Array<RepackPostSummary & {
-    contentText: string;
+    tags: string[];
     details: Record<string, string>;
     downloadOptions: RepackDownloadOption[];
   }>;

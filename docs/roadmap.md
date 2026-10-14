@@ -8,6 +8,7 @@ Status: **v0.1 shipped** — scanner, multi-provider matching, artwork, web libr
 - Match pipeline: auto-accept ≥ 85, flag 70-84, pending < 70; retry-match background job
 - Metadata + artwork (header/cover/hero/logo, screenshots, videos) with on-disk cache
 - Steam Deck compatibility badge (store-page structured data)
+- FitGirl repack catalog: scrape, selected post fields/tags, version/DLC grouping, provider matching + manual review
 - Web UI: glass design system, library grid with filters/sort/search/infinite scroll, game detail card with gallery + video, scan page with SSE progress
 - Settings API (env snapshot + KV), database reset/cleanup endpoints
 - Docker (GHCR) + Unraid template; `DB_PATH` single-source config (ADR-030)

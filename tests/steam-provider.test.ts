@@ -259,3 +259,22 @@ describe('steamHttpClient.fetchAppDetails', () => {
     expect(result['620'].success).toBe(false);
   });
 });
+
+describe('steamHttpClient.fetchDeckCompatibility', () => {
+  afterEach(() => {
+    vi.mocked(request).mockReset();
+  });
+
+  it('decodes numeric entities in compatibility attributes', async () => {
+    vi.mocked(request).mockResolvedValue({
+      statusCode: 200,
+      body: {
+        text: async () => '<div data-hardwarecompatibility="{&quot;appid&quot;:620,&quot;resolved_category&quot;:3,&quot;resolved_items&quot;:[{&quot;display_type&quot;:1,&quot;loc_token&quot;:&quot;&#8217;&quot;}]}"></div>',
+      },
+    } as unknown as ReturnType<typeof request>);
+
+    const result = await steamHttpClient.fetchDeckCompatibility(620);
+
+    expect(result?.resolved_items[0].loc_token).toBe('’');
+  });
+});

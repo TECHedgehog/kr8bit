@@ -129,7 +129,7 @@ model RepackPost {
   title          String
   normalizedTitle String
   publishedAt    DateTime?
-  contentText    String
+  tags           String      @default("[]")
   details        String      @default("{}")
   downloadOptions String     @default("[]")
   postKind       String      @default("GAME")
