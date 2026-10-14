@@ -53,11 +53,90 @@ export interface GameListResult {
   total: number;
 }
 
+export interface RepackCatalogSettings {
+  enabled: boolean;
+  baseUrl: string;
+  intervalHours: number;
+  auditEnabled: boolean;
+  auditIntervalHours: number;
+  fullImportComplete: boolean;
+}
+
+export interface RepackDownloadOption {
+  label: string;
+  url: string;
+}
+
+export interface RepackPostSummary {
+  id: string;
+  title: string;
+  sourceUrl: string;
+  postKind: 'GAME' | 'UPDATE' | 'DLC';
+  publishedAt: string | null;
+  firstSeenAt: string;
+}
+
+export interface RepackMatchCandidate {
+  providerName: string;
+  remoteId: string;
+  title: string;
+  releaseYear?: number;
+  coverUrl?: string;
+  score: number;
+}
+
+export interface RepackCatalogGame {
+  id: string;
+  title: string;
+  normalizedTitle: string;
+  matchStatus: 'PENDING' | 'MATCHED' | 'REVIEW' | 'REJECTED';
+  matchScore: number | null;
+  providerName: string | null;
+  providerRemoteId: string | null;
+  posts: RepackPostSummary[];
+}
+
+export interface RepackCatalogGameDetail extends RepackCatalogGame {
+  matchCandidates: RepackMatchCandidate[];
+  metadataSnapshot: {
+    title: string;
+    releaseYear?: number;
+    description?: string;
+    developers: string[];
+    publishers: string[];
+    genres: string[];
+    coverUrl?: string;
+  } | null;
+  posts: Array<RepackPostSummary & {
+    contentText: string;
+    details: Record<string, string>;
+    downloadOptions: RepackDownloadOption[];
+  }>;
+}
+
+export interface RepackJobStatus {
+  running: boolean;
+  phase: string;
+  processed: number;
+  skipped: number;
+  failed: number;
+  total: number;
+  startedAt: string | null;
+}
+
 export interface GameRenamePreview {
   id: string;
   oldName: string;
   newName: string | null;
-  status: 'ready' | 'unchanged' | 'conflict' | 'unavailable';
+  status: 'ready' | 'unchanged' | 'conflict' | 'unavailable' | 'renamed' | 'failed';
+  message?: string;
+}
+
+export interface GameRenameResult {
+  id: string;
+  oldPath: string;
+  newPath: string | null;
+  status: 'renamed' | 'skipped' | 'failed';
   message?: string;
 }
 

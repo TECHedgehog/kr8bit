@@ -103,3 +103,43 @@ model SteamAppIndex {
   appId Int    @id
   name  String
 }
+
+model RepackGame {
+  id                   String       @id @default(uuid())
+  title                String
+  normalizedTitle      String
+  providerName         String?
+  providerRemoteId     String?
+  matchStatus          String       @default("PENDING")
+  matchScore           Float?
+  matchCandidates      String       @default("[]")
+  metadataSnapshot     String?
+  posts                RepackPost[]
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@unique([normalizedTitle])
+  @@index([matchStatus])
+}
+
+model RepackPost {
+  id             String      @id @default(uuid())
+  source         String
+  sourceUrl      String
+  title          String
+  normalizedTitle String
+  publishedAt    DateTime?
+  contentText    String
+  details        String      @default("{}")
+  downloadOptions String     @default("[]")
+  postKind       String      @default("GAME")
+  contentHash    String
+  firstSeenAt    DateTime    @default(now())
+  lastSeenAt     DateTime    @default(now())
+  gameId         String?
+  game           RepackGame? @relation(fields: [gameId], references: [id], onDelete: SetNull)
+
+  @@unique([source, sourceUrl])
+  @@index([source, lastSeenAt])
+  @@index([gameId])
+}

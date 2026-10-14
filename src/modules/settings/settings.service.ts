@@ -2,7 +2,7 @@ import { ValidationError } from '../../shared/errors.js';
 import { settingsRepository } from './settings.repository.js';
 import type { Setting } from './settings.types.js';
 import { config } from '../../config/index.js';
-import { DEFAULT_FORMAT_SETTING, CUSTOM_FORMAT_SETTING, validateFilenameFormat } from '../library/filename-format.js';
+import { CUSTOM_FORMAT_SETTING, validateFilenameFormat } from '../../shared/filename-format.js';
 
 export interface SettingsEnvSnapshot {
   libraryRoot: string;
@@ -16,7 +16,14 @@ export interface SettingsEnvSnapshot {
 // PUT /api/settings stops clients from corrupting internal bookkeeping —
 // e.g. setting steamIndexLastRefresh far in the future would suppress
 // Steam index refreshes indefinitely.
-const RESERVED_KEYS = new Set(['steamIndexLastRefresh']);
+const RESERVED_KEYS = new Set(['steamIndexLastRefresh', 'repackCatalogFullImportComplete']);
+const REPACK_BOOLEAN_SETTINGS = new Set(['repackCatalogEnabled', 'repackCatalogAuditEnabled']);
+const REPACK_INTERVAL_SETTINGS = new Set(['repackCatalogIntervalHours', 'repackCatalogAuditIntervalHours']);
+const REPACK_SETTINGS = new Set([
+  ...REPACK_BOOLEAN_SETTINGS,
+  ...REPACK_INTERVAL_SETTINGS,
+  'repackCatalogFitGirlBaseUrl',
+]);
 
 const MAX_KEY_LENGTH = 100;
 const MAX_VALUE_LENGTH = 10_000;
@@ -37,9 +44,29 @@ export function parseSettingsUpsert(body: unknown): { key: string; value: string
     if (typeof value !== 'string') {
       throw new ValidationError(`invalid value for ${key}: expected string`);
     }
-    if (key === DEFAULT_FORMAT_SETTING || key === CUSTOM_FORMAT_SETTING) {
+    if (key.startsWith('repackCatalog') && !RESERVED_KEYS.has(key) && !REPACK_SETTINGS.has(key)) {
+      throw new ValidationError(`unknown repack catalog setting: ${key}`);
+    }
+    if (REPACK_BOOLEAN_SETTINGS.has(key) && value !== 'true' && value !== 'false') {
+      throw new ValidationError(`${key} must be true or false`);
+    }
+    if (REPACK_INTERVAL_SETTINGS.has(key)) {
+      const hours = Number(value);
+      if (!Number.isInteger(hours) || hours < 1 || hours > 8760) {
+        throw new ValidationError(`${key} must be an integer from 1 to 8760`);
+      }
+    }
+    if (key === 'repackCatalogFitGirlBaseUrl') {
       try {
-        if (key === DEFAULT_FORMAT_SETTING || value.trim()) validateFilenameFormat(value);
+        const url = new URL(value);
+        if (url.protocol !== 'https:' || !url.hostname) throw new Error('invalid source URL');
+      } catch {
+        throw new ValidationError('repackCatalogFitGirlBaseUrl must be an HTTPS URL');
+      }
+    }
+    if (key === CUSTOM_FORMAT_SETTING && value.trim()) {
+      try {
+        validateFilenameFormat(value);
       } catch (err) {
         throw new ValidationError((err as Error).message);
       }

@@ -47,11 +47,30 @@ describe('parseSettingsUpsert', () => {
 
   it('rejects internal keys', () => {
     expect(() => parseSettingsUpsert({ steamIndexLastRefresh: '2030-01-01' })).toThrow(ValidationError);
+    expect(() => parseSettingsUpsert({ repackCatalogFullImportComplete: 'true' })).toThrow(ValidationError);
+  });
+
+  it('validates repack catalog settings', () => {
+    expect(parseSettingsUpsert({ repackCatalogEnabled: 'false', repackCatalogIntervalHours: '24' })).toEqual([
+      { key: 'repackCatalogEnabled', value: 'false' },
+      { key: 'repackCatalogIntervalHours', value: '24' },
+    ]);
+    expect(() => parseSettingsUpsert({ repackCatalogEnabled: 'yes' })).toThrow(ValidationError);
+    expect(() => parseSettingsUpsert({ repackCatalogIntervalHours: '0' })).toThrow(ValidationError);
+    expect(() => parseSettingsUpsert({ repackCatalogFitGirlBaseUrl: 'http://unsafe.test' })).toThrow(ValidationError);
   });
 
   it('rejects oversized keys and values', () => {
     expect(() => parseSettingsUpsert({ ['k'.repeat(101)]: 'v' })).toThrow(ValidationError);
     expect(() => parseSettingsUpsert({ k: 'v'.repeat(10_001) })).toThrow(ValidationError);
+  });
+
+  it('validates custom filename formats and permits clearing the custom value', () => {
+    expect(parseSettingsUpsert({ libraryRenameCustomFormat: '' })).toEqual([
+      { key: 'libraryRenameCustomFormat', value: '' },
+    ]);
+    expect(() => parseSettingsUpsert({ libraryRenameCustomFormat: '{unknown}' })).toThrow(ValidationError);
+    expect(() => parseSettingsUpsert({ libraryRenameCustomFormat: '{title' })).toThrow(ValidationError);
   });
 });
 

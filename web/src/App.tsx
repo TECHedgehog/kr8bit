@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { DeveloperAccessProvider } from './context/DeveloperAccessContext';
+import { RepackCatalogEnabledProvider } from './context/RepackCatalogEnabledContext';
 
 // Route-level code splitting: the games grid and detail dialog (vidstack +
 // hls.js) each load on first visit instead of weighing down the initial bundle.
@@ -13,10 +14,12 @@ const GameDetailCard = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
+const RepackCatalogPage = lazy(() => import('./pages/RepackCatalogPage').then((m) => ({ default: m.RepackCatalogPage })));
 
 export function App(): JSX.Element {
   return (
     <Suspense fallback={<div className="muted">Loading…</div>}>
+      <RepackCatalogEnabledProvider>
       <DeveloperAccessProvider>
         <Routes>
         <Route element={<AppLayout />}>
@@ -26,10 +29,12 @@ export function App(): JSX.Element {
             <Route path=":id" element={<GameDetailCard />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/repack-catalog" element={<RepackCatalogPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         </Routes>
       </DeveloperAccessProvider>
+      </RepackCatalogEnabledProvider>
     </Suspense>
   );
 }

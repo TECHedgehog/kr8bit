@@ -16,6 +16,7 @@ import { demoService } from '../modules/demo/demo-service.js';
 import { config } from '../config/index.js';
 import { ensureDemoSession } from './demo-session.js';
 import { developerRoutes } from './routes/developer.routes.js';
+import { repackCatalogRoutes } from './routes/repack-catalog.routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -66,10 +67,19 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           message: 'metadata and artwork services are disabled in demo mode',
         });
       }
+      if (req.url.startsWith('/api/repack-catalog')) {
+        return reply.status(503).send({
+          statusCode: 503,
+          code: 'DEMO_OFFLINE',
+          error: 'DemoOfflineError',
+          message: 'repack catalog is disabled in demo mode',
+        });
+      }
     });
   }
   await app.register(healthRoutes);
   await app.register(developerRoutes);
+  await app.register(repackCatalogRoutes);
   await app.register(settingsRoutes);
   await app.register(scannerRoutes);
   await app.register(libraryRoutes);

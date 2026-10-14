@@ -10,6 +10,7 @@ import { retryMatchJob } from './modules/metadata/retry-match.job.js';
 import { scannerService } from './modules/scanner/scanner.service.js';
 import './shared/bigint.js';
 import { demoService } from './modules/demo/demo-service.js';
+import { repackCatalogJob } from './modules/repack-catalog/repack-catalog.job.js';
 
 let app: FastifyInstance | null = null;
 
@@ -20,6 +21,7 @@ async function bootstrap(): Promise<void> {
     await recoverStaleScanRuns();
     await steamIndexService.start();
     void metadataRefreshJob.start();
+    void repackCatalogJob.start(true);
   }
   app = await buildServer();
   await app.listen({ port: config.port, host: config.host });
@@ -40,6 +42,7 @@ function backgroundWorkRunning(): boolean {
     scannerService.isRunning() ||
     metadataRefreshJob.isRunning() ||
     retryMatchJob.isRunning()
+    || repackCatalogJob.isRunning()
   );
 }
 
@@ -61,6 +64,7 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   logger.info({ signal }, 'shutting down');
   steamIndexService.stop();
+  repackCatalogJob.stop();
   await drainBackgroundWork(SHUTDOWN_DRAIN_TIMEOUT_MS);
   if (app) {
     try {

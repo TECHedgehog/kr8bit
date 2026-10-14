@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { IconProps } from '@tabler/icons-react';
 import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
@@ -9,6 +9,7 @@ import IconMapPin from '@tabler/icons-react/dist/esm/icons/IconMapPin.mjs';
 import IconPalette from '@tabler/icons-react/dist/esm/icons/IconPalette.mjs';
 import IconTags from '@tabler/icons-react/dist/esm/icons/IconTags.mjs';
 import IconTool from '@tabler/icons-react/dist/esm/icons/IconTool.mjs';
+import IconWorld from '@tabler/icons-react/dist/esm/icons/IconWorld.mjs';
 import { Glass, animateGlassValue, cubicBezier, glassValue } from '@samasante/liquid-glass';
 import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
@@ -21,6 +22,15 @@ import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useNavigationPreferences } from '../context/NavigationPreferencesContext';
 import { TodoPanel } from '../components/TodoPanel';
 import { useDeveloperAccess } from '../context/DeveloperAccessContext';
+import { api } from '../api/client';
+
+interface RepackSettings {
+  enabled: boolean;
+  baseUrl: string;
+  intervalHours: number;
+  auditEnabled: boolean;
+  auditIntervalHours: number;
+}
 
 const SETTINGS_LENS_MARGIN = 1;
 const SETTINGS_LENS_WIDTH_INSET = 16;
@@ -33,7 +43,7 @@ const SETTINGS_MOVE_ANIMATION = { duration: 0.4, ease: cubicBezier(0.42, 0, 0.58
 const SETTINGS_RAISE_ANIMATION = { duration: 0.25, ease: cubicBezier(0.42, 0, 0.58, 1) };
 const SETTINGS_LOWER_ANIMATION = { duration: 0.2, ease: cubicBezier(0.33, 1, 0.68, 1) };
 
-type SettingsCategory = 'review' | 'appearance' | 'behavior' | 'locations';
+type SettingsCategory = 'review' | 'appearance' | 'behavior' | 'locations' | 'sources';
 
 type SettingsNavigationItem = {
   id: string;
@@ -68,6 +78,10 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
     items: [{ id: 'steam', label: 'Steam', icon: IconBrandSteam, color: '#6366f1' }],
   },
   {
+    label: 'Sources',
+    items: [{ id: 'repack-catalog', label: 'Repack catalog', icon: IconWorld, color: '#f97316', category: 'sources' }],
+  },
+  {
     label: 'System',
     items: [
       { id: 'storage', label: 'Storage', icon: IconDatabase, color: '#f97316' },
@@ -87,9 +101,9 @@ export function SettingsPage(): JSX.Element {
     setLastSettingsCategory,
   } = useNavigationPreferences();
   const categoryFromUrl = searchParams.get('category');
-  const initialCategory = categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations'
+  const initialCategory = categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations' || categoryFromUrl === 'sources'
     ? categoryFromUrl
-    : rememberSettingsCategory && (lastSettingsCategory === 'review' || lastSettingsCategory === 'appearance' || lastSettingsCategory === 'behavior' || lastSettingsCategory === 'locations')
+    : rememberSettingsCategory && (lastSettingsCategory === 'review' || lastSettingsCategory === 'appearance' || lastSettingsCategory === 'behavior' || lastSettingsCategory === 'locations' || lastSettingsCategory === 'sources')
       ? lastSettingsCategory
       : 'review';
   const [category, setCategory] = useState<SettingsCategory>(initialCategory);
@@ -101,6 +115,33 @@ export function SettingsPage(): JSX.Element {
   const transitRef = useRef(0);
   const [isLensMoving, setIsLensMoving] = useState(false);
   const [isTodoOpen, setIsTodoOpen] = useState(false);
+  const [repackSettings, setRepackSettings] = useState<RepackSettings | null>(null);
+  const [repackSaveState, setRepackSaveState] = useState('');
+  useEffect(() => {
+    void api.get<RepackSettings>('/api/repack-catalog/settings').then(setRepackSettings).catch(() => setRepackSaveState('Unable to load source settings'));
+  }, []);
+  const saveRepackSettings = async (next: Partial<RepackSettings>) => {
+    if (!repackSettings) return;
+    const value = { ...repackSettings, ...next };
+    setRepackSettings(value);
+    setRepackSaveState('Saving…');
+    try {
+      await api.put('/api/settings', {
+        repackCatalogEnabled: String(value.enabled),
+        repackCatalogFitGirlBaseUrl: value.baseUrl,
+        repackCatalogIntervalHours: String(value.intervalHours),
+        repackCatalogAuditEnabled: String(value.auditEnabled),
+        repackCatalogAuditIntervalHours: String(value.auditIntervalHours),
+      });
+      const saved = await api.get<RepackSettings>('/api/repack-catalog/settings');
+      setRepackSettings(saved);
+      setRepackSaveState('Saved');
+      window.dispatchEvent(new Event('repack-catalog-settings'));
+    } catch (error) {
+      setRepackSaveState((error as Error).message || 'Unable to save settings');
+      throw error;
+    }
+  };
   const { enabled: developerToolsEnabled } = useDeveloperAccess();
   const lensY = useMemo(() => glassValue(0.5), []);
   const lensW = useMemo(() => glassValue(160), []);
@@ -112,7 +153,7 @@ export function SettingsPage(): JSX.Element {
   const showShadeSelectors = background !== 'dither';
 
   useLayoutEffect(() => {
-    if (categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations') {
+    if (categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations' || categoryFromUrl === 'sources') {
       setCategory(categoryFromUrl);
     }
   }, [categoryFromUrl]);
@@ -201,6 +242,26 @@ export function SettingsPage(): JSX.Element {
     </SettingsPanel>
   );
 
+  const renderSources = () => (
+    <SettingsPanel title="Repack catalog" eyebrow="Sources">
+      <p className="settings-help">Scrape FitGirl game posts into a separate catalog. Sync reads recent listings; full history import is always manual.</p>
+      <div className="settings-subpanel settings-subpanel--first">
+        <label className="settings-switch">
+          <span><strong>Enable FitGirl source</strong><small>Disabled by default. Enabling starts a recent-post sync.</small></span>
+          <span className="settings-switch__control"><input type="checkbox" checked={repackSettings?.enabled ?? false} disabled={!repackSettings} onChange={(event) => void saveRepackSettings({ enabled: event.target.checked }).catch(() => {})} aria-label="Enable FitGirl source" /><span className="settings-switch__track" aria-hidden="true"><span className="settings-switch__thumb" /></span></span>
+        </label>
+        <label className="settings-field"><span>FitGirl site URL</span><input type="url" value={repackSettings?.baseUrl ?? ''} disabled={!repackSettings} onChange={(event) => setRepackSettings((current) => current ? { ...current, baseUrl: event.target.value } : current)} onBlur={() => { if (repackSettings?.baseUrl) void saveRepackSettings({ baseUrl: repackSettings.baseUrl }).catch(() => {}); }} /></label>
+        <label className="settings-field"><span>Recent sync interval (hours)</span><input type="number" min="1" max="8760" value={repackSettings?.intervalHours ?? 24} disabled={!repackSettings} onChange={(event) => setRepackSettings((current) => current ? { ...current, intervalHours: Number(event.target.value) || 24 } : current)} onBlur={() => { if (repackSettings) void saveRepackSettings({ intervalHours: repackSettings.intervalHours }).catch(() => {}); }} /></label>
+        <label className="settings-switch">
+          <span><strong>Rolling history audit</strong><small>Recheck up to 50 older posts per run to detect edits.</small></span>
+          <span className="settings-switch__control"><input type="checkbox" checked={repackSettings?.auditEnabled ?? false} disabled={!repackSettings} onChange={(event) => void saveRepackSettings({ auditEnabled: event.target.checked }).catch(() => {})} aria-label="Enable rolling repack audit" /><span className="settings-switch__track" aria-hidden="true"><span className="settings-switch__thumb" /></span></span>
+        </label>
+        <label className="settings-field"><span>Audit interval (hours)</span><input type="number" min="1" max="8760" value={repackSettings?.auditIntervalHours ?? 720} disabled={!repackSettings || !repackSettings.auditEnabled} onChange={(event) => setRepackSettings((current) => current ? { ...current, auditIntervalHours: Number(event.target.value) || 720 } : current)} onBlur={() => { if (repackSettings) void saveRepackSettings({ auditIntervalHours: repackSettings.auditIntervalHours }).catch(() => {}); }} /></label>
+        <p className="settings-help" role="status">{repackSaveState}</p>
+      </div>
+    </SettingsPanel>
+  );
+
   const renderBehavior = () => (
     <SettingsPanel title="Navigation" eyebrow="Behavior">
       <div className="settings-subpanel settings-subpanel--first">
@@ -222,7 +283,7 @@ export function SettingsPage(): JSX.Element {
     </SettingsPanel>
   );
 
-  const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, behavior: renderBehavior, locations: renderLibrary };
+  const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, behavior: renderBehavior, locations: renderLibrary, sources: renderSources };
 
   useLayoutEffect(() => {
     const menu = menuRef.current;

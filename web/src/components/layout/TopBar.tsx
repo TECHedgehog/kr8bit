@@ -12,6 +12,7 @@ import { useGlowFollow } from '../../hooks/useGlowFollow';
 import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../../context/GlassTuneContext';
 import { NAV_ITEMS } from './navItems';
 import { THEME_ITEMS } from './themeItems';
+import { useRepackCatalogEnabled } from '../../context/RepackCatalogEnabledContext';
 
 // Smooth S-curve — slow start + slow end. Used for the horizontal slide and
 // the RAISE phase so the lens starts moving/growing slowly and decelerates
@@ -72,6 +73,8 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
   useGlowFollow(themeRef);
   useGlowFollow(navShellRef);
   const location = useLocation();
+  const { enabled: repackCatalogEnabled } = useRepackCatalogEnabled();
+  const visibleNavItems = NAV_ITEMS.filter((item) => !item.requiresRepackSource || repackCatalogEnabled);
   const { pill } = useGlassTune();
   const navRef = useRef<HTMLDivElement>(null);
   // Tracks whether the layout effect below has positioned the lens at least
@@ -85,7 +88,7 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
   // /games → /games/:id detail open/close) leaves the lens untouched, the
   // same way the theme lens ignores route changes.
   const activeTo =
-    NAV_ITEMS.find(
+    visibleNavItems.find(
       (item) =>
         location.pathname === item.to ||
         location.pathname.startsWith(item.to + '/'),
@@ -286,7 +289,7 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
 
   const renderNavItems = (as: 'link' | 'copy') => (
     <div className="topbar-nav-items">
-      {NAV_ITEMS.map((item) =>
+      {visibleNavItems.map((item) =>
         as === 'link' ? (
           <NavLink
             key={item.to}
