@@ -1,0 +1,9 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignore": ["web/vendor/**"],
+  "ignoreDependencies": ["pino-pretty"],
+  "workspaces": {
+    ".": {},
+    "web": {}
+  }
+}
