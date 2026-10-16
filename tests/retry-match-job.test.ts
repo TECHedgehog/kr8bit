@@ -3,7 +3,7 @@ import { MatchStatus } from '../src/shared/enums.js';
 import { libraryRepository } from '../src/modules/library/library.repository.js';
 import { providerRegistry } from '../src/modules/metadata/provider-registry.js';
 import { normalizeGameName } from '../src/shared/normalize.js';
-import { decideMatch } from '../src/modules/scanner/match-policy.js';
+import { decideMatch } from '../src/shared/match-policy.js';
 import { applyMatchResult } from '../src/modules/scanner/match-apply.js';
 import { metadataRefreshJob } from '../src/modules/metadata/metadata-refresh.job.js';
 import { RetryMatchJob } from '../src/modules/metadata/retry-match.job.js';
@@ -25,7 +25,7 @@ vi.mock('../src/shared/normalize.js', () => ({
   normalizeGameName: vi.fn(),
 }));
 
-vi.mock('../src/modules/scanner/match-policy.js', () => ({
+vi.mock('../src/shared/match-policy.js', () => ({
   decideMatch: vi.fn(),
 }));
 

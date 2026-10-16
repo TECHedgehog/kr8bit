@@ -76,10 +76,6 @@ export const repackCatalogRepository = {
     });
   },
 
-  async findGameByNormalizedTitle(normalizedTitle: string) {
-    return prisma.repackGame.findUnique({ where: { normalizedTitle } });
-  },
-
   async findRematchableGames() {
     return prisma.repackGame.findMany({
       where: { matchStatus: { in: ['PENDING', 'REVIEW', 'REJECTED'] } },

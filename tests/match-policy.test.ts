@@ -1,69 +1,57 @@
 import { describe, it, expect } from 'vitest';
-import { decideMatch, ACCEPT_THRESHOLD, FLAG_THRESHOLD } from '../src/modules/scanner/match-policy.js';
+import { decideMatch } from '../src/shared/match-policy.js';
 import { MatchStatus } from '../src/shared/enums.js';
 import type { SearchResult } from '../src/shared/types.js';
 
-describe('match-policy thresholds', () => {
-  it('uses sensible bounds', () => {
-    expect(ACCEPT_THRESHOLD).toBeGreaterThan(FLAG_THRESHOLD);
-    expect(FLAG_THRESHOLD).toBeGreaterThan(0);
-  });
-});
+const thresholds = { acceptThreshold: 85, flagThreshold: 70 };
 
 describe('decideMatch', () => {
   it('returns PENDING with no results', () => {
-    const d = decideMatch([]);
-    expect(d.status).toBe(MatchStatus.PENDING);
-    expect(d.score).toBe(0);
-    expect(d.result).toBeNull();
+    const decision = decideMatch([], thresholds);
+    expect(decision.status).toBe(MatchStatus.PENDING);
+    expect(decision.score).toBe(0);
+    expect(decision.result).toBeNull();
   });
 
-  it('returns ACCEPTED when top score >= 85', () => {
-    const results: SearchResult[] = [{ remoteId: '1', title: 'A', score: 95 }];
-    const d = decideMatch(results);
-    expect(d.status).toBe(MatchStatus.ACCEPTED);
-    expect(d.score).toBe(95);
-    expect(d.result?.remoteId).toBe('1');
+  it('uses caller-provided thresholds', () => {
+    const decision = decideMatch([{ remoteId: '1', title: 'A', score: 88 }], {
+      acceptThreshold: 90,
+      flagThreshold: 80,
+    });
+    expect(decision.status).toBe(MatchStatus.FLAGGED);
   });
 
-  it('returns FLAGGED when 70 <= score < 90', () => {
-    const results: SearchResult[] = [{ remoteId: '7', title: 'B', score: 80 }];
-    const d = decideMatch(results);
-    expect(d.status).toBe(MatchStatus.FLAGGED);
-    expect(d.score).toBe(80);
+  it('returns ACCEPTED at the accept threshold', () => {
+    const results: SearchResult[] = [{ remoteId: '1', title: 'A', score: 85 }];
+    const decision = decideMatch(results, thresholds);
+    expect(decision.status).toBe(MatchStatus.ACCEPTED);
+    expect(decision.score).toBe(85);
+    expect(decision.result?.remoteId).toBe('1');
   });
 
-  it('returns REJECTED when 0 < score < 70', () => {
-    const results: SearchResult[] = [{ remoteId: '2', title: 'C', score: 50 }];
-    const d = decideMatch(results);
-    expect(d.status).toBe(MatchStatus.REJECTED);
-    expect(d.score).toBe(50);
-    expect(d.result).not.toBeNull();
+  it('returns FLAGGED at the flag threshold', () => {
+    const decision = decideMatch([{ remoteId: '7', title: 'B', score: 70 }], thresholds);
+    expect(decision.status).toBe(MatchStatus.FLAGGED);
+    expect(decision.score).toBe(70);
   });
 
-  it('returns PENDING for score 0 with results', () => {
-    const results: SearchResult[] = [{ remoteId: '2', title: 'C', score: 0 }];
-    const d = decideMatch(results);
-    expect(d.status).toBe(MatchStatus.PENDING);
-    expect(d.score).toBe(0);
+  it('returns REJECTED for positive scores below the flag threshold', () => {
+    const decision = decideMatch([{ remoteId: '2', title: 'C', score: 50 }], thresholds);
+    expect(decision.status).toBe(MatchStatus.REJECTED);
+    expect(decision.score).toBe(50);
+    expect(decision.result).not.toBeNull();
   });
 
-  it('uses exactly 85 as accepted boundary', () => {
-    expect(decideMatch([{ remoteId: '1', title: 'A', score: 85 }]).status).toBe(MatchStatus.ACCEPTED);
+  it('returns PENDING for score zero', () => {
+    const decision = decideMatch([{ remoteId: '2', title: 'C', score: 0 }], thresholds);
+    expect(decision.status).toBe(MatchStatus.PENDING);
+    expect(decision.score).toBe(0);
   });
 
-  it('flags exactly 84', () => {
-    expect(decideMatch([{ remoteId: '1', title: 'A', score: 84 }]).status).toBe(MatchStatus.FLAGGED);
-  });
-
-  it('uses exactly 70 as flagged boundary', () => {
-    expect(decideMatch([{ remoteId: '1', title: 'A', score: 70 }]).status).toBe(MatchStatus.FLAGGED);
-  });
-
-  it('uses score 0 when result has no score', () => {
-    const d = decideMatch([{ remoteId: '1', title: 'A' }]);
-    expect(d.score).toBe(0);
-    expect(d.status).toBe(MatchStatus.PENDING);
+  it('uses score zero when result has no score', () => {
+    const decision = decideMatch([{ remoteId: '1', title: 'A' }], thresholds);
+    expect(decision.score).toBe(0);
+    expect(decision.status).toBe(MatchStatus.PENDING);
   });
 
   it('sorts merged results from multiple providers', () => {
@@ -72,9 +60,9 @@ describe('decideMatch', () => {
       { providerName: 'steam', remoteId: '2', title: 'B', score: 92 },
       { providerName: 'igdb', remoteId: '3', title: 'C', score: 78 },
     ];
-    const d = decideMatch(results);
-    expect(d.status).toBe(MatchStatus.ACCEPTED);
-    expect(d.score).toBe(92);
-    expect(d.result?.providerName).toBe('steam');
+    const decision = decideMatch(results, thresholds);
+    expect(decision.status).toBe(MatchStatus.ACCEPTED);
+    expect(decision.score).toBe(92);
+    expect(decision.result?.providerName).toBe('steam');
   });
 });

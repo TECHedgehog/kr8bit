@@ -1,7 +1,9 @@
 import { logger } from '../../logger/index.js';
+import { config } from '../../config/index.js';
 import { decodeHtmlEntities } from '../../shared/html-entities.js';
 import { normalizeGameName, stripEditionPhrase } from '../../shared/normalize.js';
 import { MatchStatus } from '../../shared/enums.js';
+import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { providerRegistry } from '../metadata/provider-registry.js';
 import { settingsRepository } from '../settings/settings.repository.js';
@@ -11,7 +13,6 @@ import { FitGirlSource, fitGirlGameTitle, normalizeFitGirlGameTitle } from './so
 import { repackSourceRegistry } from './sources/source-registry.js';
 import { SourceBlockedError } from './source-http-client.js';
 import type { RepackMatchCandidate, RepackMatchStatus, RepackMetadataSnapshot, RepackSource } from './repack-catalog.types.js';
-import { ACCEPT_THRESHOLD, decideMatch } from '../scanner/match-policy.js';
 
 export const REPACK_ENABLED = 'repackCatalogEnabled';
 export const REPACK_BASE_URL = 'repackCatalogFitGirlBaseUrl';
@@ -36,6 +37,19 @@ function candidateFrom(result: SearchResult): RepackMatchCandidate {
     providerName: result.providerName, remoteId: result.remoteId, title: result.title,
     releaseYear: result.releaseYear, coverUrl: result.coverUrl, score: result.score ?? 0,
   };
+}
+
+function repackStatusFromDecision(decision: MatchDecision): RepackMatchStatus {
+  switch (decision.status) {
+    case MatchStatus.ACCEPTED:
+    case MatchStatus.FLAGGED:
+    case MatchStatus.MANUAL:
+      return 'REVIEW';
+    case MatchStatus.REJECTED:
+      return 'REJECTED';
+    case MatchStatus.PENDING:
+      return 'PENDING';
+  }
 }
 
 function snapshotFrom(metadata: GameMetadata): RepackMetadataSnapshot {
@@ -281,13 +295,13 @@ export class RepackCatalogService {
     const displayTitle = fitGirlGameTitle(decodeHtmlEntities(title));
     const fullQuery = normalizeGameName(displayTitle).query;
     let candidates = await this.findCandidates(fullQuery);
-    let decision = decideMatch(candidates);
+    const decision = decideMatch(candidates, config.match);
     let reviewCandidates: RepackMatchCandidate[] | null = null;
     let reviewScore = -1;
     let reviewWasFlagged = false;
 
     if (decision.status === MatchStatus.ACCEPTED) {
-      if (await this.acceptBestCandidate(id, candidates)) return;
+      if (await this.acceptBestCandidate(id, candidates, config.match.acceptThreshold)) return;
       reviewCandidates = candidates;
       reviewScore = decision.score;
     } else if (decision.status === MatchStatus.FLAGGED) {
@@ -300,9 +314,9 @@ export class RepackCatalogService {
     const baseQuery = baseTitle ? normalizeGameName(baseTitle).query : '';
     if (baseQuery && baseQuery !== fullQuery) {
       const baseCandidates = await this.findCandidates(baseQuery);
-      const baseDecision = decideMatch(baseCandidates);
+      const baseDecision = decideMatch(baseCandidates, config.match);
       if (baseDecision.status === MatchStatus.ACCEPTED) {
-        if (await this.acceptBestCandidate(id, baseCandidates)) return;
+        if (await this.acceptBestCandidate(id, baseCandidates, config.match.acceptThreshold)) return;
         if (!reviewWasFlagged || baseDecision.score > reviewScore) {
           reviewCandidates = baseCandidates;
           reviewScore = baseDecision.score;
@@ -320,13 +334,16 @@ export class RepackCatalogService {
       return;
     }
 
-    const status: RepackMatchStatus = decision.status === MatchStatus.REJECTED ? 'REJECTED' : 'PENDING';
-    await repackCatalogRepository.saveCandidates(id, candidates, status, decision.score);
+    await repackCatalogRepository.saveCandidates(id, candidates, repackStatusFromDecision(decision), decision.score);
   }
 
-  private async acceptBestCandidate(id: string, candidates: RepackMatchCandidate[]): Promise<boolean> {
+  private async acceptBestCandidate(
+    id: string,
+    candidates: RepackMatchCandidate[],
+    acceptThreshold: number,
+  ): Promise<boolean> {
     for (const candidate of candidates) {
-      if (candidate.score < ACCEPT_THRESHOLD) break;
+      if (candidate.score < acceptThreshold) break;
       const provider: MetadataProvider | null = providerRegistry.resolve(candidate.providerName);
       if (!provider) continue;
       const metadata = await provider.getGame(candidate.remoteId).catch((error) => {

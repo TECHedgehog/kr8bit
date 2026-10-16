@@ -1,7 +1,7 @@
 import { MatchStatus, STEAM_PROVIDER_NAME } from '../../shared/enums.js';
 import { libraryRepository } from '../library/library.repository.js';
 import { providerMatchRepository } from '../metadata/provider-match.repository.js';
-import type { MatchDecision } from './match-policy.js';
+import type { MatchDecision } from '../../shared/match-policy.js';
 
 export async function applyMatchResult(
   gameId: string,

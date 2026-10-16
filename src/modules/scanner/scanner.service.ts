@@ -6,7 +6,7 @@ import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
 import { scanLibraryRoot, fsReader, type DirectoryReader, type ScanCandidate } from './folder-scanner.js';
 import { normalizeGameName } from '../../shared/normalize.js';
-import { decideMatch } from './match-policy.js';
+import { decideMatch } from '../../shared/match-policy.js';
 import { searchAllProviders, applyDecisionToGame, eagerRefreshIfMatched } from './match-game.js';
 import type { MetadataProvider } from '../../shared/types.js';
 import { providerRegistry } from '../metadata/provider-registry.js';
@@ -239,7 +239,7 @@ export class ScannerService {
     const results = await searchAllProviders(normalized.query, this.deps.providers, {
       entry: candidate.entryPath,
     });
-    const decision = decideMatch(results);
+    const decision = decideMatch(results, config.match);
 
     if (existing) {
       const hadMatch = existing.steamAppId !== null || existing.title !== null;

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   settingsGet: vi.fn(), settingsSet: vi.fn(),
   knownUrls: vi.fn(), upsertPost: vi.fn(), saveCandidates: vi.fn(), acceptMatch: vi.fn(), regroupGames: vi.fn(),
-  findGame: vi.fn(), findRematchableGames: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), listReview: vi.fn(),
+  findRematchableGames: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), listReview: vi.fn(),
   createSource: vi.fn(), providerSearch: vi.fn(), providerGetGame: vi.fn(),
   registryRegister: vi.fn(), providerOrder: vi.fn(), providerResolve: vi.fn(),
 }));
@@ -13,16 +13,17 @@ vi.mock('../src/modules/repack-catalog/repack-catalog.repository.js', () => ({
   repackCatalogRepository: {
      knownUrls: mocks.knownUrls, upsertPost: mocks.upsertPost, regroupGames: mocks.regroupGames,
      saveCandidates: mocks.saveCandidates, acceptMatch: mocks.acceptMatch,
-     findGameByNormalizedTitle: mocks.findGame, findRematchableGames: mocks.findRematchableGames, listGames: mocks.listGames,
+      findRematchableGames: mocks.findRematchableGames, listGames: mocks.listGames,
     getGame: mocks.getGame, listReview: mocks.listReview,
   },
 }));
 vi.mock('../src/modules/repack-catalog/sources/source-registry.js', () => ({
   repackSourceRegistry: { register: mocks.registryRegister, create: mocks.createSource },
 }));
-vi.mock('../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js', () => ({
-  FitGirlSource: class {}, fitGirlGameTitle: (title: string) => title, normalizeFitGirlGameTitle: (title: string) => title.toLowerCase(),
-}));
+vi.mock('../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js')>();
+  return { ...actual, FitGirlSource: class {} };
+});
 vi.mock('../src/modules/metadata/provider-registry.js', () => ({
   providerRegistry: { order: mocks.providerOrder, resolve: mocks.providerResolve },
 }));
@@ -114,6 +115,17 @@ describe('RepackCatalogService', () => {
     expect(mocks.acceptMatch).not.toHaveBeenCalled();
   });
 
+  it('marks below-threshold candidates rejected', async () => {
+    mocks.providerSearch.mockResolvedValue([
+      { providerName: 'steam', remoteId: '1', title: 'Example Game', score: 50 },
+    ]);
+    const service = new RepackCatalogService();
+
+    await service.sync();
+
+    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-1', expect.any(Array), 'REJECTED', 50);
+  });
+
   it('retries existing pending matches once at sync start', async () => {
     mocks.findRematchableGames.mockResolvedValue([{ id: 'catalog-existing', title: 'Example Game', normalizedTitle: 'example game' }]);
     mocks.createSource.mockReturnValue({
@@ -140,13 +152,13 @@ describe('RepackCatalogService', () => {
     await service.sync();
 
     expect(mocks.providerSearch).toHaveBeenCalledTimes(1);
-    expect(mocks.providerSearch).toHaveBeenCalledWith('Dragon s Dogma 2:');
+    expect(mocks.providerSearch).toHaveBeenCalledWith('Dragon s Dogma 2');
   });
 
   it('falls back from unknown edition to base game when edition has no match', async () => {
     mocks.findRematchableGames.mockResolvedValue([{
       id: 'catalog-bubsy', title: 'Bubsy 4D: Digital Pawsome Edition', normalizedTitle: 'bubsy 4d digital pawsome edition',
-      posts: [{ title: 'Bubsy 4D: Digital Pawsome Edition' }],
+      posts: [{ title: 'Bubsy 4D: Digital Pawsome Edition, v1.2 + 2 DLCs/Bonuses' }],
     }]);
     mocks.createSource.mockReturnValue({
       name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),

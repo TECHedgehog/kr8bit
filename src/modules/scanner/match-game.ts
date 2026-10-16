@@ -1,10 +1,11 @@
 import { logger } from '../../logger/index.js';
+import { config } from '../../config/index.js';
 import { MatchStatus } from '../../shared/enums.js';
 import type { MetadataProvider, SearchResult } from '../../shared/types.js';
+import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
 import type { Game } from '../library/library.types.js';
 import { libraryRepository } from '../library/library.repository.js';
 import { normalizeGameName } from '../../shared/normalize.js';
-import { decideMatch, type MatchDecision } from './match-policy.js';
 import { applyMatchResult } from './match-apply.js';
 
 export interface MatchPipelineDeps {
@@ -85,7 +86,7 @@ export async function matchGame(
 ): Promise<{ decision: MatchDecision; applied: boolean }> {
   const normalized = normalizeGameName(game.entryName);
   const results = await searchAllProviders(normalized.query, deps.providers, { gameId: game.id });
-  const decision = decideMatch(results);
+  const decision = decideMatch(results, config.match);
   const applied = await applyDecisionToGame(game.id, decision, deps.now());
   return { decision, applied };
 }

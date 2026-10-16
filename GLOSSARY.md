@@ -13,5 +13,8 @@ A recorded execution of a library scan, with a status and summary counts.
 **Scan progress**:
 Live account of a scan run's discovered, processed, added, updated, and failed entries.
 
+**Match decision**:
+Shared classification of metadata search results as pending, flagged, accepted, or rejected. Callers supply matching thresholds and map decisions into their own status vocabulary.
+
 **Demo session**:
 An isolated library namespace rooted at a session-specific path. Demo sessions use the production scanner with in-memory filesystem and metadata-provider adapters.

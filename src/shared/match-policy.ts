@@ -1,9 +1,11 @@
-import { config } from '../../config/index.js';
-import { MatchStatus } from '../../shared/enums.js';
-import type { SearchResult } from '../../shared/types.js';
+import { config } from '../config/index.js';
+import { MatchStatus } from './enums.js';
+import type { SearchResult } from './types.js';
 
-export const ACCEPT_THRESHOLD = config.match.acceptThreshold;
-export const FLAG_THRESHOLD = config.match.flagThreshold;
+export interface MatchThresholds {
+  acceptThreshold: number;
+  flagThreshold: number;
+}
 
 export interface MatchDecision {
   status: MatchStatus;
@@ -11,7 +13,10 @@ export interface MatchDecision {
   result: SearchResult | null;
 }
 
-export function decideMatch(results: SearchResult[]): MatchDecision {
+export function decideMatch(
+  results: SearchResult[],
+  thresholds: MatchThresholds = config.match,
+): MatchDecision {
   if (results.length === 0) {
     return { status: MatchStatus.PENDING, score: 0, result: null };
   }
@@ -20,10 +25,10 @@ export function decideMatch(results: SearchResult[]): MatchDecision {
   const top = sorted[0];
   const score = top.score ?? 0;
 
-  if (score >= ACCEPT_THRESHOLD) {
+  if (score >= thresholds.acceptThreshold) {
     return { status: MatchStatus.ACCEPTED, score, result: top };
   }
-  if (score >= FLAG_THRESHOLD) {
+  if (score >= thresholds.flagThreshold) {
     return { status: MatchStatus.FLAGGED, score, result: top };
   }
   if (score > 0) {
