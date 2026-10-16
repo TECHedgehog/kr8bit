@@ -39,8 +39,15 @@ jobs:
       - name: Web typecheck
         run: npm --prefix web run typecheck
 
-      #- name: Test
-      #  run: npm test
+      - name: Test
+        env:
+          DB_PATH: ${{ runner.temp }}/kr8bit-test.db
+          DATABASE_URL: file:${{ runner.temp }}/kr8bit-test.db
+          LIBRARY_ROOT: ${{ runner.temp }}/games
+          CACHE_DIR: ${{ runner.temp }}/cache
+        run: |
+          npx prisma migrate deploy
+          npm test
 
       - name: Web build
         run: npm run web:build

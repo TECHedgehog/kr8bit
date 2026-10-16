@@ -14,6 +14,7 @@ import { metadataService } from '../metadata/metadata.service.js';
 import { retryMatchJob } from '../metadata/retry-match.job.js';
 import { resetGate } from '../database/reset-gate.js';
 import { emitProgress } from './scanner.events.js';
+import { createScanTimeline, type ScanEntryOutcome } from './scan-timeline.js';
 import { AppError } from '../../shared/errors.js';
 import { demoService } from '../demo/demo-service.js';
 import { settingsRepository } from '../settings/settings.repository.js';
@@ -41,8 +42,6 @@ export const defaultDeps: ScannerDeps = {
     retryMatch: retryMatchJob,
   },
 };
-
-type CandidateOutcome = 'added' | 'updated' | 'skipped';
 
 const RE_MATCHABLE = new Set<MatchStatus>(RE_MATCHABLE_STATUSES);
 
@@ -145,18 +144,8 @@ export class ScannerService {
   private async scanLibrary(run: ScanRun): Promise<void> {
     const rootPath = this.deps.libraryRoot;
     const runId = run.id;
-
-    emitProgress({
-      scanRunId: runId,
-      phase: 'start',
-      stage: 'scan',
-      total: 0,
-      completed: 0,
-      found: 0,
-      added: 0,
-      updated: 0,
-      failed: 0,
-    });
+    const timeline = createScanTimeline({ scanRunId: runId, emit: emitProgress });
+    timeline.started();
 
     let candidates: ScanCandidate[] = [];
     try {
@@ -164,170 +153,58 @@ export class ScannerService {
     } catch (err) {
       const message = (err as Error).message;
       logger.error({ runId, err: message }, 'scan failed during walk');
+      timeline.walkFailed();
       await scannerRepository.update(runId, {
         status: 'FAILED',
         finishedAt: this.deps.now(),
+        ...timeline.counts(),
         errors: [message],
       });
-      emitProgress({
-        scanRunId: runId,
-        phase: 'done',
-        stage: 'done',
-        total: 0,
-        completed: 0,
-        found: 0,
-        added: 0,
-        updated: 0,
-        failed: 1,
-        message,
-      });
+      timeline.finished(message);
       return;
     }
 
-    let added = 0;
-    let updated = 0;
-    let failed = 0;
     const errors: string[] = [];
+    timeline.candidatesFound(candidates.length);
 
-    emitProgress({
-      scanRunId: runId,
-      phase: 'candidate',
-      stage: 'scan',
-      total: candidates.length,
-      completed: 0,
-      found: candidates.length,
-      added,
-      updated,
-      failed,
-    });
-
-    for (const [index, candidate] of candidates.entries()) {
-      emitProgress({
-        scanRunId: runId,
-        phase: 'candidate',
-        stage: 'metadata',
-        total: candidates.length,
-        completed: index,
-        found: candidates.length,
-        added,
-        updated,
-        failed,
-        currentEntry: candidate.entryName,
-      });
+    for (const candidate of candidates) {
+      timeline.entryStarted(candidate.entryName);
 
       try {
         const outcome = await this.processCandidate(candidate);
-        if (outcome === 'added') added += 1;
-        else if (outcome === 'updated') updated += 1;
-
-        emitProgress({
-          scanRunId: runId,
-          phase: 'matched',
-          stage: 'metadata',
-          total: candidates.length,
-          completed: index + 1,
-          found: candidates.length,
-          added,
-          updated,
-          failed,
-          currentEntry: candidate.entryName,
-        });
+        await timeline.entryMatched(outcome, candidate.entryName);
       } catch (err) {
-        failed += 1;
         const message = (err as Error).message;
         errors.push(`${candidate.entryPath}: ${message}`);
         logger.warn({ runId, err: message, candidate }, 'scan: candidate failed');
-        emitProgress({
-          scanRunId: runId,
-          phase: 'failed',
-          stage: 'metadata',
-          total: candidates.length,
-          completed: index + 1,
-          found: candidates.length,
-          added,
-          updated,
-          failed,
-          currentEntry: candidate.entryName,
-          message,
-        });
+        await timeline.entryFailed(candidate.entryName, message);
       }
 
-      emitProgress({
-        scanRunId: runId,
-        phase: 'matched',
-        stage: 'artwork',
-        total: candidates.length,
-        completed: index + 1,
-        found: candidates.length,
-        added,
-        updated,
-        failed,
-        currentEntry: candidate.entryName,
-      });
-
-      emitProgress({
-        scanRunId: runId,
-        phase: 'matched',
-        stage: 'scan',
-        total: candidates.length,
-        completed: index + 1,
-        found: candidates.length,
-        added,
-        updated,
-        failed,
-        currentEntry: candidate.entryName,
-      });
-
       if (this.stopRequested.has(runId)) {
+        const counts = timeline.counts();
         await scannerRepository.update(runId, {
           status: ScanStatus.CANCELLED,
           finishedAt: this.deps.now(),
-          found: candidates.length,
-          added,
-          updated,
-          failed,
+          ...counts,
           errors,
         });
-        emitProgress({
-          scanRunId: runId,
-          phase: 'done',
-          stage: 'done',
-          total: candidates.length,
-          completed: index + 1,
-          found: candidates.length,
-          added,
-          updated,
-          failed,
-          message: 'scan cancelled',
-        });
-        logger.info({ runId, found: candidates.length, added, updated, failed }, 'scan cancelled');
+        timeline.finished('scan cancelled');
+        logger.info({ runId, ...counts }, 'scan cancelled');
         return;
       }
     }
 
+    const counts = timeline.counts();
     await scannerRepository.update(runId, {
       status: 'DONE',
       finishedAt: this.deps.now(),
-      found: candidates.length,
-      added,
-      updated,
-      failed,
+      ...counts,
       errors,
     });
 
-    emitProgress({
-      scanRunId: runId,
-      phase: 'done',
-      stage: 'done',
-      total: candidates.length,
-      completed: candidates.length,
-      found: candidates.length,
-      added,
-      updated,
-      failed,
-    });
+    timeline.finished();
 
-    logger.info({ runId, found: candidates.length, added, updated, failed }, 'scan done');
+    logger.info({ runId, ...counts }, 'scan done');
 
     const jobs = this.deps.jobs;
     if (jobs && !jobs.retryMatch.isRunning()) {
@@ -335,7 +212,7 @@ export class ScannerService {
     }
   }
 
-  private async processCandidate(candidate: ScanCandidate): Promise<CandidateOutcome> {
+  private async processCandidate(candidate: ScanCandidate): Promise<ScanEntryOutcome> {
     const normalized = normalizeGameName(candidate.entryName);
     const releaseInfo = parseReleaseFilename(candidate.entryName, candidate.entryType);
     const existing = await libraryRepository.findByEntryPath(candidate.entryPath)

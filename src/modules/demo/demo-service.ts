@@ -5,6 +5,7 @@ import { MatchStatus, ScanStatus } from '../../shared/enums.js';
 import { scannerRepository } from '../scanner/scanner.repository.js';
 import { libraryRepository } from '../library/library.repository.js';
 import { emitProgress } from '../scanner/scanner.events.js';
+import { createScanTimeline } from '../scanner/scan-timeline.js';
 import type { ScanRun } from '../scanner/scanner.types.js';
 import type { GameMetadata, MetadataProvider } from '../../shared/types.js';
 import { steamProvider } from '../metadata/steam/steam.provider.js';
@@ -102,18 +103,21 @@ export const demoService = {
 
   async runScan(run: ScanRun, scope?: string): Promise<void> {
     const found = seededGames.length;
-    let completed = 0;
-    let added = 0;
-    emitProgress({ scope, scanRunId: run.id, phase: 'start', stage: 'scan', total: found, completed: 0, found: 0, added: 0, updated: 0, failed: 0 });
-    for (const stage of ['metadata', 'artwork'] as const) {
-      emitProgress({ scope, scanRunId: run.id, phase: 'start', stage, total: found, completed: 0, found: 0, added: 0, updated: 0, failed: 0 });
-    }
+    const timeline = createScanTimeline({
+      scanRunId: run.id,
+      emit: emitProgress,
+      scope,
+      pace: () => sleep(config.demoScanStepDelayMs),
+    });
+    timeline.started();
     await sleep(Math.max(100, config.demoScanStepDelayMs));
+    timeline.candidatesFound(found);
     for (const game of seededGames) {
-      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', stage: 'metadata', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
+      timeline.entryStarted(game.entryName);
       await sleep(config.demoScanStepDelayMs);
       const entryPath = `${scope ?? '/demo/sessions/legacy/'}${game.entryName}.7z`;
       const existing = await libraryRepository.findByEntryPath(entryPath, scope);
+      let outcome: 'added' | 'skipped' = 'skipped';
       if (!existing) {
         const metadata = metadataByAppId.get(game.appId);
         const created = await libraryRepository.create({
@@ -123,7 +127,7 @@ export const demoService = {
           sizeBytes: game.sizeBytes,
           matchStatus: metadata ? MatchStatus.ACCEPTED : MatchStatus.PENDING,
         });
-        added += 1;
+        outcome = 'added';
         if (metadata) await libraryRepository.update(created.id, {
           steamAppId: game.appId,
           title: metadata.title,
@@ -145,17 +149,11 @@ export const demoService = {
           matchedAt: new Date('2024-01-01T00:00:00.000Z'),
         });
       }
-      emitProgress({ scope, scanRunId: run.id, phase: 'matched', stage: 'metadata', total: found, completed: completed + 1, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
-      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', stage: 'artwork', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
-      await sleep(config.demoScanStepDelayMs);
-      emitProgress({ scope, scanRunId: run.id, phase: 'matched', stage: 'artwork', total: found, completed: completed + 1, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
-      emitProgress({ scope, scanRunId: run.id, phase: 'candidate', stage: 'scan', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
-      await sleep(config.demoScanStepDelayMs);
-      completed += 1;
-      emitProgress({ scope, scanRunId: run.id, phase: 'matched', stage: 'scan', total: found, completed, found, added, updated: 0, failed: 0, currentEntry: game.entryName });
+      await timeline.entryMatched(outcome, game.entryName);
     }
-    await scannerRepository.update(run.id, { status: ScanStatus.DONE, finishedAt: new Date(), found, added, updated: 0, failed: 0, errors: [] });
-    emitProgress({ scope, scanRunId: run.id, phase: 'done', found, added, updated: 0, failed: 0 });
+    const counts = timeline.counts();
+    await scannerRepository.update(run.id, { status: ScanStatus.DONE, finishedAt: new Date(), ...counts, errors: [] });
+    timeline.finished();
   },
 
   status(): { enabled: boolean; offline: boolean } {

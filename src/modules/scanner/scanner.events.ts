@@ -1,19 +1,7 @@
 import { EventEmitter } from 'node:events';
+import type { ScanProgressEvent } from './scan-timeline.js';
 
-export interface ScanProgressEvent {
-  scope?: string;
-  scanRunId: string;
-  phase: 'start' | 'candidate' | 'matched' | 'failed' | 'done';
-  stage?: 'scan' | 'metadata' | 'artwork' | 'done';
-  total?: number;
-  completed?: number;
-  found: number;
-  added: number;
-  updated: number;
-  failed: number;
-  currentEntry?: string;
-  message?: string;
-}
+export type { ScanProgressEvent } from './scan-timeline.js';
 
 export const scannerEvents = new EventEmitter();
 // One listener per SSE client; client count is unbounded by design.
