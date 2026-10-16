@@ -1,5 +1,5 @@
 import { ValidationError } from '../../shared/errors.js';
-import { libraryRepository } from '../library/library.repository.js';
+import { createLibraryRepository } from '../library/library.repository.js';
 import {
   DEFAULT_SORT,
   MAX_PAGE_SIZE,
@@ -92,100 +92,106 @@ async function resolveFormat(override?: string): Promise<string> {
   return validateFilenameFormat(format);
 }
 
-export const libraryService = {
-  parseListFilter,
-  sanitizeGamePatch,
+export function createLibraryService(scope?: string) {
+  const libraryRepository = createLibraryRepository(scope);
 
-  async list(filter: GameListFilter, scope?: string): Promise<GameListResult> {
-    return libraryRepository.list(filter, scope);
-  },
+  return {
+    parseListFilter,
+    sanitizeGamePatch,
 
-  async listGenres(scope?: string): Promise<string[]> {
-    return libraryRepository.findDistinctGenres(scope);
-  },
+    async list(filter: GameListFilter): Promise<GameListResult> {
+      return libraryRepository.list(filter);
+    },
 
-  async getById(id: string, scope?: string): Promise<Game> {
-    return libraryRepository.findById(id, scope);
-  },
+    async listGenres(): Promise<string[]> {
+      return libraryRepository.findDistinctGenres();
+    },
 
-  async update(id: string, input: GameUpdateInput, scope?: string): Promise<Game> {
-    return libraryRepository.update(id, input, scope);
-  },
+    async getById(id: string): Promise<Game> {
+      return libraryRepository.findById(id);
+    },
 
-  async delete(id: string, scope?: string): Promise<void> {
-    return libraryRepository.delete(id, scope);
-  },
+    async update(id: string, input: GameUpdateInput): Promise<Game> {
+      return libraryRepository.update(id, input);
+    },
 
-  async rename(ids: string[], scope?: string, formatOverride?: string): Promise<GameRenameResult[]> {
-    if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_RENAME_IDS) {
-      throw new ValidationError(`ids must contain between 1 and ${MAX_RENAME_IDS} game IDs`);
-    }
-    const results: GameRenameResult[] = [];
-    const format = await resolveFormat(formatOverride);
-    for (const id of [...new Set(ids)]) {
-      let game: Game | undefined;
-      let moved: { oldPath: string; newPath: string } | undefined;
-      try {
-        game = await libraryRepository.findById(id, scope);
-        const paths = await filesystemRenameService.rename(game, format);
-        moved = paths;
-        if (samePath(paths.oldPath, paths.newPath)) {
-          results.push({ id, oldPath: paths.oldPath, newPath: paths.newPath, status: 'skipped', message: 'already named' });
+    async delete(id: string): Promise<void> {
+      return libraryRepository.delete(id);
+    },
+
+    async rename(ids: string[], formatOverride?: string): Promise<GameRenameResult[]> {
+      if (!Array.isArray(ids) || ids.length === 0 || ids.length > MAX_RENAME_IDS) {
+        throw new ValidationError(`ids must contain between 1 and ${MAX_RENAME_IDS} game IDs`);
+      }
+      const results: GameRenameResult[] = [];
+      const format = await resolveFormat(formatOverride);
+      for (const id of [...new Set(ids)]) {
+        let game: Game | undefined;
+        let moved: { oldPath: string; newPath: string } | undefined;
+        try {
+          game = await libraryRepository.findById(id);
+          const paths = await filesystemRenameService.rename(game, format);
+          moved = paths;
+          if (samePath(paths.oldPath, paths.newPath)) {
+            results.push({ id, oldPath: paths.oldPath, newPath: paths.newPath, status: 'skipped', message: 'already named' });
+            continue;
+          }
+          await libraryRepository.updateEntry(id, paths.newPath, paths.newPath.split(/[\\/]/).pop() ?? game.entryName);
+          results.push({ id, ...paths, status: 'renamed' });
+        } catch (err) {
+          let message = (err as Error).message;
+          if (game && moved && !samePath(moved.oldPath, moved.newPath)) {
+            try {
+              await filesystemRenameService.rollback(moved.oldPath, moved.newPath, game.entryType);
+            } catch (rollbackError) {
+              message += `; rollback failed: ${(rollbackError as Error).message}`;
+            }
+          }
+          results.push({ id, oldPath: game?.entryPath ?? '', newPath: null, status: 'failed', message });
+        }
+      }
+      return results;
+    },
+
+    async previewRename(formatOverride?: string): Promise<GameRenamePreview[]> {
+      const format = await resolveFormat(formatOverride);
+      const games = await libraryRepository.listAll();
+      const proposed: Array<{ game: Game; item: GameRenamePreview; path?: string }> = [];
+      for (const game of games) {
+        if (!game.title?.trim()) {
+          proposed.push({ game, item: { id: game.id, oldName: game.entryName, newName: null, status: 'unavailable', message: 'missing metadata title' } });
           continue;
         }
-        await libraryRepository.updateEntry(id, paths.newPath, paths.newPath.split(/[\\/]/).pop() ?? game.entryName, scope);
-        results.push({ id, ...paths, status: 'renamed' });
-      } catch (err) {
-        let message = (err as Error).message;
-        if (game && moved && !samePath(moved.oldPath, moved.newPath)) {
-          try {
-            await filesystemRenameService.rollback(moved.oldPath, moved.newPath, game.entryType);
-          } catch (rollbackError) {
-            message += `; rollback failed: ${(rollbackError as Error).message}`;
+        try {
+          const newPath = targetPath(game, format);
+          const newName = newPath.split(/[\\/]/).pop() ?? newPath;
+          if (samePath(newPath, game.entryPath)) {
+            proposed.push({ game, path: newPath, item: { id: game.id, oldName: game.entryName, newName, status: 'unchanged', message: 'already named' } });
+          } else if (await filesystemRenameService.targetExists(newPath)) {
+            proposed.push({ game, path: newPath, item: { id: game.id, oldName: game.entryName, newName, status: 'conflict', message: 'target already exists' } });
+          } else {
+            proposed.push({ game, path: newPath, item: { id: game.id, oldName: game.entryName, newName, status: 'ready' } });
           }
+        } catch (err) {
+          proposed.push({ game, item: { id: game.id, oldName: game.entryName, newName: null, status: 'unavailable', message: (err as Error).message } });
         }
-        results.push({ id, oldPath: game?.entryPath ?? '', newPath: null, status: 'failed', message });
       }
-    }
-    return results;
-  },
+      const destinations = new Map<string, number[]>();
+      for (const [index, entry] of proposed.entries()) {
+        if (!entry.path || entry.item.status !== 'ready') continue;
+        const key = process.platform === 'win32' || process.platform === 'darwin' ? entry.path.toLocaleLowerCase() : entry.path;
+        destinations.set(key, [...(destinations.get(key) ?? []), index]);
+      }
+      for (const indexes of destinations.values()) {
+        if (indexes.length < 2) continue;
+        for (const index of indexes) {
+          proposed[index].item.status = 'conflict';
+          proposed[index].item.message = 'multiple games target same path';
+        }
+      }
+      return proposed.map(({ item }) => item);
+    },
+  };
+}
 
-  async previewRename(scope?: string, formatOverride?: string): Promise<GameRenamePreview[]> {
-    const format = await resolveFormat(formatOverride);
-    const games = await libraryRepository.listAll(scope);
-    const proposed: Array<{ game: Game; item: GameRenamePreview; path?: string }> = [];
-    for (const game of games) {
-      if (!game.title?.trim()) {
-        proposed.push({ game, item: { id: game.id, oldName: game.entryName, newName: null, status: 'unavailable', message: 'missing metadata title' } });
-        continue;
-      }
-      try {
-        const newPath = targetPath(game, format);
-        const newName = newPath.split(/[\\/]/).pop() ?? newPath;
-        if (samePath(newPath, game.entryPath)) {
-          proposed.push({ game, path: newPath, item: { id: game.id, oldName: game.entryName, newName, status: 'unchanged', message: 'already named' } });
-        } else if (await filesystemRenameService.targetExists(newPath)) {
-          proposed.push({ game, path: newPath, item: { id: game.id, oldName: game.entryName, newName, status: 'conflict', message: 'target already exists' } });
-        } else {
-          proposed.push({ game, path: newPath, item: { id: game.id, oldName: game.entryName, newName, status: 'ready' } });
-        }
-      } catch (err) {
-        proposed.push({ game, item: { id: game.id, oldName: game.entryName, newName: null, status: 'unavailable', message: (err as Error).message } });
-      }
-    }
-    const destinations = new Map<string, number[]>();
-    for (const [index, entry] of proposed.entries()) {
-      if (!entry.path || entry.item.status !== 'ready') continue;
-      const key = process.platform === 'win32' || process.platform === 'darwin' ? entry.path.toLocaleLowerCase() : entry.path;
-      destinations.set(key, [...(destinations.get(key) ?? []), index]);
-    }
-    for (const indexes of destinations.values()) {
-      if (indexes.length < 2) continue;
-      for (const index of indexes) {
-        proposed[index].item.status = 'conflict';
-        proposed[index].item.message = 'multiple games target same path';
-      }
-    }
-    return proposed.map(({ item }) => item);
-  },
-};
+export const libraryService = createLibraryService();

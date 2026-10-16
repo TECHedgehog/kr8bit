@@ -1,10 +1,13 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { scannerService } from '../../modules/scanner/scanner.service.js';
+import { config } from '../../config/index.js';
+import { configureScannerService, defaultDeps } from '../../modules/scanner/scanner.service.js';
+import { demoScannerDeps } from '../../modules/demo/demo-scan-deps.js';
 import { AppError } from '../../shared/errors.js';
 import { onProgress } from '../../modules/scanner/scanner.events.js';
 import type { ScanProgressEvent } from '../../modules/scanner/scanner.events.js';
 
 const SSE_HEARTBEAT_MS = 15_000;
+export const scannerService = configureScannerService(config.demoMode ? demoScannerDeps() : defaultDeps);
 
 export const scannerController = {
   async run(req: FastifyRequest, reply: FastifyReply) {

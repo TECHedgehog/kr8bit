@@ -12,3 +12,6 @@ A recorded execution of a library scan, with a status and summary counts.
 
 **Scan progress**:
 Live account of a scan run's discovered, processed, added, updated, and failed entries.
+
+**Demo session**:
+An isolated library namespace rooted at a session-specific path. Demo sessions use the production scanner with in-memory filesystem and metadata-provider adapters.

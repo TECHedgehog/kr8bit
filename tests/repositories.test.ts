@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { prisma } from '../src/prisma-client.js';
-import { libraryRepository } from '../src/modules/library/library.repository.js';
+import { createLibraryRepository, libraryRepository } from '../src/modules/library/library.repository.js';
 import { scannerRepository } from '../src/modules/scanner/scanner.repository.js';
 import { settingsRepository } from '../src/modules/settings/settings.repository.js';
 import { EntryType, MatchStatus, ScanStatus } from '../src/shared/enums.js';
@@ -115,9 +115,11 @@ describe('libraryRepository', () => {
       matchStatus: MatchStatus.PENDING,
     });
 
-    expect((await libraryRepository.list({}, '/demo/sessions/one/')).total).toBe(1);
-    expect((await libraryRepository.list({}, '/demo/sessions/two/')).total).toBe(1);
-    expect(await libraryRepository.findByEntryPath('/demo/sessions/two/game.7z', '/demo/sessions/one/')).toBeNull();
+    const firstSession = createLibraryRepository('/demo/sessions/one/');
+    const secondSession = createLibraryRepository('/demo/sessions/two/');
+    expect((await firstSession.list()).total).toBe(1);
+    expect((await secondSession.list()).total).toBe(1);
+    expect(await firstSession.findByEntryPath('/demo/sessions/two/game.7z')).toBeNull();
   });
 
   it('searches by title or entryName', async () => {

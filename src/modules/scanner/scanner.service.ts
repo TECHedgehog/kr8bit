@@ -1,7 +1,7 @@
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
 import { MatchStatus, RE_MATCHABLE_STATUSES, ScanStatus } from '../../shared/enums.js';
-import { LIBRARY_MANUALLY_CLEARED_SETTING, libraryRepository } from '../library/library.repository.js';
+import { createLibraryRepository, LIBRARY_MANUALLY_CLEARED_SETTING, libraryRepository } from '../library/library.repository.js';
 import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
 import { scanLibraryRoot, fsReader, type DirectoryReader, type ScanCandidate } from './folder-scanner.js';
@@ -16,7 +16,6 @@ import { resetGate } from '../database/reset-gate.js';
 import { emitProgress } from './scanner.events.js';
 import { createScanTimeline, type ScanEntryOutcome } from './scan-timeline.js';
 import { AppError } from '../../shared/errors.js';
-import { demoService } from '../demo/demo-service.js';
 import { settingsRepository } from '../settings/settings.repository.js';
 import { parseReleaseFilename } from '../../shared/parse-release-filename.js';
 import { dirname } from 'node:path';
@@ -27,6 +26,7 @@ export interface ScannerDeps {
   now: () => Date;
   libraryRoot: string;
   metadataRefresh: { refresh(gameId: string): Promise<unknown> };
+  pace?: () => Promise<void>;
   jobs?: {
     retryMatch: { isRunning(): boolean; start(): Promise<void> };
   };
@@ -70,10 +70,11 @@ export class ScannerService {
 
   async status(scope?: string): Promise<ScannerStatusSnapshot> {
     const key = scope ?? 'normal';
+    const scopedLibrary = createLibraryRepository(scope);
     const [running, latest, gameCount, manuallyCleared] = await Promise.all([
       scannerRepository.findRunning(scope),
       scannerRepository.findLatest(scope),
-      libraryRepository.count(scope),
+      scopedLibrary.count(),
       settingsRepository.get(LIBRARY_MANUALLY_CLEARED_SETTING),
     ]);
     const emptyReason = gameCount > 0
@@ -114,7 +115,7 @@ export class ScannerService {
     }
     this.currentRunIds.set(key, run.id);
     this.stopRequested.delete(run.id);
-    logger.info({ runId: run.id, rootPath: this.deps.libraryRoot }, 'scan started');
+    logger.info({ runId: run.id, rootPath: run.rootPath }, 'scan started');
     void this.executeScan(run, scope).catch((err) => {
       logger.error({ runId: run.id, err: (err as Error).message }, 'scanner unexpected failure');
     });
@@ -131,8 +132,7 @@ export class ScannerService {
 
   private async executeScan(run: ScanRun, scope?: string): Promise<void> {
     try {
-       if (config.demoMode) await demoService.runScan(run, scope);
-      else await this.scanLibrary(run);
+      await this.scanLibrary(run, scope);
     } finally {
       const key = scope ?? 'normal';
       this.runningScopes.delete(key);
@@ -141,10 +141,10 @@ export class ScannerService {
     }
   }
 
-  private async scanLibrary(run: ScanRun): Promise<void> {
-    const rootPath = this.deps.libraryRoot;
+  private async scanLibrary(run: ScanRun, scope?: string): Promise<void> {
+    const rootPath = run.rootPath;
     const runId = run.id;
-    const timeline = createScanTimeline({ scanRunId: runId, emit: emitProgress });
+    const timeline = createScanTimeline({ scanRunId: runId, emit: emitProgress, scope, pace: this.deps.pace });
     timeline.started();
 
     let candidates: ScanCandidate[] = [];
@@ -274,4 +274,9 @@ export class ScannerService {
   }
 }
 
-export const scannerService = new ScannerService();
+export let scannerService = new ScannerService();
+
+export function configureScannerService(deps: ScannerDeps): ScannerService {
+  scannerService = new ScannerService(deps);
+  return scannerService;
+}

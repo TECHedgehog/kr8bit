@@ -5,6 +5,13 @@ import { demoService } from '../src/modules/demo/demo-service.js';
 import { DEMO_GAMES } from '../src/modules/demo/demo-data.js';
 import { scannerRepository } from '../src/modules/scanner/scanner.repository.js';
 import { onProgress, type ScanProgressEvent } from '../src/modules/scanner/scanner.events.js';
+import { demoScannerDeps } from '../src/modules/demo/demo-scan-deps.js';
+import { ScannerService } from '../src/modules/scanner/scanner.service.js';
+import { createLibraryRepository } from '../src/modules/library/library.repository.js';
+import { MatchStatus } from '../src/shared/enums.js';
+import { demoSessionRoot } from '../src/http/demo-session.js';
+
+const timelineScope = demoSessionRoot('timeline-test');
 
 beforeEach(async () => {
   await demoService.resetAndSeed({
@@ -31,6 +38,8 @@ afterAll(async () => {
 
 afterEach(async () => {
   await demoService.removeLegacyData();
+  await prisma.game.deleteMany({ where: { entryPath: { startsWith: timelineScope } } });
+  await prisma.scanRun.deleteMany({ where: { rootPath: timelineScope } });
   await prisma.game.deleteMany({ where: { entryPath: '/games/real.7z' } });
 });
 
@@ -53,21 +62,55 @@ describe('demoService', () => {
     expect(config.demoDatabaseUrl).toMatch(/^file:\/.*\.demo$/);
   });
 
-  it('emits canonical progress events during demo scans', async () => {
-    const scope = '/demo/sessions/timeline-test/';
-    const run = await scannerRepository.create({ rootPath: scope, scope });
+  it('runs demo entries through the scanner and writes scoped library rows', async () => {
+    const scope = timelineScope;
+    await demoService.resetAndSeed({
+      name: 'steam',
+      search: vi.fn(),
+      getGame: vi.fn(async (remoteId: string) => Number(remoteId) === DEMO_GAMES[0].appId ? null : ({
+        remoteId,
+        title: `Demo ${remoteId}`,
+        releaseYear: 2020,
+        description: 'Demo description',
+        developers: ['Demo Studio'],
+        publishers: ['Demo Publisher'],
+        genres: ['Action'],
+      })),
+    });
     const events: ScanProgressEvent[] = [];
     const unsubscribe = onProgress((event) => events.push(event));
     const delayDescriptor = Object.getOwnPropertyDescriptor(config, 'demoScanStepDelayMs');
     Object.defineProperty(config, 'demoScanStepDelayMs', { value: 0 });
+    const service = new ScannerService(demoScannerDeps());
+    let resolveDone!: () => void;
+    const completed = new Promise<void>((resolve) => { resolveDone = resolve; });
+    let runId: string | undefined;
+    const onEvent = onProgress((event) => {
+      if (event.scanRunId === runId && event.phase === 'done') resolveDone();
+    });
     try {
-      await demoService.runScan(run, scope);
+      const run = await service.start(scope);
+      runId = run.id;
+      if (events.some((event) => event.scanRunId === run.id && event.phase === 'done')) resolveDone();
+      await completed;
+      const rows = await createLibraryRepository(scope).list({ limit: config.demoGameCount });
+      expect(rows.total).toBe(config.demoGameCount);
+      expect(rows.items.find(({ entryName }) => entryName === `${DEMO_GAMES[0].entryName}.7z`)).toMatchObject({
+        matchStatus: MatchStatus.PENDING,
+        steamAppId: null,
+      });
+      expect(rows.items.find(({ entryName }) => entryName === `${DEMO_GAMES[1].entryName}.7z`)).toMatchObject({
+        matchStatus: MatchStatus.ACCEPTED,
+        steamAppId: DEMO_GAMES[1].appId,
+        title: `Demo ${DEMO_GAMES[1].appId}`,
+      });
     } finally {
       if (delayDescriptor) Object.defineProperty(config, 'demoScanStepDelayMs', delayDescriptor);
+      onEvent();
       unsubscribe();
     }
 
-    const runEvents = events.filter((event) => event.scanRunId === run.id);
+    const runEvents = events.filter((event) => event.scanRunId === runId);
     expect(runEvents.slice(0, 4).map(({ phase, stage }) => [phase, stage])).toEqual([
       ['start', 'scan'],
       ['start', 'metadata'],
@@ -85,10 +128,10 @@ describe('demoService', () => {
         ['matched', 'artwork'],
         ['matched', 'scan'],
       ]);
-      expect(events.map(({ currentEntry }) => currentEntry)).toEqual(Array(4).fill(game.entryName));
+      expect(events.map(({ currentEntry }) => currentEntry)).toEqual(Array(4).fill(`${game.entryName}.7z`));
     }
     expect(runEvents.at(-1)).toMatchObject({ phase: 'done', stage: 'done', found: config.demoGameCount });
-    expect(await scannerRepository.findById(run.id)).toMatchObject({ status: 'DONE', found: config.demoGameCount });
+    expect(await scannerRepository.findById(runId!)).toMatchObject({ status: 'DONE', found: config.demoGameCount });
   });
 
   it('removes legacy demo rows without removing real games', async () => {

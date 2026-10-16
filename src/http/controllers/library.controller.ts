@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { libraryService, sanitizeGamePatch } from '../../modules/library/library.service.js';
+import { createLibraryService, sanitizeGamePatch } from '../../modules/library/library.service.js';
 import type { GameRenameInput } from '../../modules/library/library.types.js';
 import { MAX_RENAME_IDS } from '../../modules/library/library.types.js';
 import { ValidationError } from '../../shared/errors.js';
@@ -24,40 +24,41 @@ function parseRenameFormat(body: unknown): string | undefined {
 
 export const libraryController = {
   async list(req: FastifyRequest, _reply: FastifyReply) {
+    const libraryService = createLibraryService(req.demoSessionScope);
     const filter = libraryService.parseListFilter(req.query as Record<string, string | undefined>);
-    const result = await libraryService.list(filter, req.demoSessionScope);
+    const result = await libraryService.list(filter);
     return result;
   },
 
   async genres(_req: FastifyRequest, _reply: FastifyReply) {
-    const genres = await libraryService.listGenres(_req.demoSessionScope);
+    const genres = await createLibraryService(_req.demoSessionScope).listGenres();
     return { genres };
   },
 
   async getById(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
-    return libraryService.getById(id, req.demoSessionScope);
+    return createLibraryService(req.demoSessionScope).getById(id);
   },
 
   async update(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
     const patch = sanitizeGamePatch(req.body);
-    return libraryService.update(id, patch, req.demoSessionScope);
+    return createLibraryService(req.demoSessionScope).update(id, patch);
   },
 
   async delete(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
-    await libraryService.delete(id, req.demoSessionScope);
+    await createLibraryService(req.demoSessionScope).delete(id);
     return { deleted: true, id };
   },
 
   async rename(req: FastifyRequest, _reply: FastifyReply) {
     const input = parseRenameInput(req.body);
-    return libraryService.rename(input.ids, req.demoSessionScope, input.format);
+    return createLibraryService(req.demoSessionScope).rename(input.ids, input.format);
   },
 
   async renamePreview(req: FastifyRequest, _reply: FastifyReply) {
     const format = parseRenameFormat(req.body);
-    return { items: await libraryService.previewRename(req.demoSessionScope, format) };
+    return { items: await createLibraryService(req.demoSessionScope).previewRename(format) };
   },
 };
