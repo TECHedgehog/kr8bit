@@ -55,5 +55,8 @@ jobs:
           npx prisma migrate deploy
           npm test
 
+      - name: Dead-code check
+        run: npm run lint:dead
+
       - name: Web build
         run: npm run web:build
