@@ -9,7 +9,7 @@ import type { settingsRepository } from '../settings/settings.repository.js';
 import { validateSettingEntries } from '../settings/settings.service.js';
 import type { GameMetadata, MetadataProvider, SearchResult } from '../../shared/types.js';
 import type { repackCatalogRepository } from './repack-catalog.repository.js';
-import { regroupRepackGames } from './repack-catalog.regroup.js';
+import type { regroupRepackGames } from './repack-catalog.regroup.js';
 import {
   REPACK_AUDIT_ENABLED,
   REPACK_AUDIT_INTERVAL_HOURS,
@@ -40,6 +40,7 @@ export interface RepackCatalogServiceDependencies {
   providerRegistry: ProviderRegistry;
   sourceFactory: (baseUrl: string) => RepackSource;
   matchThresholds: { acceptThreshold: number; flagThreshold: number };
+  regroupGames: typeof regroupRepackGames;
 }
 
 function settingBool(value: string | null, fallback: boolean): boolean { return value === null ? fallback : value === 'true'; }
@@ -92,13 +93,6 @@ function snapshotFrom(metadata: GameMetadata): RepackMetadataSnapshot {
       items: metadata.steamDeckCompat.items.map((item) => ({ displayType: item.displayType, locToken: item.locToken })),
     } : undefined,
   };
-}
-
-async function regroupCatalog(): Promise<void> {
-  await regroupRepackGames((title) => ({
-    gameTitle: fitGirlGameTitle(title),
-    normalizedTitle: normalizeFitGirlGameTitle(title),
-  }));
 }
 
 async function mapWithLimit<T>(items: T[], limit: number, work: (item: T) => Promise<void>): Promise<void> {
@@ -184,7 +178,7 @@ export class RepackCatalogService {
     try {
       const config = await this.settings();
       const source = this.sourceForBase(config.baseUrl);
-       await regroupCatalog();
+      await this.regroupCatalog();
       const rematchable = await this.dependencies.repackCatalogRepository.findRematchableGames();
       const attemptedGames = new Set(rematchable.map((game) => game.normalizedTitle));
       await mapWithLimit(rematchable, SCRAPE_CONCURRENCY, async (game) => {
@@ -198,12 +192,12 @@ export class RepackCatalogService {
       const known = await this.dependencies.repackCatalogRepository.knownUrls(source.name, urls);
       const pending = urls.filter((url) => !known.has(url));
       this.status = { ...this.status, phase: 'scraping', total: pending.length };
-      const result = await this.runBatch(pending, abortController.signal, async (url, markSucceeded) => {
+      const result = await this.runBatch(pending, abortController.signal, async (url, resetFailureStreak) => {
         const post = await source.fetchPost(url, abortController.signal);
         if (!post) { this.status.skipped += 1; return; }
         const saved = await this.dependencies.repackCatalogRepository.upsertPost(post);
         this.status.processed += 1;
-        markSucceeded();
+        resetFailureStreak();
         const game = saved.game;
         if (game && !attemptedGames.has(game.normalizedTitle) && game.matchStatus === 'PENDING') {
           attemptedGames.add(game.normalizedTitle);
@@ -238,16 +232,16 @@ export class RepackCatalogService {
       const { baseUrl } = await this.settings();
       const source = this.sourceForBase(baseUrl);
       const posts = await this.dependencies.repackCatalogRepository.listAuditPosts(0, 50);
-      const result = await this.runBatch(posts, abortController.signal, async (post, markSucceeded) => {
+      const result = await this.runBatch(posts, abortController.signal, async (post, resetFailureStreak) => {
         const parsed = await source.fetchPost(post.sourceUrl, abortController.signal);
         if (parsed) {
           await this.dependencies.repackCatalogRepository.upsertPost(parsed);
           this.status.processed += 1;
         } else this.status.skipped += 1;
-        markSucceeded();
+        resetFailureStreak();
         await this.dependencies.repackCatalogRepository.markAuditSeen(post.source, post.sourceUrl);
       });
-      await regroupCatalog();
+      await this.regroupCatalog();
       const { blocked, stoppedAfterErrors } = result;
       this.status.phase = abortController.signal.aborted ? 'cancelled' : blocked ? 'blocked' : stoppedAfterErrors ? 'stopped' : 'done';
       return { processed: this.status.processed, skipped: this.status.skipped, failed: this.status.failed, blocked, stoppedAfterErrors, cancelled: abortController.signal.aborted };
@@ -324,10 +318,17 @@ export class RepackCatalogService {
     return source;
   }
 
+  private regroupCatalog(): Promise<void> {
+    return this.dependencies.regroupGames((title) => ({
+      gameTitle: fitGirlGameTitle(title),
+      normalizedTitle: normalizeFitGirlGameTitle(title),
+    }));
+  }
+
   private async runBatch<T>(
     items: T[],
     signal: AbortSignal,
-    work: (item: T, markSucceeded: () => void) => Promise<void>,
+    work: (item: T, resetFailureStreak: () => void) => Promise<void>,
     onFailure?: (item: T, error: unknown) => void,
   ): Promise<{ blocked: boolean; stoppedAfterErrors: boolean; failed: number }> {
     let blocked = false;

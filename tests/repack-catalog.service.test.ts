@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { repackCatalogRepository } from '../src/modules/repack-catalog/repack-catalog.repository.js';
-import { settingsRepository } from '../src/modules/settings/settings.repository.js';
 import { RepackCatalogService, type RepackCatalogServiceDependencies } from '../src/modules/repack-catalog/repack-catalog.service.js';
 
 const mocks = {
-  settingsGet: vi.fn(), settingsSet: vi.fn(),
+  settingsGet: vi.fn(), settingsSet: vi.fn(), settingsSetMany: vi.fn(), settingsList: vi.fn(), settingsDelete: vi.fn(), regroupGames: vi.fn(),
   knownUrls: vi.fn(), upsertPost: vi.fn(), saveCandidates: vi.fn(), acceptMatch: vi.fn(),
   findRematchableGames: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), listReview: vi.fn(),
   listAuditPosts: vi.fn(), markAuditSeen: vi.fn(), listGenres: vi.fn(), getArtworkGame: vi.fn(), rejectMatch: vi.fn(),
@@ -13,26 +11,27 @@ const mocks = {
 };
 
 const fakeRepository: RepackCatalogServiceDependencies['repackCatalogRepository'] = {
-  ...repackCatalogRepository,
   knownUrls: mocks.knownUrls,
-  upsertPost: mocks.upsertPost,
-  saveCandidates: mocks.saveCandidates,
-  acceptMatch: mocks.acceptMatch,
-  findRematchableGames: mocks.findRematchableGames,
-  listGames: mocks.listGames,
-  getGame: mocks.getGame,
-  listReview: mocks.listReview,
   listAuditPosts: mocks.listAuditPosts,
   markAuditSeen: mocks.markAuditSeen,
+  upsertPost: mocks.upsertPost,
+  findRematchableGames: mocks.findRematchableGames,
+  saveCandidates: mocks.saveCandidates,
+  listGames: mocks.listGames,
   listGenres: mocks.listGenres,
+  getGame: mocks.getGame,
   getArtworkGame: mocks.getArtworkGame,
+  listReview: mocks.listReview,
+  acceptMatch: mocks.acceptMatch,
   rejectMatch: mocks.rejectMatch,
 };
 
 const fakeSettingsRepository: RepackCatalogServiceDependencies['settingsRepository'] = {
-  ...settingsRepository,
   get: mocks.settingsGet,
   set: mocks.settingsSet,
+  setMany: mocks.settingsSetMany,
+  list: mocks.settingsList,
+  delete: mocks.settingsDelete,
 };
 
 function createService(): RepackCatalogService {
@@ -42,6 +41,7 @@ function createService(): RepackCatalogService {
     providerRegistry: { order: mocks.providerOrder, resolve: mocks.providerResolve, has: () => true, names: () => ['steam'] },
     sourceFactory: mocks.createSource,
     matchThresholds: { acceptThreshold: 85, flagThreshold: 70 },
+    regroupGames: mocks.regroupGames,
   });
 }
 
@@ -50,6 +50,8 @@ describe('RepackCatalogService', () => {
     vi.clearAllMocks();
     mocks.settingsGet.mockImplementation(async (key: string) => key === 'repackCatalogEnabled' ? 'true' : null);
     mocks.settingsSet.mockResolvedValue({});
+    mocks.settingsSetMany.mockResolvedValue(0);
+    mocks.regroupGames.mockResolvedValue(undefined);
     mocks.findRematchableGames.mockResolvedValue([]);
     mocks.knownUrls.mockResolvedValue(new Set());
     mocks.saveCandidates.mockResolvedValue({});
@@ -79,6 +81,11 @@ describe('RepackCatalogService', () => {
     const service = createService();
     const result = await service.sync();
     expect(result.processed).toBe(2);
+    expect(mocks.regroupGames).toHaveBeenCalledTimes(1);
+    expect(mocks.regroupGames.mock.calls[0][0]('Example Game Repack')).toEqual({
+      gameTitle: 'Example Game',
+      normalizedTitle: 'example game',
+    });
     expect(mocks.providerSearch).toHaveBeenCalledTimes(1);
     expect(mocks.acceptMatch).toHaveBeenCalledTimes(1);
     const snapshot = mocks.acceptMatch.mock.calls[0][2];

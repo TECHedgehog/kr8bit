@@ -18,6 +18,7 @@ import { ensureDemoSession } from './demo-session.js';
 import { developerRoutes } from './routes/developer.routes.js';
 import { createRepackCatalogRoutes } from './routes/repack-catalog.routes.js';
 import { repackCatalogRepository } from '../modules/repack-catalog/repack-catalog.repository.js';
+import { regroupRepackGames } from '../modules/repack-catalog/repack-catalog.regroup.js';
 import { createFitGirlSource } from '../modules/repack-catalog/sources/fitgirl/fitgirl.source.js';
 import { RepackCatalogJob } from '../modules/repack-catalog/repack-catalog.job.js';
 import { createRepackCatalogService } from '../modules/repack-catalog/repack-catalog.service.js';
@@ -32,6 +33,7 @@ const repackCatalogService = createRepackCatalogService({
   providerRegistry,
   sourceFactory: createFitGirlSource,
   matchThresholds: config.match,
+  regroupGames: regroupRepackGames,
 });
 export const repackCatalogJob = new RepackCatalogJob(repackCatalogService);
 
