@@ -21,7 +21,6 @@ import IconCircleCheckFilled from '@tabler/icons-react/dist/esm/icons/IconCircle
 import IconCircleXFilled from '@tabler/icons-react/dist/esm/icons/IconCircleXFilled.mjs';
 import IconCircleCaretRightFilled from '@tabler/icons-react/dist/esm/icons/IconCircleCaretRightFilled.mjs';
 import IconHelpCircleFilled from '@tabler/icons-react/dist/esm/icons/IconHelpCircleFilled.mjs';
-import IconChevronDown from '@tabler/icons-react/dist/esm/icons/IconChevronDown.mjs';
 import { api, ApiError } from '../api/client';
 import type { Game, GameListResult, GenresResult, ScannerStatus, SortKey } from '../api/types';
 import { GameCard } from '../components/GameCard';
@@ -119,6 +118,7 @@ export function GamesPage(): JSX.Element {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [panelOpen, setPanelOpen] = useState<Panel>(() => rememberLibraryPanel ? lastLibraryPanel : null);
   // Two-phase close for the advanced sidebar: phase 1 adds .is-closing so
@@ -134,8 +134,8 @@ export function GamesPage(): JSX.Element {
   const [scannerStatusLoaded, setScannerStatusLoaded] = useState(false);
   const [genreSearch, setGenreSearch] = useState('');
   const [genresExpanded, setGenresExpanded] = useState(false);
-  const [sortMenuOpen, setSortMenuOpen] = useState(false);
-  const sortMenuRef = useRef<HTMLDivElement>(null);
+  const sortOptionsRef = useRef<HTMLDivElement>(null);
+  const skipDebouncedSearchWriteRef = useRef(false);
 
   useEffect(() => {
     if (rememberLibraryPanel) setLastLibraryPanel(panelOpen);
@@ -174,6 +174,10 @@ export function GamesPage(): JSX.Element {
   const bodyRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
 
+  useLayoutEffect(() => {
+    panelRef.current?.toggleAttribute('inert', !panelOpen || panelClosing);
+  }, [panelOpen, panelClosing]);
+
   // Request token: incremented on each reset so stale fetchMore responses
   // (from a superseded filter) are ignored before appending.
   const reqToken = useRef(0);
@@ -190,20 +194,12 @@ export function GamesPage(): JSX.Element {
   }, [search]);
 
   useEffect(() => {
-    if (!sortMenuOpen) return;
-    function closeSortMenu(event: MouseEvent) {
-      if (!sortMenuRef.current?.contains(event.target as Node)) setSortMenuOpen(false);
-    }
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setSortMenuOpen(false);
-    }
-    document.addEventListener('mousedown', closeSortMenu);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeSortMenu);
-      document.removeEventListener('keydown', closeOnEscape);
+    const skipPendingSearchWrite = () => {
+      skipDebouncedSearchWriteRef.current = true;
     };
-  }, [sortMenuOpen]);
+    window.addEventListener('popstate', skipPendingSearchWrite);
+    return () => window.removeEventListener('popstate', skipPendingSearchWrite);
+  }, []);
 
   // Fetch distinct genres list once on mount for the genre filter chips.
   useEffect(() => {
@@ -226,6 +222,10 @@ export function GamesPage(): JSX.Element {
   // Live search: write debounced input to URL (replace => no back-button spam).
   // Existing fetchInitial effect (:123) reacts to the URL change and fetches.
   useEffect(() => {
+    if (skipDebouncedSearchWriteRef.current) {
+      skipDebouncedSearchWriteRef.current = false;
+      return;
+    }
     const trimmed = debouncedSearch.trim();
     if (trimmed === search) return; // already in URL, no-op
     skipSyncRef.current = true;
@@ -238,6 +238,8 @@ export function GamesPage(): JSX.Element {
   const fetchInitial = useCallback(async () => {
     const token = ++reqToken.current;
     setLoading(true);
+    setLoadingMore(false);
+    setLoadMoreError(null);
     setError(null);
     try {
       const res = await api.get<GameListResult>(
@@ -255,10 +257,11 @@ export function GamesPage(): JSX.Element {
     }
   }, [search, sort, selectedGenres, selectedDeck]);
 
-  const fetchMore = useCallback(async () => {
-    if (loadingMore || !hasMore) return;
+  const fetchMore = useCallback(async (retry = false) => {
+    if (loadingMore || !hasMore || (loadMoreError && !retry)) return;
     const token = reqToken.current;
     setLoadingMore(true);
+    setLoadMoreError(null);
     try {
       const res = await api.get<GameListResult>(
         `/api/games?${buildGameQuery({ search, selectedGenres, selectedDeck, sort }, items.length)}`,
@@ -268,16 +271,31 @@ export function GamesPage(): JSX.Element {
       setHasMore(items.length + res.items.length < res.total);
     } catch (err) {
       if (reqToken.current !== token) return;
-      setError(err instanceof ApiError ? err.message : 'failed to load more games');
+      setLoadMoreError(err instanceof ApiError ? err.message : 'failed to load more games');
     } finally {
       if (reqToken.current === token) setLoadingMore(false);
     }
-  }, [search, sort, selectedGenres, selectedDeck, items.length, loadingMore, hasMore]);
+  }, [search, sort, selectedGenres, selectedDeck, items.length, loadingMore, hasMore, loadMoreError]);
 
   // Reset + initial fetch whenever filters change.
   useEffect(() => {
     void fetchInitial();
   }, [fetchInitial]);
+
+  const resultCriteria = `${search}\u0000${selectedGenres.join('\u0000')}\u0000${selectedDeck.join('\u0000')}\u0000${sort}`;
+  const previousResultCriteriaRef = useRef(resultCriteria);
+  useEffect(() => {
+    if (previousResultCriteriaRef.current === resultCriteria) return;
+    previousResultCriteriaRef.current = resultCriteria;
+    const grid = gridRef.current;
+    if (!grid) return;
+    const top = grid.getBoundingClientRect().top + window.scrollY;
+    const flowOffset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-flow-offset')) || 74;
+    window.scrollTo({
+      top: Math.max(0, top - flowOffset),
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    });
+  }, [resultCriteria]);
 
   // Infinite scroll: observe sentinel, load next chunk when it enters view.
   useEffect(() => {
@@ -415,9 +433,21 @@ export function GamesPage(): JSX.Element {
     const trimmed = searchInput.trim();
     if (trimmed === search) return; // already in URL
     skipSyncRef.current = true;
+    skipDebouncedSearchWriteRef.current = true;
     const next = new URLSearchParams(searchParams);
     if (trimmed) next.set('search', trimmed);
     else next.delete('search');
+    setSearchParams(next, { replace: true, preventScrollReset: true });
+  }
+
+  function clearSearch() {
+    if (!search && !searchInput) return;
+    setSearchInput('');
+    if (!search) return;
+    skipSyncRef.current = true;
+    skipDebouncedSearchWriteRef.current = true;
+    const next = new URLSearchParams(searchParams);
+    next.delete('search');
     setSearchParams(next, { replace: true, preventScrollReset: true });
   }
 
@@ -445,6 +475,10 @@ export function GamesPage(): JSX.Element {
 
   function clearPanelFilters() {
     updateParams({ genre: '', deck: '', sort: 'title-asc' });
+  }
+
+  function clearFacets() {
+    updateParams({ genre: '', deck: '' });
   }
 
   function removeGenre(genre: string) {
@@ -515,22 +549,31 @@ export function GamesPage(): JSX.Element {
   const displayedGenres = genresExpanded ? visibleGenres : visibleGenres.slice(0, genreLimit);
   const hiddenGenreCount = Math.max(0, visibleGenres.length - displayedGenres.length);
   const selectedSort = SORT_OPTIONS.find((option) => option.value === sort) ?? SORT_OPTIONS[0];
-  const SelectedSortIcon = selectedSort.icon;
+  const hasActiveResultFilters = Boolean(search.trim() || selectedGenres.length || selectedDeck.length);
 
-  function moveSortSelection(direction: 1 | -1) {
-    const currentIndex = SORT_OPTIONS.findIndex((option) => option.value === sort);
-    const nextIndex = (currentIndex + direction + SORT_OPTIONS.length) % SORT_OPTIONS.length;
+  function handleSortKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const direction = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1;
+    const nextIndex = (index + direction + SORT_OPTIONS.length) % SORT_OPTIONS.length;
     onSortChange(SORT_OPTIONS[nextIndex].value);
+    sortOptionsRef.current
+      ?.querySelector<HTMLButtonElement>(`[data-sort-index="${nextIndex}"]`)
+      ?.focus();
   }
 
   return (
-    <div className={`page${isLibraryEmpty ? ' library-page--empty' : ''}`}>
+    <div className={`page${isFirstRunEmpty ? ' library-page--empty' : ''}`}>
       <div className="library-content">
         <div className="library-header">
           <div className="library-toolbar">
             <div className="library-title-block">
               <div className="library-title">Library</div>
-              <div className="library-subtitle">{total} {total === 1 ? 'game' : 'games'}</div>
+              <div className="library-subtitle" role="status" aria-live="polite" aria-atomic="true">
+                <span key={`${loading}-${total}`} className="library-count-update">
+                  {loading ? 'Loading games…' : `${total} ${total === 1 ? 'game' : 'games'}`}
+                </span>
+              </div>
             </div>
 
             <div className="toolbar-spacer" />
@@ -550,7 +593,12 @@ export function GamesPage(): JSX.Element {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onFocus={() => setSearchExpanded(true)}
-                onBlur={() => { if (!searchInput.trim()) setSearchExpanded(false); }}
+                onBlur={() => {
+                  if (!searchInput.trim()) {
+                    clearSearch();
+                    setSearchExpanded(false);
+                  }
+                }}
                 placeholder={searchExpanded ? 'Search title or entry name…' : 'Search'}
                 aria-label="Search games"
               />
@@ -577,17 +625,25 @@ export function GamesPage(): JSX.Element {
 
         <div ref={bodyRef} className="library-body">
           <div className="library-main">
-            {error && <div className="error">{error}</div>}
+            {error && <div className="error" role="alert">{error}</div>}
             {loading && items.length === 0 && <div className="muted">Loading…</div>}
 
             {isLibraryEmpty && (
-              <section className="library-empty-state" aria-label="Empty library">
-                <div className="library-empty-placeholders" aria-hidden="true">
-                  {Array.from({ length: 60 }, (_, index) => <div className="library-empty-placeholder" key={index} />)}
-                </div>
+              <section className={`library-empty-state${isFirstRunEmpty ? ' library-empty-state--first-run' : ' library-empty-state--no-results'}`} aria-label={isFirstRunEmpty ? 'Empty library' : 'Game search results'}>
+                {isFirstRunEmpty && (
+                  <div className="library-empty-placeholders" aria-hidden="true">
+                    {Array.from({ length: 60 }, (_, index) => <div className="library-empty-placeholder" key={index} />)}
+                  </div>
+                )}
                 <div className="library-empty-panel">
-                  <h2>{isFirstRunEmpty ? 'Start building your library' : 'No games found'}</h2>
+                  <h2>{isFirstRunEmpty ? 'Start building your library' : search.trim() ? `No games match “${search.trim()}”` : selectedGenres.length || selectedDeck.length ? 'No games match these filters' : 'No games found'}</h2>
                   {isFirstRunEmpty && <Link className="library-empty-action" to="/settings?category=locations">Open Locations</Link>}
+                  {!isFirstRunEmpty && hasActiveResultFilters && (
+                    <div className="library-empty-actions">
+                      {search.trim() && <button className="library-empty-action" onClick={clearSearch} type="button">Clear search</button>}
+                      {(selectedGenres.length > 0 || selectedDeck.length > 0) && <button className="library-empty-action" onClick={clearFacets} type="button">Clear filters</button>}
+                    </div>
+                  )}
                 </div>
               </section>
             )}
@@ -624,8 +680,8 @@ export function GamesPage(): JSX.Element {
           <aside
             ref={panelRef}
              className={`library-panel--sidebar${panelOpen ? ' is-visible' : ''}${panelClosing ? ' is-closing' : ''}`}
-             aria-hidden={!panelOpen}
-            >
+             aria-hidden={!panelOpen || panelClosing}
+             >
              <div className="library-panel library-panel__inner">
                 {panelOpen === 'settings' ? (
                   <>
@@ -642,6 +698,7 @@ export function GamesPage(): JSX.Element {
                               className={`size-button${gridSize === s.value ? ' active' : ''}`}
                               onClick={() => onGridSizeChange(s.value)}
                               title={s.label}
+                              data-label={s.label}
                               aria-label={`Grid size: ${s.label}`}
                               aria-pressed={gridSize === s.value}
                               type="button"
@@ -657,8 +714,8 @@ export function GamesPage(): JSX.Element {
                   <>
                     <div className="filter-panel-header">
                       <h2>Advanced Search</h2>
-                      <button className="filter-panel-action" onClick={clearPanelFilters} type="button">
-                        Reset
+                      <button className="filter-panel-action" onClick={clearPanelFilters} type="button" aria-label="Reset filters and sort">
+                        Reset filters + sort
                       </button>
                     </div>
 
@@ -667,7 +724,7 @@ export function GamesPage(): JSX.Element {
                    <span className="filter-summary__count">{activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active</span>
                    <div className="filter-summary__pills">
                      {selectedGenres.map((genre) => (
-                       <button key={genre} className="filter-summary__pill" onClick={() => removeGenre(genre)} type="button">
+                        <button key={genre} className="filter-summary__pill" onClick={() => removeGenre(genre)} type="button" aria-label={`Remove ${genre} filter`}>
                          {genre}<span aria-hidden="true">×</span>
                        </button>
                      ))}
@@ -675,7 +732,7 @@ export function GamesPage(): JSX.Element {
                        const option = DECK_OPTIONS.find((item) => item.value === deck);
                        if (!option) return null;
                        return (
-                         <button key={deck} className="filter-summary__pill" onClick={() => removeDeck(deck)} type="button">
+                          <button key={deck} className="filter-summary__pill" onClick={() => removeDeck(deck)} type="button" aria-label={`Remove ${option.label} filter`}>
                            {option.label}<span aria-hidden="true">×</span>
                          </button>
                        );
@@ -685,50 +742,24 @@ export function GamesPage(): JSX.Element {
                )}
 
                <div className="filter-section">
-                 <span className="panel-label">Sort</span>
-                 <div className="sort-menu" ref={sortMenuRef}>
-                   <button
-                     className="sort-menu__trigger"
-                     type="button"
-                     aria-haspopup="listbox"
-                     aria-expanded={sortMenuOpen}
-                     onClick={() => setSortMenuOpen((open) => !open)}
-                     onKeyDown={(event) => {
-                       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                         event.preventDefault();
-                         if (!sortMenuOpen) setSortMenuOpen(true);
-                         moveSortSelection(event.key === 'ArrowDown' ? 1 : -1);
-                       } else if (event.key === 'Enter' || event.key === ' ') {
-                         event.preventDefault();
-                         setSortMenuOpen((open) => !open);
-                       }
-                     }}
-                    >
-                      <SelectedSortIcon size={14} aria-hidden="true" />
-                      <span>{selectedSort.label}</span>
-                      <IconChevronDown size={16} aria-hidden="true" />
-                   </button>
-                   {sortMenuOpen && (
-                     <div className="sort-menu__options" role="listbox" aria-label="Sort games">
-                       {SORT_OPTIONS.map((option) => (
-                         <button
-                           key={option.value}
-                           className={`sort-menu__option${sort === option.value ? ' active' : ''}`}
-                           type="button"
-                           role="option"
-                           aria-selected={sort === option.value}
-                           onClick={() => {
-                             onSortChange(option.value);
-                             setSortMenuOpen(false);
-                           }}
-                         >
-                           <option.icon size={14} aria-hidden="true" />
-                           {option.label}
-                         </button>
-                       ))}
-                     </div>
-                   )}
-                 </div>
+                  <span className="panel-label">Sort by</span>
+                  <div className="sort-menu__options" ref={sortOptionsRef} role="group" aria-label="Sort games">
+                    {SORT_OPTIONS.map((option, index) => (
+                      <button
+                        key={option.value}
+                        className={`sort-menu__option${sort === option.value ? ' active' : ''}`}
+                        type="button"
+                        data-sort-index={index}
+                        aria-pressed={sort === option.value}
+                        onKeyDown={(event) => handleSortKeyDown(event, index)}
+                        onClick={() => onSortChange(option.value)}
+                      >
+                        <option.icon size={14} aria-hidden="true" />
+                        {option.label}
+                      </button>
+                    ))}
+                    <span className="sort-menu__announcement" role="status" aria-live="polite">Sorted by {selectedSort.label}</span>
+                  </div>
                </div>
 
                {genresError && (
@@ -756,7 +787,7 @@ export function GamesPage(): JSX.Element {
                          aria-label="Search genres"
                        />
                      </div>
-                     <div className="panel-chips panel-chips--wrap">
+                      <div className="panel-chips panel-chips--wrap">
                      {displayedGenres.map((g) => (
                        <button
                          key={g}
@@ -802,7 +833,7 @@ export function GamesPage(): JSX.Element {
                    })}
                  </div>
                </div>
-                <div className="filter-panel-footer">
+              <div className="filter-panel-footer">
                   <strong>{total} {total === 1 ? 'game' : 'games'}</strong>
                 </div>
                   </>
@@ -812,9 +843,15 @@ export function GamesPage(): JSX.Element {
         </div>
       </div>
 
-      {loadingMore && <div className="muted">Loading more…</div>}
+      {loadingMore && <div className="muted" role="status">Loading more…</div>}
 
       <div ref={sentinelRef} className="scroll-sentinel" aria-hidden="true" />
+      {loadMoreError && (
+        <div className="load-more-error" role="alert">
+          <span>{loadMoreError}</span>
+          <button type="button" onClick={() => void fetchMore(true)}>Retry</button>
+        </div>
+      )}
 
       <button
         ref={scrollTopRef}

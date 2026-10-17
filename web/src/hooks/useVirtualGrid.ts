@@ -12,6 +12,10 @@ const FALLBACK_COL_GAP = 16;
 const CARD_ASPECT = 1.5;
 const CARD_BORDER_PX = 2;
 
+export function getGridColumnCount(width: number, columnGap: number, gridSize: number): number {
+  return width > 0 ? Math.max(1, Math.floor((width + columnGap) / (gridSize + columnGap))) : 0;
+}
+
 export interface VirtualGrid {
   /** Ref callback for the grid container (merge with any other refs). */
   containerRef: (node: HTMLDivElement | null) => void;
@@ -47,8 +51,7 @@ export function useVirtualGrid(itemCount: number, gridSize: number): VirtualGrid
 
   // Column count must mirror `repeat(auto-fill, minmax(gridSize, 1fr))`:
   // auto-fill yields floor((width + gap) / (minSize + gap)), at least 1.
-  const columns =
-    width > 0 ? Math.max(1, Math.floor((width + gaps.col) / (gridSize + gaps.col))) : 0;
+  const columns = getGridColumnCount(width, gaps.col, gridSize);
   const rowCount = columns > 0 ? Math.ceil(itemCount / columns) : 0;
 
   const virtualizer = useWindowVirtualizer({
@@ -61,6 +64,9 @@ export function useVirtualGrid(itemCount: number, gridSize: number): VirtualGrid
     overscan: 3,
     scrollMargin,
     directDomUpdates: true,
+    // Row measurements can change virtualizer-owned container height. Defer
+    // ResizeObserver callbacks to avoid writes during observer delivery.
+    useAnimationFrameWithResizeObserver: true,
   });
 
   const measureWidth = useCallback(() => {
@@ -116,16 +122,22 @@ export function useVirtualGrid(itemCount: number, gridSize: number): VirtualGrid
     if (!el) return;
     let raf = 0;
     const initialMeasureRaf = requestAnimationFrame(measureWidth);
-    const ro = new ResizeObserver(() => {
+    const scheduleMeasure = () => {
       if (raf) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
         measureWidth();
       });
-    });
+    };
+    const ro = new ResizeObserver(scheduleMeasure);
+    const breakpoint = window.matchMedia('(max-width: 900px)');
     ro.observe(el);
+    window.addEventListener('resize', scheduleMeasure, { passive: true });
+    breakpoint.addEventListener('change', scheduleMeasure);
     return () => {
       ro.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+      breakpoint.removeEventListener('change', scheduleMeasure);
       cancelAnimationFrame(initialMeasureRaf);
       if (raf) cancelAnimationFrame(raf);
     };

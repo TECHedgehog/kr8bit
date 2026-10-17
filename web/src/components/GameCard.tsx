@@ -39,6 +39,7 @@ export const GameCard = memo(function GameCard({ game, index }: GameCardProps): 
     <button
       ref={cardRef}
       className="game-card"
+      aria-label={`Open ${title}`}
       // useGridFlip matches cards across panel-toggle re-slices by id.
       data-game-id={game.id}
       // Column position for the reveal stagger delay (.game-grid-row.is-visible).
