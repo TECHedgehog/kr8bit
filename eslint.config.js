@@ -11,6 +11,7 @@ export default [
       'node_modules/**',
       'prisma/migrations/**',
       'coverage/**',
+      'web/vendor/**',
       '**/*.d.ts',
     ],
   },
