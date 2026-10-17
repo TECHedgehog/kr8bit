@@ -136,6 +136,7 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
   // target. When almost at the target (raise peaks at ~62% of the move) it
   // LOWERS back to idle height + refraction — a slow, smooth
   // lift-slide-settle with no bounce.
+  // Source enablement also changes target geometry without changing route.
   useLayoutEffect(() => {
     const nav = navRef.current;
     if (!nav) return;
@@ -195,7 +196,7 @@ export function TopBar({ demoMode = false }: { demoMode?: boolean }): JSX.Elemen
       },
     });
     animateGlassValue(lensScale, peakStrength, RAISE_ANIMATION);
-  }, [activeTo, lensX, lensW, lensH, lensScale]);
+  }, [activeTo, lensX, lensW, lensH, lensScale, repackCatalogEnabled]);
 
   // While idle, re-sync the lens dimensions to the active link's measured rect
   // without animating. Runs when a transit settles (isMoving → false) so the
