@@ -119,8 +119,52 @@ describe('PUT /api/settings', () => {
     for (const payload of [
       { repackCatalogEnabled: 'true' },
       { libraryManuallyCleared: 'true' },
+      { libraryRenameCustomFormat: '{title}' },
     ]) {
       const response = await app.inject({ method: 'PUT', url: '/api/settings', payload });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().code).toBe('VALIDATION_ERROR');
+    }
+  });
+});
+
+describe('library naming endpoints', () => {
+  it('returns default format, supported tags, and no custom format', async () => {
+    const response = await app.inject({ method: 'GET', url: '/api/library/naming' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      defaultFormat: '{title} ({year}) [{edition}]',
+      tags: ['title', 'year', 'edition', 'platform', 'version', 'dlcs', 'group', 'original'],
+      customFormat: null,
+    });
+  });
+
+  it('validates and saves custom format', async () => {
+    const response = await app.inject({
+      method: 'PUT',
+      url: '/api/library/naming',
+      payload: { format: ' {title} [{year}] ' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().customFormat).toBe('{title} [{year}]');
+    expect(await prisma.setting.findUnique({ where: { key: 'libraryRenameCustomFormat' } })).toMatchObject({
+      value: '{title} [{year}]',
+    });
+  });
+
+  it('allows clearing custom format', async () => {
+    await app.inject({ method: 'PUT', url: '/api/library/naming', payload: { format: '{title}' } });
+    const response = await app.inject({ method: 'PUT', url: '/api/library/naming', payload: { format: '' } });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().customFormat).toBeNull();
+  });
+
+  it('rejects invalid formats and malformed payloads', async () => {
+    for (const payload of [{ format: '{unknown}' }, { format: 5 }, null]) {
+      const response = await app.inject({ method: 'PUT', url: '/api/library/naming', payload });
       expect(response.statusCode).toBe(400);
       expect(response.json().code).toBe('VALIDATION_ERROR');
     }

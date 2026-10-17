@@ -171,6 +171,12 @@ export interface GameRenameResult {
   message?: string;
 }
 
+export interface NamingSettings {
+  defaultFormat: string;
+  tags: string[];
+  customFormat: string | null;
+}
+
 export interface GenresResult {
   genres: string[];
 }

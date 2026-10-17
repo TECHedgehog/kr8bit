@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import type { GameRenamePreview, GameRenameResult } from '../api/types';
-
-const DEFAULT_FORMAT = '{title} ({year}) [{edition}]';
-const TAGS = '{title} {year} {edition} {platform} {version} {dlcs} {group} {original}';
+import type { GameRenamePreview, GameRenameResult, NamingSettings } from '../api/types';
 const RENAME_STATUS_LABELS: Record<Exclude<GameRenamePreview['status'], 'ready'>, string> = {
   unchanged: 'Unchanged', conflict: 'Conflict', unavailable: 'Unavailable', renamed: 'Renamed', failed: 'Failed',
 };
@@ -11,6 +8,8 @@ const RENAME_STATUS_LABELS: Record<Exclude<GameRenamePreview['status'], 'ready'>
 export function LibraryNamingSection(): JSX.Element {
   const [format, setFormat] = useState('');
   const [savedFormat, setSavedFormat] = useState('');
+  const [defaultFormat, setDefaultFormat] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [preview, setPreview] = useState<GameRenamePreview[] | null>(null);
   const [previewFormat, setPreviewFormat] = useState('');
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
@@ -24,9 +23,11 @@ export function LibraryNamingSection(): JSX.Element {
   useEffect(() => {
     let mounted = true;
     const token = ++requestToken.current;
-    void api.get<{ kv: { key: string; value: string }[] }>('/api/settings').then((settings) => {
+    void api.get<NamingSettings>('/api/library/naming').then((settings) => {
       if (!mounted || requestToken.current !== token) return;
-      const saved = settings.kv.find((entry) => entry.key === 'libraryRenameCustomFormat')?.value ?? '';
+      const saved = settings.customFormat ?? '';
+      setDefaultFormat(settings.defaultFormat);
+      setTags(settings.tags);
       setFormat(saved);
       setSavedFormat(saved);
     }).catch((err: unknown) => {
@@ -39,8 +40,9 @@ export function LibraryNamingSection(): JSX.Element {
     setSaving(true); setError(null); setMessage(null);
     try {
       const value = format.trim();
-      await api.put('/api/settings', { libraryRenameCustomFormat: value });
-      setFormat(value); setSavedFormat(value); setMessage('Naming format saved');
+      const settings = await api.put<NamingSettings>('/api/library/naming', { format: value });
+      const saved = settings.customFormat ?? '';
+      setFormat(saved); setSavedFormat(saved); setMessage('Naming format saved');
       setPreview(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'failed to save naming format');
@@ -91,7 +93,7 @@ export function LibraryNamingSection(): JSX.Element {
 
   return <div className="library-naming-content">
     <div className="filename-format-control">
-      <label><span>Filename format</span><div className="filename-format-field"><input value={format} onChange={(event) => { setFormat(event.target.value); setPreview(null); setError(null); }} placeholder={DEFAULT_FORMAT} disabled={processing || saving} /><small>Tags: {TAGS}</small></div></label>
+      <label><span>Filename format</span><div className="filename-format-field"><input value={format} onChange={(event) => { setFormat(event.target.value); setPreview(null); setError(null); }} placeholder={defaultFormat} disabled={processing || saving} /><small>Tags: {tags.map((tag) => `{${tag}}`).join(' ')}</small></div></label>
       {format.trim() !== savedFormat.trim() && <button type="button" onClick={() => void save()} disabled={saving || processing}>{saving ? 'Saving…' : 'Save'}</button>}
     </div>
     {!preview && <button type="button" className="primary" onClick={() => void startPreview()} disabled={processing}>{processing ? 'Preparing…' : 'Start manual rename'}</button>}

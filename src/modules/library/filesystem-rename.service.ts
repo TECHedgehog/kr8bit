@@ -20,12 +20,15 @@ function archiveSuffix(entryName: string): string {
   return entryName.match(/(\.part\d+\.rar|\.r\d{2,3})$/i)?.[1] ?? extname(entryName);
 }
 
-export function samePath(left: string, right: string): boolean {
-  const a = normalize(left);
-  const b = normalize(right);
+export function pathKey(path: string): string {
+  const normalized = normalize(path);
   return process.platform === 'win32' || process.platform === 'darwin'
-    ? a.toLocaleLowerCase() === b.toLocaleLowerCase()
-    : a === b;
+    ? normalized.toLocaleLowerCase()
+    : normalized;
+}
+
+export function samePath(left: string, right: string): boolean {
+  return pathKey(left) === pathKey(right);
 }
 
 export function targetPath(game: Game, format: string): string {

@@ -61,12 +61,8 @@ describe('parseSettingsUpsert', () => {
     expect(() => parseSettingsUpsert({ k: 'v'.repeat(10_001) })).toThrow(ValidationError);
   });
 
-  it('validates custom filename formats and permits clearing the custom value', () => {
-    expect(parseSettingsUpsert({ libraryRenameCustomFormat: '' })).toEqual([
-      { key: 'libraryRenameCustomFormat', value: '' },
-    ]);
-    expect(() => parseSettingsUpsert({ libraryRenameCustomFormat: '{unknown}' })).toThrow(ValidationError);
-    expect(() => parseSettingsUpsert({ libraryRenameCustomFormat: '{title' })).toThrow(ValidationError);
+  it('rejects library naming settings owned by its domain endpoint', () => {
+    expect(() => parseSettingsUpsert({ libraryRenameCustomFormat: '{title}' })).toThrow(ValidationError);
   });
 });
 

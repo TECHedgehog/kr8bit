@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import { join } from 'node:path';
 import type { Game } from '../src/modules/library/library.types.js';
-import { filesystemRenameService, safeName, samePath, targetPath } from '../src/modules/library/filesystem-rename.service.js';
+import { filesystemRenameService, pathKey, safeName, samePath, targetPath } from '../src/modules/library/filesystem-rename.service.js';
 
 let root: string;
 
@@ -38,6 +38,7 @@ describe('filesystem rename', () => {
   it('compares paths according to platform case behavior', () => {
     expect(samePath('/Games/Title.7z', '/Games/Title.7z')).toBe(true);
     expect(samePath('/Games/Title.7z', '/games/title.7z')).toBe(['win32', 'darwin'].includes(process.platform));
+    expect(pathKey('/Games/Folder/../Title.7z')).toBe(pathKey('/Games/Title.7z'));
   });
 
   it('renames archive without replacing existing destination', async () => {

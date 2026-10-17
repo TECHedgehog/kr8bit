@@ -2,6 +2,8 @@ import type { FastifyPluginAsync } from 'fastify';
 import { libraryController } from '../controllers/library.controller.js';
 
 export const libraryRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/api/library/naming', libraryController.naming);
+  app.put('/api/library/naming', libraryController.updateNaming);
   app.get('/api/games', libraryController.list);
   app.get('/api/games/genres', libraryController.genres);
   app.get('/api/games/:id', libraryController.getById);

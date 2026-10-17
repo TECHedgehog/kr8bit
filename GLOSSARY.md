@@ -21,3 +21,9 @@ An isolated library namespace rooted at a session-specific path. Demo sessions u
 
 **Settings spec**:
 Static declaration owned by a domain module describing a setting's key, kind, default, constraints, and internal status. Settings validation composes owner specs; domain endpoints manage domain-specific updates.
+
+**Naming format**:
+Template used to generate game entry names. Supported tags come from the library naming endpoint; custom format is validated and persisted by that domain endpoint.
+
+**Rename preview**:
+Per-game projection of a proposed naming-format application, including readiness, unchanged paths, conflicts, and unavailable entries.
