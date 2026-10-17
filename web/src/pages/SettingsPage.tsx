@@ -20,6 +20,7 @@ import { api } from '../api/client';
 import type { RepackSettings } from '../api/types';
 import { SettingsNavLens } from '../components/SettingsNavLens';
 import { isSettingsCategory, type SettingsCategory } from '../settings-categories';
+import { useRepackCatalogEnabled } from '../context/RepackCatalogEnabledContext';
 
 type SettingsNavigationItem = {
   id: string;
@@ -53,6 +54,7 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
 
 export function SettingsPage(): JSX.Element {
   const [searchParams] = useSearchParams();
+  const { refresh: refreshRepackCatalog } = useRepackCatalogEnabled();
   const {
     rememberSettingsCategory,
     rememberLibraryPanel,
@@ -92,7 +94,7 @@ export function SettingsPage(): JSX.Element {
       const saved = await api.get<RepackSettings>('/api/repack-catalog/settings');
       setRepackSettings(saved);
       setRepackSaveState('Saved');
-      window.dispatchEvent(new Event('repack-catalog-settings'));
+      void refreshRepackCatalog();
     } catch (error) {
       setRepackSaveState((error as Error).message || 'Unable to save settings');
       throw error;

@@ -170,11 +170,6 @@ export function RepackCatalogPage(): JSX.Element {
 
   useEffect(() => { void fetchInitial(); }, [fetchInitial]);
   useEffect(() => {
-    const refresh = () => { void fetchInitial(); };
-    window.addEventListener('repack-catalog-updated', refresh);
-    return () => window.removeEventListener('repack-catalog-updated', refresh);
-  }, [fetchInitial]);
-  useEffect(() => {
     const target = sentinelRef.current;
     if (!target) return;
     const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) void fetchMore(); }, { rootMargin: '400px 0px' });
@@ -401,7 +396,7 @@ export function RepackCatalogPage(): JSX.Element {
         <span className="scroll-top-pill__icon"><IconArrowUp size={20} /></span>
         <span className="scroll-top-pill__label">Scroll to top</span>
       </button>
-      <Outlet />
+      <Outlet context={{ refreshCatalog: fetchInitial }} />
     </div>
   );
 }

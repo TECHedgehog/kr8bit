@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
 
+import { usePersistedSettings } from '../hooks/usePersistedSettings';
 import { useTheme, type Theme } from './ThemeContext';
 
 export type BackgroundTint = 'indigo' | 'violet' | 'teal' | 'rose' | 'amber';
@@ -72,35 +73,50 @@ function migrateShade(value: unknown, fallback: BackgroundShade): BackgroundShad
   return fallback;
 }
 
-function loadStoredSettings(): { tint: BackgroundTint; darkShade: BackgroundShade; lightShade: BackgroundShade } {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as { tint?: unknown; shade?: unknown; darkShade?: unknown; lightShade?: unknown };
-    const tint = typeof stored.tint === 'string' && stored.tint in BACKGROUND_TINTS ? stored.tint as BackgroundTint : DEFAULT_TINT;
-    const migratedShade = migrateShade(stored.shade, DEFAULT_DARK_SHADE);
-    const darkShade = migrateShade(stored.darkShade, migratedShade.startsWith('dark-') ? migratedShade : DEFAULT_DARK_SHADE);
-    const lightShade = migrateShade(stored.lightShade, migratedShade.startsWith('light-') ? migratedShade : DEFAULT_LIGHT_SHADE);
-    return { tint, darkShade, lightShade };
-  } catch {
-    return { tint: DEFAULT_TINT, darkShade: DEFAULT_DARK_SHADE, lightShade: DEFAULT_LIGHT_SHADE };
-  }
+interface BackgroundSettings {
+  tint: BackgroundTint;
+  darkShade: BackgroundShade;
+  lightShade: BackgroundShade;
+}
+
+const DEFAULT_SETTINGS: BackgroundSettings = {
+  tint: DEFAULT_TINT,
+  darkShade: DEFAULT_DARK_SHADE,
+  lightShade: DEFAULT_LIGHT_SHADE,
+};
+
+function sanitizeSettings(value: unknown): BackgroundSettings {
+  const stored = value && typeof value === 'object'
+    ? value as { tint?: unknown; shade?: unknown; darkShade?: unknown; lightShade?: unknown }
+    : {};
+  const tint = typeof stored.tint === 'string' && stored.tint in BACKGROUND_TINTS ? stored.tint as BackgroundTint : DEFAULT_TINT;
+  const migratedShade = migrateShade(stored.shade, DEFAULT_DARK_SHADE);
+  const darkShade = migrateShade(stored.darkShade, migratedShade.startsWith('dark-') ? migratedShade : DEFAULT_DARK_SHADE);
+  const lightShade = migrateShade(stored.lightShade, migratedShade.startsWith('light-') ? migratedShade : DEFAULT_LIGHT_SHADE);
+  return { tint, darkShade, lightShade };
 }
 
 const BackgroundSettingsContext = createContext<BackgroundSettingsContextValue | null>(null);
 
 export function BackgroundSettingsProvider({ children }: { children: ReactNode }): JSX.Element {
   const { theme } = useTheme();
-  const stored = useMemo(loadStoredSettings, []);
-  const [tint, setTint] = useState<BackgroundTint>(stored.tint);
-  const [darkShade, setDarkShade] = useState<BackgroundShade>(stored.darkShade);
-  const [lightShade, setLightShade] = useState<BackgroundShade>(stored.lightShade);
+  const [{ tint, darkShade, lightShade }, setSettings] = usePersistedSettings(STORAGE_KEY, DEFAULT_SETTINGS, sanitizeSettings);
+  const setTint = useCallback((tint: BackgroundTint) => {
+    setSettings((current) => current.tint === tint ? current : { ...current, tint });
+  }, [setSettings]);
+  const setDarkShade = useCallback((darkShade: BackgroundShade) => {
+    setSettings((current) => current.darkShade === darkShade ? current : { ...current, darkShade });
+  }, [setSettings]);
+  const setLightShade = useCallback((lightShade: BackgroundShade) => {
+    setSettings((current) => current.lightShade === lightShade ? current : { ...current, lightShade });
+  }, [setSettings]);
   const shade = theme === 'dark' ? darkShade : lightShade;
 
   useEffect(() => {
     document.documentElement.style.setProperty('--bg', getBackgroundShadeColor(shade));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tint, darkShade, lightShade }));
   }, [tint, darkShade, lightShade, shade]);
 
-  const value = useMemo(() => ({ tint, darkShade, lightShade, setTint, setDarkShade, setLightShade }), [tint, darkShade, lightShade]);
+  const value = useMemo(() => ({ tint, darkShade, lightShade, setTint, setDarkShade, setLightShade }), [tint, darkShade, lightShade, setTint, setDarkShade, setLightShade]);
   return <BackgroundSettingsContext.Provider value={value}>{children}</BackgroundSettingsContext.Provider>;
 }
 

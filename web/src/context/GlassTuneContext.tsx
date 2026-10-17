@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { GlassOptics } from '@samasante/liquid-glass';
+import { loadPersisted } from '../hooks/usePersistedSettings';
 
 export interface GlassPillState {
   effectiveOptics: Partial<GlassOptics>;
@@ -31,28 +32,24 @@ const PILL_DEFAULT: Partial<GlassOptics> = {
   softEdge: true,
 };
 
-function loadStoredOptics(): Partial<GlassOptics> {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as { optics?: Partial<GlassOptics> };
-    if (!parsed.optics || typeof parsed.optics !== 'object') return {};
+function sanitizeOptics(value: unknown): Partial<GlassOptics> {
+  const parsed = value && typeof value === 'object' ? value as { optics?: Partial<GlassOptics> } : {};
+  if (!parsed.optics || typeof parsed.optics !== 'object') return {};
 
-    return Object.fromEntries(
-      Object.entries(parsed.optics).filter(([key, value]) => {
-        const defaultValue = PILL_DEFAULT[key as keyof GlassOptics];
-        if (typeof defaultValue === 'number') return typeof value === 'number' && Number.isFinite(value);
-        if (typeof defaultValue === 'boolean') return typeof value === 'boolean';
-        return false;
-      }),
-    ) as Partial<GlassOptics>;
-  } catch {
-    return {};
-  }
+  return Object.fromEntries(
+    Object.entries(parsed.optics).filter(([key, opticValue]) => {
+      const defaultValue = PILL_DEFAULT[key as keyof GlassOptics];
+      if (typeof defaultValue === 'number') return typeof opticValue === 'number' && Number.isFinite(opticValue);
+      if (typeof defaultValue === 'boolean') return typeof opticValue === 'boolean';
+      return false;
+    }),
+  ) as Partial<GlassOptics>;
 }
 
 const GlassTuneContext = createContext<GlassTuneContextValue | null>(null);
 
 export function GlassTuneProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [optics] = useState(loadStoredOptics);
+  const [optics] = useState(() => loadPersisted(STORAGE_KEY, {}, sanitizeOptics));
   const value = useMemo(() => ({ pill: { effectiveOptics: { ...PILL_DEFAULT, ...optics } } }), [optics]);
   return <GlassTuneContext.Provider value={value}>{children}</GlassTuneContext.Provider>;
 }

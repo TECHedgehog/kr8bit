@@ -2,13 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
   type ReactNode,
 } from 'react';
 
 import type { EffectParamValue, EffectParams } from '../components/effects/effectSettings';
+import { usePersistedSettings } from '../hooks/usePersistedSettings';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -49,38 +48,24 @@ function isValidParamValue(value: unknown): value is EffectParamValue {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
-/** Accepts stored settings and migrates persisted params. */
-function loadStoredSettings(): EffectsSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<EffectsSettings>;
-    const params: EffectParamsMap = {};
-    if (parsed.params && typeof parsed.params === 'object') {
-      for (const [effectId, effectParams] of Object.entries(parsed.params)) {
-        if (!isValidId(effectId) || !effectParams || typeof effectParams !== 'object') continue;
-        const clean: EffectParams = {};
-        for (const [key, value] of Object.entries(effectParams as Record<string, unknown>)) {
-          if (isValidId(key) && isValidParamValue(value)) clean[key] = value;
-        }
-        params[effectId] = clean;
+/** Accepts stored settings and sanitizes persisted params. */
+function sanitizeSettings(value: unknown): EffectsSettings {
+  const parsed = value && typeof value === 'object' ? value as Partial<EffectsSettings> : {};
+  const params: EffectParamsMap = {};
+  if (parsed.params && typeof parsed.params === 'object') {
+    for (const [effectId, effectParams] of Object.entries(parsed.params)) {
+      if (!isValidId(effectId) || !effectParams || typeof effectParams !== 'object') continue;
+      const clean: EffectParams = {};
+      for (const [key, paramValue] of Object.entries(effectParams as Record<string, unknown>)) {
+        if (isValidId(key) && isValidParamValue(paramValue)) clean[key] = paramValue;
       }
+      params[effectId] = clean;
     }
-    return {
-      background: isValidId(parsed.background) ? parsed.background : null,
-      params,
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
   }
-}
-
-function saveStoredSettings(settings: EffectsSettings): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // ignore storage errors
-  }
+  return {
+    background: isValidId(parsed.background) ? parsed.background : null,
+    params,
+  };
 }
 
 // ── Context ─────────────────────────────────────────────────────────
@@ -88,35 +73,34 @@ function saveStoredSettings(settings: EffectsSettings): void {
 const EffectsSettingsContext = createContext<EffectsSettingsContextValue | null>(null);
 
 export function EffectsSettingsProvider({ children }: { children: ReactNode }): JSX.Element {
-  const stored = useMemo(() => loadStoredSettings(), []);
-  const [background, setBackgroundId] = useState<EffectId>(stored.background);
-  const [params, setParams] = useState<EffectParamsMap>(stored.params);
+  const [settings, setSettings] = usePersistedSettings(STORAGE_KEY, DEFAULT_SETTINGS, sanitizeSettings);
 
-  useEffect(() => {
-    saveStoredSettings({ background, params });
-  }, [background, params]);
-
-  const setBackground = useCallback((id: EffectId) => setBackgroundId(id), []);
+  const setBackground = useCallback((background: EffectId) => {
+    setSettings((current) => current.background === background ? current : { ...current, background });
+  }, [setSettings]);
 
   const setParam = useCallback((effectId: string, key: string, value: EffectParamValue) => {
-    setParams((prev) => ({
-      ...prev,
-      [effectId]: { ...(prev[effectId] ?? {}), [key]: value },
+    setSettings((current) => ({
+      ...current,
+      params: {
+        ...current.params,
+        [effectId]: { ...(current.params[effectId] ?? {}), [key]: value },
+      },
     }));
-  }, []);
+  }, [setSettings]);
 
   const resetParams = useCallback((effectId: string) => {
-    setParams((prev) => {
-      if (!(effectId in prev)) return prev;
-      const next = { ...prev };
-      delete next[effectId];
-      return next;
+    setSettings((current) => {
+      if (!(effectId in current.params)) return current;
+      const params = { ...current.params };
+      delete params[effectId];
+      return { ...current, params };
     });
-  }, []);
+  }, [setSettings]);
 
   const value = useMemo<EffectsSettingsContextValue>(
-    () => ({ background, params, setBackground, setParam, resetParams }),
-    [background, params, setBackground, setParam, resetParams],
+    () => ({ ...settings, setBackground, setParam, resetParams }),
+    [settings, setBackground, setParam, resetParams],
   );
 
   return (

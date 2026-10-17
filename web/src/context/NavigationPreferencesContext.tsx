@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
+import { usePersistedSettings } from '../hooks/usePersistedSettings';
 
 export type LibraryPanel = 'advanced' | 'settings';
 
@@ -24,69 +25,49 @@ const DEFAULT_PREFERENCES: NavigationPreferences = {
   lastLibraryPanel: null,
 };
 
-function loadPreferences(): NavigationPreferences {
-  if (typeof window === 'undefined') return DEFAULT_PREFERENCES;
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_PREFERENCES;
-    const parsed = JSON.parse(raw) as Partial<NavigationPreferences>;
-    return {
-      rememberSettingsCategory: typeof parsed.rememberSettingsCategory === 'boolean'
-        ? parsed.rememberSettingsCategory
-        : DEFAULT_PREFERENCES.rememberSettingsCategory,
-      rememberLibraryPanel: typeof parsed.rememberLibraryPanel === 'boolean'
-        ? parsed.rememberLibraryPanel
-        : DEFAULT_PREFERENCES.rememberLibraryPanel,
-      lastSettingsCategory: typeof parsed.lastSettingsCategory === 'string'
-        ? parsed.lastSettingsCategory
-        : null,
-      lastLibraryPanel: parsed.lastLibraryPanel === 'advanced' || parsed.lastLibraryPanel === 'settings'
-        ? parsed.lastLibraryPanel
-        : null,
-    };
-  } catch {
-    return DEFAULT_PREFERENCES;
-  }
-}
-
-function savePreferences(preferences: NavigationPreferences): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-  } catch {
-    // Ignore storage errors; navigation remains usable.
-  }
+function sanitizePreferences(value: unknown): NavigationPreferences {
+  const parsed = value && typeof value === 'object' ? value as Partial<NavigationPreferences> : {};
+  return {
+    rememberSettingsCategory: typeof parsed.rememberSettingsCategory === 'boolean'
+      ? parsed.rememberSettingsCategory
+      : DEFAULT_PREFERENCES.rememberSettingsCategory,
+    rememberLibraryPanel: typeof parsed.rememberLibraryPanel === 'boolean'
+      ? parsed.rememberLibraryPanel
+      : DEFAULT_PREFERENCES.rememberLibraryPanel,
+    lastSettingsCategory: typeof parsed.lastSettingsCategory === 'string'
+      ? parsed.lastSettingsCategory
+      : null,
+    lastLibraryPanel: parsed.lastLibraryPanel === 'advanced' || parsed.lastLibraryPanel === 'settings'
+      ? parsed.lastLibraryPanel
+      : null,
+  };
 }
 
 const NavigationPreferencesContext = createContext<NavigationPreferencesContextValue | null>(null);
 
 export function NavigationPreferencesProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [preferences, setPreferences] = useState<NavigationPreferences>(loadPreferences);
-
-  useEffect(() => {
-    savePreferences(preferences);
-  }, [preferences]);
+  const [preferences, setPreferences] = usePersistedSettings(STORAGE_KEY, DEFAULT_PREFERENCES, sanitizePreferences);
 
   const setRememberSettingsCategory = useCallback((rememberSettingsCategory: boolean) => {
     setPreferences((previous) => previous.rememberSettingsCategory === rememberSettingsCategory
       ? previous
       : { ...previous, rememberSettingsCategory });
-  }, []);
+  }, [setPreferences]);
   const setRememberLibraryPanel = useCallback((rememberLibraryPanel: boolean) => {
     setPreferences((previous) => previous.rememberLibraryPanel === rememberLibraryPanel
       ? previous
       : { ...previous, rememberLibraryPanel });
-  }, []);
+  }, [setPreferences]);
   const setLastSettingsCategory = useCallback((lastSettingsCategory: string) => {
     setPreferences((previous) => previous.lastSettingsCategory === lastSettingsCategory
       ? previous
       : { ...previous, lastSettingsCategory });
-  }, []);
+  }, [setPreferences]);
   const setLastLibraryPanel = useCallback((lastLibraryPanel: LibraryPanel | null) => {
     setPreferences((previous) => previous.lastLibraryPanel === lastLibraryPanel
       ? previous
       : { ...previous, lastLibraryPanel });
-  }, []);
+  }, [setPreferences]);
 
   const value = useMemo<NavigationPreferencesContextValue>(() => ({
     ...preferences,

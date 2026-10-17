@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
+import { usePersistedSettings } from '../hooks/usePersistedSettings';
 
 export type MotionPreference = 'system' | 'reduced' | 'full';
 
@@ -22,46 +23,41 @@ const DEFAULT_SETTINGS: PerformanceSettings = {
   gridAnimations: true,
 };
 
-function loadSettings(): PerformanceSettings {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<PerformanceSettings>;
-    return {
-      motion: parsed.motion === 'reduced' || parsed.motion === 'full' ? parsed.motion : 'system',
-      backgroundEffects: parsed.backgroundEffects !== false,
-      gridAnimations: parsed.gridAnimations !== false,
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
+function sanitizeSettings(value: unknown): PerformanceSettings {
+  const parsed = value && typeof value === 'object' ? value as Partial<PerformanceSettings> : {};
+  return {
+    motion: parsed.motion === 'reduced' || parsed.motion === 'full' ? parsed.motion : 'system',
+    backgroundEffects: parsed.backgroundEffects !== false,
+    gridAnimations: parsed.gridAnimations !== false,
+  };
 }
 
 export function PerformanceSettingsProvider({ children }: { children: ReactNode }): JSX.Element {
-  const stored = useMemo(loadSettings, []);
-  const [motion, setMotion] = useState<MotionPreference>(stored.motion);
-  const [backgroundEffects, setBackgroundEffects] = useState(stored.backgroundEffects);
-  const [gridAnimations, setGridAnimations] = useState(stored.gridAnimations);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ motion, backgroundEffects, gridAnimations }));
-    } catch {
-      // Ignore unavailable storage.
-    }
-  }, [motion, backgroundEffects, gridAnimations]);
+  const [settings, setSettings] = usePersistedSettings(STORAGE_KEY, DEFAULT_SETTINGS, sanitizeSettings);
+  const setMotion = useCallback((motion: MotionPreference) => {
+    setSettings((current) => current.motion === motion ? current : { ...current, motion });
+  }, [setSettings]);
+  const setBackgroundEffects = useCallback((backgroundEffects: boolean) => {
+    setSettings((current) => current.backgroundEffects === backgroundEffects ? current : { ...current, backgroundEffects });
+  }, [setSettings]);
+  const setGridAnimations = useCallback((gridAnimations: boolean) => {
+    setSettings((current) => current.gridAnimations === gridAnimations ? current : { ...current, gridAnimations });
+  }, [setSettings]);
+  const reset = useCallback(() => {
+    setSettings((current) => current.motion === DEFAULT_SETTINGS.motion
+      && current.backgroundEffects === DEFAULT_SETTINGS.backgroundEffects
+      && current.gridAnimations === DEFAULT_SETTINGS.gridAnimations
+      ? current
+      : DEFAULT_SETTINGS);
+  }, [setSettings]);
 
   const value = useMemo<PerformanceSettingsContextValue>(() => ({
-    motion,
-    backgroundEffects,
-    gridAnimations,
+    ...settings,
     setMotion,
     setBackgroundEffects,
     setGridAnimations,
-    reset: () => {
-      setMotion(DEFAULT_SETTINGS.motion);
-      setBackgroundEffects(DEFAULT_SETTINGS.backgroundEffects);
-      setGridAnimations(DEFAULT_SETTINGS.gridAnimations);
-    },
-  }), [motion, backgroundEffects, gridAnimations]);
+    reset,
+  }), [settings, setMotion, setBackgroundEffects, setGridAnimations, reset]);
 
   return <PerformanceSettingsContext.Provider value={value}>{children}</PerformanceSettingsContext.Provider>;
 }

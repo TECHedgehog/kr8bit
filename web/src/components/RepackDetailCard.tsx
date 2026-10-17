@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom';
 import IconX from '@tabler/icons-react/dist/esm/icons/IconX.mjs';
 import { api, ApiError } from '../api/client';
 import type { Game, RepackCatalogGameDetail } from '../api/types';
@@ -13,6 +13,7 @@ function formatDate(value: string | null): string {
 }
 
 export function RepackDetailCard(): JSX.Element {
+  const { refreshCatalog } = useOutletContext<{ refreshCatalog: () => void }>();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -128,7 +129,7 @@ export function RepackDetailCard(): JSX.Element {
                 {snapshot?.genres.length ? <section className="detail-section"><div className="detail-row"><span className="detail-label">Genres</span><div className="detail-badges">{snapshot.genres.map((genre) => <span key={genre} className="detail-pill">{genre}</span>)}</div></div></section> : null}
                 {detail.tags.length > 0 && <section className="detail-section"><div className="detail-section-title">FitGirl tags</div><div className="repack-post__tags">{detail.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section>}
                 <RepackMatchControls detail={detail} onUpdated={() => {
-                  window.dispatchEvent(new Event('repack-catalog-updated'));
+                  void refreshCatalog();
                   void load();
                 }} />
               </div>

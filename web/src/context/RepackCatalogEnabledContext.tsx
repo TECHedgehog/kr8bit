@@ -20,10 +20,8 @@ export function RepackCatalogEnabledProvider({ children }: { children: ReactNode
   useEffect(() => {
     void refresh();
     window.addEventListener('focus', refresh);
-    window.addEventListener('repack-catalog-settings', refresh);
     return () => {
       window.removeEventListener('focus', refresh);
-      window.removeEventListener('repack-catalog-settings', refresh);
     };
   }, [refresh]);
   const value = useMemo(() => ({ enabled, refresh }), [enabled, refresh]);
