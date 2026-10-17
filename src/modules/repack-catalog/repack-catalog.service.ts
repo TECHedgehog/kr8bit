@@ -6,6 +6,7 @@ import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import type { ProviderRegistry } from '../metadata/provider-registry.js';
 import type { settingsRepository } from '../settings/settings.repository.js';
+import { createSettingsReader } from '../settings/settings.reader.js';
 import { validateSettingEntries } from '../settings/settings.service.js';
 import type { GameMetadata, MetadataProvider, SearchResult } from '../../shared/types.js';
 import type { repackCatalogRepository } from './repack-catalog.repository.js';
@@ -43,14 +44,10 @@ export interface RepackCatalogServiceDependencies {
   regroupGames: typeof regroupRepackGames;
 }
 
-function settingBool(value: string | null, fallback: boolean): boolean { return value === null ? fallback : value === 'true'; }
-function settingNumber(value: string | null, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function specDefault(key: string): string | boolean | number {
-  return REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === key)?.default ?? '';
+function settingSpec(key: string) {
+  const spec = REPACK_CATALOG_SETTING_SPECS.find((candidate) => candidate.key === key);
+  if (!spec) throw new Error(`missing repack catalog setting spec: ${key}`);
+  return spec;
 }
 
 function candidateFrom(result: SearchResult): RepackMatchCandidate {
@@ -112,24 +109,33 @@ export class RepackCatalogService {
   private sourceCache: { baseUrl: string; source: RepackSource } | null = null;
   private status = { phase: 'idle', processed: 0, skipped: 0, failed: 0, total: 0, startedAt: null as string | null };
 
-  constructor(private readonly dependencies: RepackCatalogServiceDependencies) {}
+  private readonly settingsReader;
 
-  async enabled(): Promise<boolean> { return settingBool(await this.dependencies.settingsRepository.get(REPACK_ENABLED), false); }
+  constructor(private readonly dependencies: RepackCatalogServiceDependencies) {
+    this.settingsReader = createSettingsReader(dependencies.settingsRepository);
+  }
+
+  async enabled(): Promise<boolean> { return this.settingsReader.boolean(settingSpec(REPACK_ENABLED)); }
 
   async settings() {
-    const enabledDefault = specDefault(REPACK_ENABLED) as boolean;
-    const baseUrlDefault = specDefault(REPACK_BASE_URL) as string;
-    const intervalHoursDefault = specDefault(REPACK_INTERVAL_HOURS) as number;
-    const auditEnabledDefault = specDefault(REPACK_AUDIT_ENABLED) as boolean;
-    const auditIntervalHoursDefault = specDefault(REPACK_AUDIT_INTERVAL_HOURS) as number;
-    const fullImportDefault = specDefault(REPACK_FULL_IMPORT_COMPLETE) as boolean;
+    const enabledSpec = settingSpec(REPACK_ENABLED);
+    const baseUrlSpec = settingSpec(REPACK_BASE_URL);
+    const intervalHoursSpec = settingSpec(REPACK_INTERVAL_HOURS);
+    const auditEnabledSpec = settingSpec(REPACK_AUDIT_ENABLED);
+    const auditIntervalHoursSpec = settingSpec(REPACK_AUDIT_INTERVAL_HOURS);
+    const fullImportSpec = settingSpec(REPACK_FULL_IMPORT_COMPLETE);
+    const enabledDefault = enabledSpec.default as boolean;
+    const baseUrlDefault = baseUrlSpec.default as string;
+    const intervalHoursDefault = intervalHoursSpec.default as number;
+    const auditEnabledDefault = auditEnabledSpec.default as boolean;
+    const auditIntervalHoursDefault = auditIntervalHoursSpec.default as number;
     return {
-      enabled: settingBool(await this.dependencies.settingsRepository.get(REPACK_ENABLED), enabledDefault),
-      baseUrl: (await this.dependencies.settingsRepository.get(REPACK_BASE_URL)) ?? baseUrlDefault,
-      intervalHours: settingNumber(await this.dependencies.settingsRepository.get(REPACK_INTERVAL_HOURS), intervalHoursDefault),
-      auditEnabled: settingBool(await this.dependencies.settingsRepository.get(REPACK_AUDIT_ENABLED), auditEnabledDefault),
-      auditIntervalHours: settingNumber(await this.dependencies.settingsRepository.get(REPACK_AUDIT_INTERVAL_HOURS), auditIntervalHoursDefault),
-      fullImportComplete: settingBool(await this.dependencies.settingsRepository.get(REPACK_FULL_IMPORT_COMPLETE), fullImportDefault),
+      enabled: await this.settingsReader.boolean(enabledSpec),
+      baseUrl: await this.settingsReader.string(baseUrlSpec),
+      intervalHours: await this.settingsReader.integer(intervalHoursSpec),
+      auditEnabled: await this.settingsReader.boolean(auditEnabledSpec),
+      auditIntervalHours: await this.settingsReader.integer(auditIntervalHoursSpec),
+      fullImportComplete: await this.settingsReader.boolean(fullImportSpec),
       defaults: {
         enabled: enabledDefault,
         baseUrl: baseUrlDefault,
@@ -138,9 +144,9 @@ export class RepackCatalogService {
         auditIntervalHours: auditIntervalHoursDefault,
       },
       constraints: {
-        baseUrl: REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === REPACK_BASE_URL)?.constraints,
-        intervalHours: REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === REPACK_INTERVAL_HOURS)?.constraints,
-        auditIntervalHours: REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === REPACK_AUDIT_INTERVAL_HOURS)?.constraints,
+        baseUrl: baseUrlSpec.constraints,
+        intervalHours: intervalHoursSpec.constraints,
+        auditIntervalHours: auditIntervalHoursSpec.constraints,
       },
     };
   }
@@ -207,7 +213,7 @@ export class RepackCatalogService {
       const { blocked, stoppedAfterErrors, failed: failures } = result;
       this.status.phase = abortController.signal.aborted ? 'cancelled' : blocked ? 'blocked' : stoppedAfterErrors ? 'stopped' : failures ? 'partial' : 'done';
       if (fullArchive && !blocked && !abortController.signal.aborted && failures === 0) {
-        await this.dependencies.settingsRepository.set(REPACK_FULL_IMPORT_COMPLETE, 'true');
+        await this.settingsReader.write(settingSpec(REPACK_FULL_IMPORT_COMPLETE), true);
       }
       return { processed: this.status.processed, skipped: this.status.skipped, failed: failures, blocked, stoppedAfterErrors, cancelled: abortController.signal.aborted };
     } catch (error) {

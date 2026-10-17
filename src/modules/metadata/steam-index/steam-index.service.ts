@@ -2,6 +2,7 @@ import Fuse from 'fuse.js';
 import { logger } from '../../../logger/index.js';
 import { config } from '../../../config/index.js';
 import { settingsRepository } from '../../settings/settings.repository.js';
+import { createSettingsReader } from '../../settings/settings.reader.js';
 import { steamIndexRepository } from './steam-index.repository.js';
 import { steamAppListClient as defaultAppListClient, type SteamAppListClient } from './steam-index.http.js';
 import type { SettingSpec } from '../../settings/settings.types.js';
@@ -9,7 +10,7 @@ import type { SettingSpec } from '../../settings/settings.types.js';
 export const SETTING_LAST_REFRESH = 'steamIndexLastRefresh';
 export const STEAM_INDEX_LAST_REFRESH_SETTING_SPEC: SettingSpec = {
   key: SETTING_LAST_REFRESH,
-  kind: 'string',
+  kind: 'date',
   default: '',
   internal: true,
 };
@@ -44,6 +45,8 @@ const defaultSteamIndexDeps: SteamIndexDeps = {
   enabled: config.steamIndex.enabled,
   refreshIntervalHours: config.steamIndex.refreshIntervalHours,
 };
+
+const settingsReader = createSettingsReader(settingsRepository);
 
 export interface SteamIndexSearcher {
   searchByName(query: string): Promise<SteamIndexSearchResult[]>;
@@ -150,7 +153,7 @@ export class SteamIndexService implements SteamIndexSearcher {
         const inserted = await steamIndexRepository.replaceAll(entries);
         await this.rebuildFuse();
         const refreshedAt = this.deps.now().toISOString();
-        await settingsRepository.set(SETTING_LAST_REFRESH, refreshedAt);
+        await settingsReader.write(STEAM_INDEX_LAST_REFRESH_SETTING_SPEC, new Date(refreshedAt));
         logger.info({ rows: inserted, refreshedAt }, 'steam index refreshed');
         return { ok: true, rows: inserted, refreshedAt };
       } catch (err) {
@@ -163,12 +166,10 @@ export class SteamIndexService implements SteamIndexSearcher {
   }
 
   private async isStale(): Promise<boolean> {
-    const last = await settingsRepository.get(SETTING_LAST_REFRESH);
+    const last = await settingsReader.date(STEAM_INDEX_LAST_REFRESH_SETTING_SPEC);
     if (!last) return true;
-    const lastMs = Date.parse(last);
-    if (Number.isNaN(lastMs)) return true;
     const intervalMs = this.deps.refreshIntervalHours * 60 * 60 * 1000;
-    return Date.now() - lastMs >= intervalMs;
+    return Date.now() - last.getTime() >= intervalMs;
   }
 
   private async rebuildFuse(): Promise<void> {

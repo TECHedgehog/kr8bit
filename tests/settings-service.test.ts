@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { config } from '../src/config/index.js';
 import { settingsRepository } from '../src/modules/settings/settings.repository.js';
-import { settingsService, parseSettingsUpsert } from '../src/modules/settings/settings.service.js';
+import { settingsService, parseSettingsUpsert, validateSettingEntries } from '../src/modules/settings/settings.service.js';
 import { ValidationError } from '../src/shared/errors.js';
 
 vi.mock('../src/modules/settings/settings.repository.js', () => ({
@@ -63,6 +63,19 @@ describe('parseSettingsUpsert', () => {
 
   it('rejects library naming settings owned by its domain endpoint', () => {
     expect(() => parseSettingsUpsert({ libraryRenameCustomFormat: '{title}' })).toThrow(ValidationError);
+  });
+});
+
+describe('validateSettingEntries date specs', () => {
+  const dateSpec = { key: 'lastRefresh', kind: 'date', default: '' } as const;
+
+  it('accepts ISO-8601 dates', () => {
+    expect(() => validateSettingEntries([{ key: 'lastRefresh', value: '2026-10-17T12:30:00.000Z' }], [dateSpec])).not.toThrow();
+  });
+
+  it('rejects non-ISO and impossible dates', () => {
+    expect(() => validateSettingEntries([{ key: 'lastRefresh', value: 'October 17, 2026' }], [dateSpec])).toThrow(ValidationError);
+    expect(() => validateSettingEntries([{ key: 'lastRefresh', value: '2026-02-30' }], [dateSpec])).toThrow(ValidationError);
   });
 });
 

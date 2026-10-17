@@ -6,7 +6,6 @@ import { NotFoundError } from '../../shared/errors.js';
 import { MatchStatus, RE_MATCHABLE_STATUSES } from '../../shared/enums.js';
 import { encodeArray, decodeArray } from '../../shared/json.js';
 import { toDomain } from './library.mapper.js';
-import { LIBRARY_MANUALLY_CLEARED_SETTING } from './library.settings.js';
 import type {
   Game,
   GameCreateInput,
@@ -17,11 +16,14 @@ import type {
 } from './library.types.js';
 import { DEFAULT_SORT, MAX_PAGE_SIZE } from './library.types.js';
 import { settingsRepository } from '../settings/settings.repository.js';
+import { createSettingsReader } from '../settings/settings.reader.js';
+import { LIBRARY_MANUALLY_CLEARED_SETTING_SPEC } from './library.settings.js';
 import { dirname, sep } from 'node:path';
 import { normalizeForMatch, normalizeGameName } from '../../shared/normalize.js';
 
 const REFRESH_BATCH_SIZE = 500;
 const PENDING_BATCH_SIZE = 500;
+const settingsReader = createSettingsReader(settingsRepository);
 
 type GameOrderBy = Record<string, unknown>;
 
@@ -236,7 +238,7 @@ export function createLibraryRepository(scope?: string) {
         if (!existing) throw new NotFoundError('Game', id);
         await prisma.game.delete({ where: { id: existing.id } });
         if (!scope && (await prisma.game.count()) === 0) {
-          await settingsRepository.set(LIBRARY_MANUALLY_CLEARED_SETTING, 'true');
+          await settingsReader.write(LIBRARY_MANUALLY_CLEARED_SETTING_SPEC, true);
         }
         logger.info({ gameId: id }, 'game deleted from db');
       } catch (err) {

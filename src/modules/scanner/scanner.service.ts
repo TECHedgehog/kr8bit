@@ -2,7 +2,6 @@ import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
 import { MatchStatus, RE_MATCHABLE_STATUSES, ScanStatus } from '../../shared/enums.js';
 import { createLibraryRepository, libraryRepository } from '../library/library.repository.js';
-import { LIBRARY_MANUALLY_CLEARED_SETTING } from '../library/library.settings.js';
 import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
 import { scanLibraryRoot, fsReader, type DirectoryReader, type ScanCandidate } from './folder-scanner.js';
@@ -18,8 +17,12 @@ import { emitProgress } from './scanner.events.js';
 import { createScanTimeline, type ScanEntryOutcome } from './scan-timeline.js';
 import { AppError } from '../../shared/errors.js';
 import { settingsRepository } from '../settings/settings.repository.js';
+import { createSettingsReader } from '../settings/settings.reader.js';
+import { LIBRARY_MANUALLY_CLEARED_SETTING_SPEC } from '../library/library.settings.js';
 import { parseReleaseFilename } from '../../shared/parse-release-filename.js';
 import { dirname } from 'node:path';
+
+const settingsReader = createSettingsReader(settingsRepository);
 
 export interface ScannerDeps {
   providers: MetadataProvider[];
@@ -76,11 +79,11 @@ export class ScannerService {
       scannerRepository.findRunning(scope),
       scannerRepository.findLatest(scope),
       scopedLibrary.count(),
-      settingsRepository.get(LIBRARY_MANUALLY_CLEARED_SETTING),
+      settingsReader.boolean(LIBRARY_MANUALLY_CLEARED_SETTING_SPEC),
     ]);
     const emptyReason = gameCount > 0
       ? null
-      : manuallyCleared === 'true'
+      : manuallyCleared
         ? 'manually-cleared'
         : latest === null
           ? 'never-scanned'
@@ -109,7 +112,7 @@ export class ScannerService {
     let run: ScanRun;
     try {
       run = await scannerRepository.create({ rootPath: scope ?? this.deps.libraryRoot, scope });
-      await settingsRepository.set(LIBRARY_MANUALLY_CLEARED_SETTING, 'false');
+      await settingsReader.write(LIBRARY_MANUALLY_CLEARED_SETTING_SPEC, false);
     } catch (err) {
       this.runningScopes.delete(key);
       throw err;

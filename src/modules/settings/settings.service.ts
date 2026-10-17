@@ -1,6 +1,7 @@
 import { ValidationError } from '../../shared/errors.js';
 import { settingsRepository } from './settings.repository.js';
 import type { Setting, SettingSpec } from './settings.types.js';
+import { isIso8601Date } from './settings.reader.js';
 import { config } from '../../config/index.js';
 import { CUSTOM_FORMAT_SETTING_SPEC } from '../library/filename-format.js';
 import { LIBRARY_MANUALLY_CLEARED_SETTING_SPEC } from '../library/library.settings.js';
@@ -82,6 +83,9 @@ export function validateSettingEntries(
       if (!Number.isInteger(parsed) || (min !== undefined && parsed < min) || (max !== undefined && parsed > max)) {
         throw new ValidationError(`${key} must be an integer from ${min ?? '-∞'} to ${max ?? '∞'}`);
       }
+    }
+    if (spec.kind === 'date' && !isIso8601Date(value)) {
+      throw new ValidationError(`${key} must be an ISO-8601 date`);
     }
     if (spec.constraints?.protocol) {
       try {

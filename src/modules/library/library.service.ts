@@ -9,8 +9,9 @@ import type { Game, GameListFilter, GameListResult, GameUpdateInput, SortKey } f
 import type { GameRenamePreview, GameRenameResult } from './library.types.js';
 import { MAX_RENAME_IDS } from './library.types.js';
 import { filesystemRenameService } from './filesystem-rename.service.js';
-import { CUSTOM_FORMAT_SETTING, resolveFilenameFormat, validateFilenameFormat } from './filename-format.js';
+import { CUSTOM_FORMAT_SETTING_SPEC, resolveFilenameFormat, validateFilenameFormat } from './filename-format.js';
 import { settingsRepository } from '../settings/settings.repository.js';
+import { createSettingsReader } from '../settings/settings.reader.js';
 import { createRenameService } from './rename.service.js';
 import { createNamingService } from './naming.service.js';
 
@@ -90,12 +91,13 @@ export function sanitizeGamePatch(body: unknown): GameUpdateInput {
 
 export function createLibraryService(scope?: string) {
   const libraryRepository = createLibraryRepository(scope);
+  const settingsReader = createSettingsReader(settingsRepository);
   const namingService = createNamingService({ settingsRepository });
   const renameService = createRenameService({
     repository: libraryRepository,
     filesystem: filesystemRenameService,
     resolveFormat: async (override) => {
-      const saved = await settingsRepository.get(CUSTOM_FORMAT_SETTING);
+      const saved = await settingsReader.string(CUSTOM_FORMAT_SETTING_SPEC);
       return validateFilenameFormat(resolveFilenameFormat(override, saved));
     },
   });

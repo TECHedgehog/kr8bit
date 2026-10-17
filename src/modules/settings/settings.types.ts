@@ -3,7 +3,7 @@ export interface Setting {
   value: string;
 }
 
-type SettingKind = 'string' | 'boolean' | 'integer';
+export type SettingKind = 'string' | 'boolean' | 'integer' | 'date';
 
 interface SettingConstraints {
   min?: number;
