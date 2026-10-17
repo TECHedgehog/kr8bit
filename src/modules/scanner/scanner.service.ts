@@ -1,7 +1,8 @@
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
 import { MatchStatus, RE_MATCHABLE_STATUSES, ScanStatus } from '../../shared/enums.js';
-import { createLibraryRepository, LIBRARY_MANUALLY_CLEARED_SETTING, libraryRepository } from '../library/library.repository.js';
+import { createLibraryRepository, libraryRepository } from '../library/library.repository.js';
+import { LIBRARY_MANUALLY_CLEARED_SETTING } from '../library/library.settings.js';
 import { scannerRepository } from './scanner.repository.js';
 import type { ScanRun } from './scanner.types.js';
 import { scanLibraryRoot, fsReader, type DirectoryReader, type ScanCandidate } from './folder-scanner.js';

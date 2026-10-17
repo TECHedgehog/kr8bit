@@ -1,5 +1,5 @@
-import { ValidationError } from './errors.js';
-import type { SettingSpec } from '../modules/settings/settings.types.js';
+import { ValidationError } from '../../shared/errors.js';
+import type { SettingSpec } from '../settings/settings.types.js';
 
 export const DEFAULT_FILENAME_FORMAT = '{title} ({year}) [{edition}]';
 export const CUSTOM_FORMAT_SETTING = 'libraryRenameCustomFormat';

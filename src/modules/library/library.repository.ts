@@ -6,6 +6,7 @@ import { NotFoundError } from '../../shared/errors.js';
 import { MatchStatus, RE_MATCHABLE_STATUSES } from '../../shared/enums.js';
 import { encodeArray, decodeArray } from '../../shared/json.js';
 import { toDomain } from './library.mapper.js';
+import { LIBRARY_MANUALLY_CLEARED_SETTING } from './library.settings.js';
 import type {
   Game,
   GameCreateInput,
@@ -18,15 +19,6 @@ import { DEFAULT_SORT, MAX_PAGE_SIZE } from './library.types.js';
 import { settingsRepository } from '../settings/settings.repository.js';
 import { dirname, sep } from 'node:path';
 import { normalizeForMatch, normalizeGameName } from '../../shared/normalize.js';
-import type { SettingSpec } from '../settings/settings.types.js';
-
-export const LIBRARY_MANUALLY_CLEARED_SETTING = 'libraryManuallyCleared';
-export const LIBRARY_MANUALLY_CLEARED_SETTING_SPEC: SettingSpec = {
-  key: LIBRARY_MANUALLY_CLEARED_SETTING,
-  kind: 'boolean',
-  default: false,
-  internal: true,
-};
 
 const REFRESH_BATCH_SIZE = 500;
 const PENDING_BATCH_SIZE = 500;

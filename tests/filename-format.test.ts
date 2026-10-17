@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_FILENAME_FORMAT, FORMAT_TAGS, renderFilenameFormat, validateFilenameFormat } from '../src/shared/filename-format.js';
+import { DEFAULT_FILENAME_FORMAT, FORMAT_TAGS, renderFilenameFormat, validateFilenameFormat } from '../src/modules/library/filename-format.js';
 import type { Game } from '../src/modules/library/library.types.js';
 
 const game = {

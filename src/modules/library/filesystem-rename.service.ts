@@ -3,7 +3,7 @@ import { constants as fsConstants } from 'node:fs';
 import { dirname, extname, join, basename, normalize } from 'node:path';
 import { ConflictError, ValidationError } from '../../shared/errors.js';
 import type { Game } from './library.types.js';
-import { renderFilenameFormat } from '../../shared/filename-format.js';
+import { renderFilenameFormat } from './filename-format.js';
 
 const MAX_FILENAME_BYTES = 200;
 

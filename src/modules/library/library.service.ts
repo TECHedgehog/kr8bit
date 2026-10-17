@@ -9,9 +9,10 @@ import type { Game, GameListFilter, GameListResult, GameUpdateInput, SortKey } f
 import type { GameRenamePreview, GameRenameResult } from './library.types.js';
 import { MAX_RENAME_IDS } from './library.types.js';
 import { filesystemRenameService } from './filesystem-rename.service.js';
-import { CUSTOM_FORMAT_SETTING, resolveFilenameFormat, validateFilenameFormat } from '../../shared/filename-format.js';
+import { CUSTOM_FORMAT_SETTING, resolveFilenameFormat, validateFilenameFormat } from './filename-format.js';
 import { settingsRepository } from '../settings/settings.repository.js';
 import { createRenameService } from './rename.service.js';
+import { createNamingService } from './naming.service.js';
 
 export interface NormalizedListFilter {
   search?: string;
@@ -89,6 +90,7 @@ export function sanitizeGamePatch(body: unknown): GameUpdateInput {
 
 export function createLibraryService(scope?: string) {
   const libraryRepository = createLibraryRepository(scope);
+  const namingService = createNamingService({ settingsRepository });
   const renameService = createRenameService({
     repository: libraryRepository,
     filesystem: filesystemRenameService,
@@ -101,6 +103,7 @@ export function createLibraryService(scope?: string) {
   return {
     parseListFilter,
     sanitizeGamePatch,
+    ...namingService,
 
     async list(filter: GameListFilter): Promise<GameListResult> {
       return libraryRepository.list(filter);

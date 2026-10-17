@@ -3,13 +3,6 @@ import { createLibraryService, sanitizeGamePatch } from '../../modules/library/l
 import type { GameRenameInput } from '../../modules/library/library.types.js';
 import { MAX_RENAME_IDS } from '../../modules/library/library.types.js';
 import { ValidationError } from '../../shared/errors.js';
-import {
-  CUSTOM_FORMAT_SETTING,
-  DEFAULT_FILENAME_FORMAT,
-  FORMAT_TAGS,
-  validateFilenameFormat,
-} from '../../shared/filename-format.js';
-import { settingsRepository } from '../../modules/settings/settings.repository.js';
 
 function parseRenameInput(body: unknown): GameRenameInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ValidationError('rename payload must be an object');
@@ -27,25 +20,6 @@ function parseRenameFormat(body: unknown): string | undefined {
   const format = (body as Record<string, unknown>).format;
   if (format !== undefined && typeof format !== 'string') throw new ValidationError('format must be a string');
   return format as string | undefined;
-}
-
-function parseNamingFormat(body: unknown): string {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new ValidationError('naming payload must be an object');
-  }
-  const format = (body as Record<string, unknown>).format;
-  if (typeof format !== 'string') throw new ValidationError('format must be a string');
-  const trimmed = format.trim();
-  return trimmed ? validateFilenameFormat(trimmed) : '';
-}
-
-async function getNamingSettings() {
-  const customFormat = await settingsRepository.get(CUSTOM_FORMAT_SETTING);
-  return {
-    defaultFormat: DEFAULT_FILENAME_FORMAT,
-    tags: [...FORMAT_TAGS],
-    customFormat: customFormat?.trim() || null,
-  };
 }
 
 export const libraryController = {
@@ -89,12 +63,15 @@ export const libraryController = {
   },
 
   async naming(_req: FastifyRequest, _reply: FastifyReply) {
-    return getNamingSettings();
+    return createLibraryService(_req.demoSessionScope).namingSettings();
   },
 
   async updateNaming(req: FastifyRequest, _reply: FastifyReply) {
-    const format = parseNamingFormat(req.body);
-    await settingsRepository.set(CUSTOM_FORMAT_SETTING, format);
-    return getNamingSettings();
+    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      throw new ValidationError('naming payload must be an object');
+    }
+    const format = (req.body as Record<string, unknown>).format;
+    if (typeof format !== 'string') throw new ValidationError('format must be a string');
+    return createLibraryService(req.demoSessionScope).updateNamingFormat(format);
   },
 };

@@ -2,8 +2,8 @@ import { ValidationError } from '../../shared/errors.js';
 import { settingsRepository } from './settings.repository.js';
 import type { Setting, SettingSpec } from './settings.types.js';
 import { config } from '../../config/index.js';
-import { CUSTOM_FORMAT_SETTING_SPEC } from '../../shared/filename-format.js';
-import { LIBRARY_MANUALLY_CLEARED_SETTING_SPEC } from '../library/library.repository.js';
+import { CUSTOM_FORMAT_SETTING_SPEC } from '../library/filename-format.js';
+import { LIBRARY_MANUALLY_CLEARED_SETTING_SPEC } from '../library/library.settings.js';
 import {
   SETTING_LAST_REFRESH,
   STEAM_INDEX_LAST_REFRESH_SETTING_SPEC,
