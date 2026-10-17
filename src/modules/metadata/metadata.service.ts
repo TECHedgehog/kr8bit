@@ -35,7 +35,7 @@ export interface MetadataDeps {
   steamGridDb?: Pick<SteamGridDbHttpClient, 'getGridsBySteamAppId' | 'getHeroesBySteamAppId' | 'getLogosBySteamAppId'> | null;
 }
 
-export const defaultMetadataDeps: MetadataDeps = {
+const defaultMetadataDeps: MetadataDeps = {
   providers: defaultRegistry,
   artwork: artworkService,
   now: () => new Date(),

@@ -28,8 +28,8 @@ export const LIBRARY_MANUALLY_CLEARED_SETTING_SPEC: SettingSpec = {
   internal: true,
 };
 
-export const REFRESH_BATCH_SIZE = 500;
-export const PENDING_BATCH_SIZE = 500;
+const REFRESH_BATCH_SIZE = 500;
+const PENDING_BATCH_SIZE = 500;
 
 type GameOrderBy = Record<string, unknown>;
 

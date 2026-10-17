@@ -38,7 +38,7 @@ export interface SteamIndexDeps {
   refreshIntervalHours: number;
 }
 
-export const defaultSteamIndexDeps: SteamIndexDeps = {
+const defaultSteamIndexDeps: SteamIndexDeps = {
   appListClient: defaultAppListClient,
   now: () => new Date(),
   enabled: config.steamIndex.enabled,

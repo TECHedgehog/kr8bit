@@ -3,7 +3,7 @@ import type { ScanProgressEvent } from './scan-timeline.js';
 
 export type { ScanProgressEvent } from './scan-timeline.js';
 
-export const scannerEvents = new EventEmitter();
+const scannerEvents = new EventEmitter();
 // One listener per SSE client; client count is unbounded by design.
 // 0 disables the MaxListenersExceeded warning.
 scannerEvents.setMaxListeners(0);

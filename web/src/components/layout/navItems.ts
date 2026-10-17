@@ -6,7 +6,7 @@ import IconLibrary from '@tabler/icons-react/dist/esm/icons/IconLibrary.mjs';
 import IconSettings from '@tabler/icons-react/dist/esm/icons/IconSettings.mjs';
 import IconWorld from '@tabler/icons-react/dist/esm/icons/IconWorld.mjs';
 
-export type TablerIcon = ComponentType<IconProps>;
+type TablerIcon = ComponentType<IconProps>;
 
 export interface NavItem {
   to: string;

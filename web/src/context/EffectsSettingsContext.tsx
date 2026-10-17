@@ -12,12 +12,12 @@ import { usePersistedSettings } from '../hooks/usePersistedSettings';
 // ── Types ───────────────────────────────────────────────────────────
 
 /** id of the active background effect (catalog entry id), null = off */
-export type EffectId = string | null;
+type EffectId = string | null;
 
 /** Per-effect tweaked params, keyed by control key (see *.settings.ts). */
 export type EffectParamsMap = Record<string, EffectParams>;
 
-export interface EffectsSettings {
+interface EffectsSettings {
   background: EffectId;
   params: EffectParamsMap;
 }

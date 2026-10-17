@@ -3,7 +3,7 @@ import type { SettingSpec } from '../modules/settings/settings.types.js';
 
 export const DEFAULT_FILENAME_FORMAT = '{title} ({year}) [{edition}]';
 export const CUSTOM_FORMAT_SETTING = 'libraryRenameCustomFormat';
-export const MAX_FILENAME_FORMAT_LENGTH = 1000;
+const MAX_FILENAME_FORMAT_LENGTH = 1000;
 export const FORMAT_TAGS = ['title', 'year', 'edition', 'platform', 'version', 'dlcs', 'group', 'original'] as const;
 
 export const CUSTOM_FORMAT_SETTING_SPEC: SettingSpec = {

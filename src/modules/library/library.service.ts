@@ -134,5 +134,3 @@ export function createLibraryService(scope?: string) {
     },
   };
 }
-
-export const libraryService = createLibraryService();

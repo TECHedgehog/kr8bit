@@ -1,5 +1,4 @@
-export const SCAN_PROGRESS_STAGES = ['scan', 'metadata', 'artwork', 'done'] as const;
-export type ScanProgressStage = (typeof SCAN_PROGRESS_STAGES)[number];
+export type ScanProgressStage = 'scan' | 'metadata' | 'artwork' | 'done';
 
 export type ScanEntryOutcome = 'added' | 'updated' | 'skipped';
 

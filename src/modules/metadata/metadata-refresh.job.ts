@@ -1,11 +1,9 @@
 import { config } from '../../config/index.js';
-import { BatchJob, type BatchJobState } from '../../shared/batch-job.js';
+import { BatchJob } from '../../shared/batch-job.js';
 import { libraryRepository } from '../library/library.repository.js';
 import type { Game } from '../library/library.types.js';
 import { metadataService } from './metadata.service.js';
 import { resetGate } from '../database/reset-gate.js';
-
-export type RefreshJobState = BatchJobState;
 
 export interface MetadataRefreshJobDeps {
   delayMs: number;
@@ -13,7 +11,7 @@ export interface MetadataRefreshJobDeps {
   sleep: (ms: number) => Promise<void>;
 }
 
-export const defaultMetadataRefreshJobDeps: MetadataRefreshJobDeps = {
+const defaultMetadataRefreshJobDeps: MetadataRefreshJobDeps = {
   delayMs: config.metadata.refreshDelayMs,
   concurrency: config.metadata.refreshConcurrency,
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

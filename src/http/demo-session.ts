@@ -4,7 +4,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 const COOKIE_NAME = 'kr8bit_demo_session';
 const SESSION_PATTERN = /^[0-9a-f-]{36}$/i;
 
-export const DEMO_SESSION_ROOT_PREFIX = '/demo/sessions/';
+const DEMO_SESSION_ROOT_PREFIX = '/demo/sessions/';
 export const LEGACY_DEMO_SESSION_ROOT = `${DEMO_SESSION_ROOT_PREFIX}legacy/`;
 export const LEGACY_DEMO_LIBRARY_PREFIX = '/demo/library/';
 

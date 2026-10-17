@@ -11,7 +11,7 @@ const ARTICLE_PATTERN = /<article\b[^>]*>[\s\S]*?<\/article>/gi;
 const TITLE_PATTERN = /<h[1-3]\b[^>]*class=["'][^"']*entry-title[^"']*["'][^>]*>([\s\S]*?)<\/h[1-3]>/i;
 const ANCHOR_PATTERN = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
 
-export function visibleText(html: string): string {
+function visibleText(html: string): string {
   return decodeHtmlEntities(html
     .replace(/<!--([\s\S]*?)-->/g, ' ')
     .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')

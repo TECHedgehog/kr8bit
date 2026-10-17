@@ -1,4 +1,4 @@
-export interface SteamGridDbAuthor {
+interface SteamGridDbAuthor {
   name: string;
   steam64: string;
   avatar: string;

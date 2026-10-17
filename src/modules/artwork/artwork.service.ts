@@ -20,7 +20,7 @@ export interface ArtworkClient {
   download(url: string): Promise<Uint8Array>;
 }
 
-export const defaultArtworkClient: ArtworkClient = {
+const defaultArtworkClient: ArtworkClient = {
   async download(url) {
     return requestBytes(url, {
       label: 'artwork',
@@ -58,7 +58,7 @@ export interface ArtworkDeps {
   cacheTtlMs: number;
 }
 
-export const defaultArtworkDeps: ArtworkDeps = {
+const defaultArtworkDeps: ArtworkDeps = {
   now: () => new Date(),
   cacheTtlMs: config.artwork.cacheTtlMs,
 };

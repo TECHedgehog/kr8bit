@@ -17,7 +17,7 @@ export interface ScanOptions {
   skipDirs?: string[];
 }
 
-export const DEFAULT_SCAN_OPTIONS: Required<ScanOptions> = {
+const DEFAULT_SCAN_OPTIONS: Required<ScanOptions> = {
   maxDepth: 1,
   extensions: ['.7z'],
   installerNames: ['setup.exe'],

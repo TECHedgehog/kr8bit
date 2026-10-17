@@ -1,8 +1,8 @@
-export type EntryType = 'ARCHIVE' | 'DIRECTORY';
+type EntryType = 'ARCHIVE' | 'DIRECTORY';
 
-export type ScanStatus = 'RUNNING' | 'DONE' | 'FAILED' | 'CANCELLED';
+type ScanStatus = 'RUNNING' | 'DONE' | 'FAILED' | 'CANCELLED';
 
-export type ScanPhase = 'start' | 'candidate' | 'matched' | 'failed' | 'done';
+type ScanPhase = 'start' | 'candidate' | 'matched' | 'failed' | 'done';
 
 export type SortKey =
   | 'title-asc'
@@ -12,7 +12,7 @@ export type SortKey =
   | 'largest'
   | 'smallest';
 
-export interface SteamDeckCompatItem {
+interface SteamDeckCompatItem {
   displayType: number;
   locToken: string;
 }
@@ -83,12 +83,12 @@ export interface RepackSettings {
 
 export type RepackCatalogSettings = RepackSettings;
 
-export interface RepackDownloadOption {
+interface RepackDownloadOption {
   label: string;
   url: string;
 }
 
-export interface RepackPostSummary {
+interface RepackPostSummary {
   id: string;
   title: string;
   sourceUrl: string;
@@ -222,21 +222,6 @@ export interface ApiErrorEnvelope {
   message: string;
 }
 
-export interface JobState {
-  running: boolean;
-  processed: number;
-  failed: number;
-}
-
-export interface JobStatusResponse {
-  running: boolean;
-  state: JobState;
-}
-
-export interface JobStartResponse {
-  started: boolean;
-}
-
 export interface Todo {
   id: string;
   title: string;
@@ -248,8 +233,4 @@ export interface Todo {
   color: 'indigo' | 'violet' | 'teal' | 'amber' | 'rose' | null;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface TodoListResult {
-  items: Todo[];
 }

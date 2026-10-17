@@ -12,7 +12,7 @@ export interface SteamDeckCompatItem {
   locToken: string;
 }
 
-export interface SteamDeckCompatMetadata {
+interface SteamDeckCompatMetadata {
   category: number;
   items: SteamDeckCompatItem[];
 }

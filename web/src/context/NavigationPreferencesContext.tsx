@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import { usePersistedSettings } from '../hooks/usePersistedSettings';
 
-export type LibraryPanel = 'advanced' | 'settings';
+type LibraryPanel = 'advanced' | 'settings';
 
 interface NavigationPreferences {
   rememberSettingsCategory: boolean;

@@ -45,13 +45,13 @@ export interface SteamAppDetailsData {
   movies?: SteamMovie[];
 }
 
-export interface SteamScreenshot {
+interface SteamScreenshot {
   id: number;
   path_thumbnail: string;
   path_full: string;
 }
 
-export interface SteamMovie {
+interface SteamMovie {
   id: number;
   name: string;
   thumbnail: string;
@@ -69,7 +69,7 @@ export interface SteamAppDetailsResponse {
   };
 }
 
-export interface SteamDeckCompatibilityItem {
+interface SteamDeckCompatibilityItem {
   display_type: number;
   loc_token: string;
 }

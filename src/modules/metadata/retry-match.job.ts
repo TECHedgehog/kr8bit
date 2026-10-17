@@ -1,6 +1,6 @@
 import { config } from '../../config/index.js';
 import { logger } from '../../logger/index.js';
-import { BatchJob, type BatchJobState } from '../../shared/batch-job.js';
+import { BatchJob } from '../../shared/batch-job.js';
 import { libraryRepository } from '../library/library.repository.js';
 import type { Game } from '../library/library.types.js';
 import { providerRegistry } from './provider-registry.js';
@@ -8,8 +8,6 @@ import { metadataRefreshJob } from './metadata-refresh.job.js';
 import { metadataService } from './metadata.service.js';
 import { matchGame, eagerRefreshIfMatched } from '../scanner/match-game.js';
 import { resetGate } from '../database/reset-gate.js';
-
-export type RetryMatchJobState = BatchJobState;
 
 export interface RetryMatchJobDeps {
   now: () => Date;
@@ -19,7 +17,7 @@ export interface RetryMatchJobDeps {
   metadataRefresh: { refresh: (gameId: string) => Promise<void> };
 }
 
-export const defaultRetryMatchJobDeps: RetryMatchJobDeps = {
+const defaultRetryMatchJobDeps: RetryMatchJobDeps = {
   now: () => new Date(),
   delayMs: config.metadata.retryDelayMs,
   concurrency: config.metadata.retryConcurrency,

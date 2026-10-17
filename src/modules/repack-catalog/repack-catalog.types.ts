@@ -1,4 +1,4 @@
-export type RepackPostKind = 'GAME' | 'UPDATE' | 'DLC';
+type RepackPostKind = 'GAME' | 'UPDATE' | 'DLC';
 export type RepackMatchStatus = 'PENDING' | 'MATCHED' | 'REVIEW' | 'REJECTED';
 
 export interface RepackDownloadOption {

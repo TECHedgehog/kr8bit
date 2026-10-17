@@ -1,16 +1,3 @@
-export interface Todo {
-  id: string;
-  title: string;
-  completed: boolean;
-  collapsed: boolean;
-  sortOrder: number;
-  parentId: string | null;
-  priority: TodoPriority;
-  color: TodoColor;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface TodoCreateInput {
   title: string;
   parentId?: string;

@@ -3,7 +3,7 @@ import { usePersistedSettings } from '../hooks/usePersistedSettings';
 
 export type MotionPreference = 'system' | 'reduced' | 'full';
 
-export interface PerformanceSettings {
+interface PerformanceSettings {
   motion: MotionPreference;
   backgroundEffects: boolean;
   gridAnimations: boolean;

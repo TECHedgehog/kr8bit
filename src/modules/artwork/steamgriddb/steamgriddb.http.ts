@@ -65,7 +65,7 @@ export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
   }
 }
 
-export function createSteamGridDbHttpClient(
+function createSteamGridDbHttpClient(
   apiKey: string,
   apiBase: string,
   timeoutMs: number,

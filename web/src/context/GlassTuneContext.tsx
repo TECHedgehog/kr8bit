@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 import type { GlassOptics } from '@samasante/liquid-glass';
 import { loadPersisted } from '../hooks/usePersistedSettings';
 
-export interface GlassPillState {
+interface GlassPillState {
   effectiveOptics: Partial<GlassOptics>;
 }
 

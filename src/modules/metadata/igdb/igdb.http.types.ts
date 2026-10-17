@@ -5,33 +5,33 @@ export interface IgdbTokenResponse {
 }
 
 
-export interface IgdbImage {
+interface IgdbImage {
   id: number;
   url: string;
   image_id?: string;
 }
 
-export interface IgdbAlternativeName {
+interface IgdbAlternativeName {
   id: number;
   name: string;
 }
 
-export interface IgdbGenre {
+interface IgdbGenre {
   id: number;
   name: string;
 }
 
-export interface IgdbTheme {
+interface IgdbTheme {
   id: number;
   name: string;
 }
 
-export interface IgdbCompanyRef {
+interface IgdbCompanyRef {
   id: number;
   name: string;
 }
 
-export interface IgdbInvolvedCompany {
+interface IgdbInvolvedCompany {
   id: number;
   company: IgdbCompanyRef;
   developer: boolean;
