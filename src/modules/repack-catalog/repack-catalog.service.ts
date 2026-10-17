@@ -10,6 +10,7 @@ import { settingsRepository } from '../settings/settings.repository.js';
 import { validateSettingEntries } from '../settings/settings.service.js';
 import type { GameMetadata, MetadataProvider, SearchResult } from '../../shared/types.js';
 import { repackCatalogRepository } from './repack-catalog.repository.js';
+import { regroupRepackGames } from './repack-catalog.regroup.js';
 import {
   REPACK_AUDIT_ENABLED,
   REPACK_AUDIT_INTERVAL_HOURS,
@@ -90,7 +91,7 @@ function snapshotFrom(metadata: GameMetadata): RepackMetadataSnapshot {
 }
 
 async function regroupCatalog(): Promise<void> {
-  await repackCatalogRepository.regroupGames((title) => ({
+  await regroupRepackGames((title) => ({
     gameTitle: fitGirlGameTitle(title),
     normalizedTitle: normalizeFitGirlGameTitle(title),
   }));

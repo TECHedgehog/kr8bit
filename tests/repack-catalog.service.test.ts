@@ -11,12 +11,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../src/modules/settings/settings.repository.js', () => ({ settingsRepository: { get: mocks.settingsGet, set: mocks.settingsSet } }));
 vi.mock('../src/modules/repack-catalog/repack-catalog.repository.js', () => ({
   repackCatalogRepository: {
-     knownUrls: mocks.knownUrls, upsertPost: mocks.upsertPost, regroupGames: mocks.regroupGames,
-     saveCandidates: mocks.saveCandidates, acceptMatch: mocks.acceptMatch,
-      findRematchableGames: mocks.findRematchableGames, listGames: mocks.listGames,
+    knownUrls: mocks.knownUrls, upsertPost: mocks.upsertPost,
+    saveCandidates: mocks.saveCandidates, acceptMatch: mocks.acceptMatch,
+    findRematchableGames: mocks.findRematchableGames, listGames: mocks.listGames,
     getGame: mocks.getGame, listReview: mocks.listReview,
   },
 }));
+vi.mock('../src/modules/repack-catalog/repack-catalog.regroup.js', () => ({ regroupRepackGames: mocks.regroupGames }));
 vi.mock('../src/modules/repack-catalog/sources/source-registry.js', () => ({
   repackSourceRegistry: { register: mocks.registryRegister, create: mocks.createSource },
 }));

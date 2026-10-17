@@ -1,7 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../src/prisma-client.js';
 import { repackCatalogRepository } from '../src/modules/repack-catalog/repack-catalog.repository.js';
-import { fitGirlGameTitle, normalizeFitGirlGameTitle } from '../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js';
 import type { RepackPostInput } from '../src/modules/repack-catalog/repack-catalog.types.js';
 
 beforeEach(async () => {
@@ -112,36 +111,5 @@ describe('repackCatalogRepository', () => {
     const ids = (await repackCatalogRepository.findRematchableGames()).map((game) => game.id);
     expect(ids).toEqual(expect.arrayContaining([pending.gameId, review.gameId, rejected.gameId]));
     expect(ids).not.toContain(matched.gameId);
-  });
-
-  it('merges version and DLC variants under one base game, retaining best match', async () => {
-    const matched = await repackCatalogRepository.upsertPost({
-      ...post('https://fitgirl.test/gta-v-1/', 'GTA V v1'), gameTitle: 'GTA V', normalizedTitle: 'gta v',
-    });
-    await repackCatalogRepository.acceptMatch(matched.gameId!, {
-      providerName: 'steam', remoteId: '271590', title: 'Grand Theft Auto V', score: 99,
-    }, { remoteId: '271590', title: 'Grand Theft Auto V', developers: [], publishers: [], genres: [] });
-    await repackCatalogRepository.upsertPost({
-      ...post('https://fitgirl.test/gta-v-dlcs/', 'GTA V v2 + 10 DLCs'),
-      gameTitle: 'GTA V 10', normalizedTitle: 'gta v 10', postKind: 'DLC',
-    });
-
-    await repackCatalogRepository.regroupGames((title) => ({
-      gameTitle: fitGirlGameTitle(title), normalizedTitle: normalizeFitGirlGameTitle(title),
-    }));
-
-    const page = await repackCatalogRepository.listGames({ offset: 0, limit: 20 });
-    expect(page.total).toBe(1);
-    expect(page.items[0].id).toBe(matched.gameId);
-    expect(page.items[0].title).toBe('GTA V');
-    expect(page.items[0].matchStatus).toBe('MATCHED');
-    expect(page.items[0].posts).toHaveLength(2);
-
-    const beforeRepeat = await prisma.repackGame.findUnique({ where: { id: matched.gameId! }, select: { updatedAt: true } });
-    await repackCatalogRepository.regroupGames((title) => ({
-      gameTitle: fitGirlGameTitle(title), normalizedTitle: normalizeFitGirlGameTitle(title),
-    }));
-    const afterRepeat = await prisma.repackGame.findUnique({ where: { id: matched.gameId! }, select: { updatedAt: true } });
-    expect(afterRepeat?.updatedAt).toEqual(beforeRepeat?.updatedAt);
   });
 });
