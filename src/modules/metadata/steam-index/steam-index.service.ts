@@ -5,15 +5,15 @@ import { settingsRepository } from '../../settings/settings.repository.js';
 import { createSettingsReader } from '../../settings/settings.reader.js';
 import { steamIndexRepository } from './steam-index.repository.js';
 import { steamAppListClient as defaultAppListClient, type SteamAppListClient } from './steam-index.http.js';
-import type { SettingSpec } from '../../settings/settings.types.js';
+import type { DateSettingSpec } from '../../settings/settings.types.js';
 
 export const SETTING_LAST_REFRESH = 'steamIndexLastRefresh';
-export const STEAM_INDEX_LAST_REFRESH_SETTING_SPEC: SettingSpec = {
+export const STEAM_INDEX_LAST_REFRESH_SETTING_SPEC = {
   key: SETTING_LAST_REFRESH,
   kind: 'date',
   default: '',
   internal: true,
-};
+} satisfies DateSettingSpec;
 const FUSE_THRESHOLD = 0.5;
 const FUSE_KEYS = ['name'];
 const SEARCH_LIMIT = 20;

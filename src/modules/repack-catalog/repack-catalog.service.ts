@@ -13,13 +13,17 @@ import type { repackCatalogRepository } from './repack-catalog.repository.js';
 import type { regroupRepackGames } from './repack-catalog.regroup.js';
 import {
   REPACK_AUDIT_ENABLED,
+  REPACK_AUDIT_ENABLED_SPEC,
   REPACK_AUDIT_INTERVAL_HOURS,
+  REPACK_AUDIT_INTERVAL_HOURS_SPEC,
   REPACK_BASE_URL,
-  REPACK_CATALOG_SETTING_SPECS,
+  REPACK_BASE_URL_SPEC,
   REPACK_CATALOG_USER_SETTING_SPECS,
   REPACK_ENABLED,
-  REPACK_FULL_IMPORT_COMPLETE,
+  REPACK_ENABLED_SPEC,
+  REPACK_FULL_IMPORT_COMPLETE_SPEC,
   REPACK_INTERVAL_HOURS,
+  REPACK_INTERVAL_HOURS_SPEC,
 } from './repack-catalog.settings.js';
 import { fitGirlGameTitle, normalizeFitGirlGameTitle } from './sources/fitgirl/fitgirl.source.js';
 import { SourceBlockedError } from './source-http-client.js';
@@ -42,12 +46,6 @@ export interface RepackCatalogServiceDependencies {
   sourceFactory: (baseUrl: string) => RepackSource;
   matchThresholds: { acceptThreshold: number; flagThreshold: number };
   regroupGames: typeof regroupRepackGames;
-}
-
-function settingSpec(key: string) {
-  const spec = REPACK_CATALOG_SETTING_SPECS.find((candidate) => candidate.key === key);
-  if (!spec) throw new Error(`missing repack catalog setting spec: ${key}`);
-  return spec;
 }
 
 function candidateFrom(result: SearchResult): RepackMatchCandidate {
@@ -115,38 +113,27 @@ export class RepackCatalogService {
     this.settingsReader = createSettingsReader(dependencies.settingsRepository);
   }
 
-  async enabled(): Promise<boolean> { return this.settingsReader.boolean(settingSpec(REPACK_ENABLED)); }
+  async enabled(): Promise<boolean> { return this.settingsReader.boolean(REPACK_ENABLED_SPEC); }
 
   async settings() {
-    const enabledSpec = settingSpec(REPACK_ENABLED);
-    const baseUrlSpec = settingSpec(REPACK_BASE_URL);
-    const intervalHoursSpec = settingSpec(REPACK_INTERVAL_HOURS);
-    const auditEnabledSpec = settingSpec(REPACK_AUDIT_ENABLED);
-    const auditIntervalHoursSpec = settingSpec(REPACK_AUDIT_INTERVAL_HOURS);
-    const fullImportSpec = settingSpec(REPACK_FULL_IMPORT_COMPLETE);
-    const enabledDefault = enabledSpec.default as boolean;
-    const baseUrlDefault = baseUrlSpec.default as string;
-    const intervalHoursDefault = intervalHoursSpec.default as number;
-    const auditEnabledDefault = auditEnabledSpec.default as boolean;
-    const auditIntervalHoursDefault = auditIntervalHoursSpec.default as number;
     return {
-      enabled: await this.settingsReader.boolean(enabledSpec),
-      baseUrl: await this.settingsReader.string(baseUrlSpec),
-      intervalHours: await this.settingsReader.integer(intervalHoursSpec),
-      auditEnabled: await this.settingsReader.boolean(auditEnabledSpec),
-      auditIntervalHours: await this.settingsReader.integer(auditIntervalHoursSpec),
-      fullImportComplete: await this.settingsReader.boolean(fullImportSpec),
+      enabled: await this.settingsReader.boolean(REPACK_ENABLED_SPEC),
+      baseUrl: await this.settingsReader.string(REPACK_BASE_URL_SPEC),
+      intervalHours: await this.settingsReader.integer(REPACK_INTERVAL_HOURS_SPEC),
+      auditEnabled: await this.settingsReader.boolean(REPACK_AUDIT_ENABLED_SPEC),
+      auditIntervalHours: await this.settingsReader.integer(REPACK_AUDIT_INTERVAL_HOURS_SPEC),
+      fullImportComplete: await this.settingsReader.boolean(REPACK_FULL_IMPORT_COMPLETE_SPEC),
       defaults: {
-        enabled: enabledDefault,
-        baseUrl: baseUrlDefault,
-        intervalHours: intervalHoursDefault,
-        auditEnabled: auditEnabledDefault,
-        auditIntervalHours: auditIntervalHoursDefault,
+        enabled: REPACK_ENABLED_SPEC.default,
+        baseUrl: REPACK_BASE_URL_SPEC.default,
+        intervalHours: REPACK_INTERVAL_HOURS_SPEC.default,
+        auditEnabled: REPACK_AUDIT_ENABLED_SPEC.default,
+        auditIntervalHours: REPACK_AUDIT_INTERVAL_HOURS_SPEC.default,
       },
       constraints: {
-        baseUrl: baseUrlSpec.constraints,
-        intervalHours: intervalHoursSpec.constraints,
-        auditIntervalHours: auditIntervalHoursSpec.constraints,
+        baseUrl: REPACK_BASE_URL_SPEC.constraints,
+        intervalHours: REPACK_INTERVAL_HOURS_SPEC.constraints,
+        auditIntervalHours: REPACK_AUDIT_INTERVAL_HOURS_SPEC.constraints,
       },
     };
   }
@@ -213,7 +200,7 @@ export class RepackCatalogService {
       const { blocked, stoppedAfterErrors, failed: failures } = result;
       this.status.phase = abortController.signal.aborted ? 'cancelled' : blocked ? 'blocked' : stoppedAfterErrors ? 'stopped' : failures ? 'partial' : 'done';
       if (fullArchive && !blocked && !abortController.signal.aborted && failures === 0) {
-        await this.settingsReader.write(settingSpec(REPACK_FULL_IMPORT_COMPLETE), true);
+        await this.settingsReader.write(REPACK_FULL_IMPORT_COMPLETE_SPEC, true);
       }
       return { processed: this.status.processed, skipped: this.status.skipped, failed: failures, blocked, stoppedAfterErrors, cancelled: abortController.signal.aborted };
     } catch (error) {

@@ -3,7 +3,7 @@ export interface Setting {
   value: string;
 }
 
-export type SettingKind = 'string' | 'boolean' | 'integer' | 'date';
+type SettingKind = 'string' | 'boolean' | 'integer' | 'date';
 
 interface SettingConstraints {
   min?: number;
@@ -21,3 +21,8 @@ export interface SettingSpec {
   prefix?: string;
   validate?: (value: string) => void;
 }
+
+export type StringSettingSpec = SettingSpec & { kind: 'string'; default: string };
+export type BooleanSettingSpec = SettingSpec & { kind: 'boolean'; default: boolean };
+export type IntegerSettingSpec = SettingSpec & { kind: 'integer'; default: number };
+export type DateSettingSpec = SettingSpec & { kind: 'date'; default: string };

@@ -1,16 +1,25 @@
-import type { SettingKind, SettingSpec } from './settings.types.js';
+import type {
+  BooleanSettingSpec,
+  DateSettingSpec,
+  IntegerSettingSpec,
+  SettingSpec,
+  StringSettingSpec,
+} from './settings.types.js';
 
 interface SettingsRepository {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<unknown>;
 }
-type SettingValue<Kind extends SettingKind> = Kind extends 'boolean'
-  ? boolean
-  : Kind extends 'integer'
-    ? number
-    : Kind extends 'date'
-      ? Date
-      : string;
+export interface SettingsReader {
+  string(spec: StringSettingSpec): Promise<string>;
+  boolean(spec: BooleanSettingSpec): Promise<boolean>;
+  integer(spec: IntegerSettingSpec): Promise<number>;
+  date(spec: DateSettingSpec): Promise<Date | null>;
+  write(spec: StringSettingSpec, value: string): Promise<unknown>;
+  write(spec: BooleanSettingSpec, value: boolean): Promise<unknown>;
+  write(spec: IntegerSettingSpec, value: number): Promise<unknown>;
+  write(spec: DateSettingSpec, value: Date): Promise<unknown>;
+}
 
 const ISO_8601_DATE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
@@ -47,46 +56,46 @@ function hasValidIntegerConstraints(spec: SettingSpec, value: number): boolean {
     && (max === undefined || value <= max);
 }
 
-export function createSettingsReader(repository: SettingsRepository) {
+export function createSettingsReader(repository: SettingsRepository): SettingsReader {
   async function storedValue(spec: SettingSpec): Promise<string | null> {
     return repository.get(spec.key);
   }
 
+  async function write(spec: SettingSpec, value: string | boolean | number | Date): Promise<unknown> {
+    const serialized = value instanceof Date ? value.toISOString() : String(value);
+    return repository.set(spec.key, serialized);
+  }
+
   return {
-    async string(spec: SettingSpec): Promise<string> {
+    async string(spec: StringSettingSpec): Promise<string> {
       const value = await storedValue(spec);
-      return spec.kind === 'string' && value !== null && hasValidStringConstraints(spec, value)
+      return value !== null && hasValidStringConstraints(spec, value)
         ? value
-        : spec.default as string;
+        : spec.default;
     },
 
-    async boolean(spec: SettingSpec): Promise<boolean> {
+    async boolean(spec: BooleanSettingSpec): Promise<boolean> {
       const value = await storedValue(spec);
-      if (spec.kind !== 'boolean') return spec.default as boolean;
       if (value === 'true') return true;
       if (value === 'false') return false;
-      return spec.default as boolean;
+      return spec.default;
     },
 
-    async integer(spec: SettingSpec): Promise<number> {
+    async integer(spec: IntegerSettingSpec): Promise<number> {
       const value = await storedValue(spec);
-      if (spec.kind !== 'integer' || value === null || !/^-?\d+$/.test(value)) {
-        return spec.default as number;
+      if (value === null || !/^-?\d+$/.test(value)) {
+        return spec.default;
       }
       const parsed = Number(value);
-      return hasValidIntegerConstraints(spec, parsed) ? parsed : spec.default as number;
+      return hasValidIntegerConstraints(spec, parsed) ? parsed : spec.default;
     },
 
-    async date(spec: SettingSpec): Promise<Date | null> {
+    async date(spec: DateSettingSpec): Promise<Date | null> {
       const value = await storedValue(spec);
-      if (spec.kind === 'date' && value !== null && isIso8601Date(value)) return new Date(value);
-      const fallback = spec.kind === 'date' && typeof spec.default === 'string' ? spec.default : '';
-      return isIso8601Date(fallback) ? new Date(fallback) : null;
+      if (value !== null && isIso8601Date(value)) return new Date(value);
+      return isIso8601Date(spec.default) ? new Date(spec.default) : null;
     },
 
-    async write<Kind extends SettingKind>(spec: SettingSpec & { kind: Kind }, value: SettingValue<Kind>): Promise<unknown> {
-      const serialized = value instanceof Date ? value.toISOString() : String(value);
-      return repository.set(spec.key, serialized);
-    },
+    write,
   };
 }

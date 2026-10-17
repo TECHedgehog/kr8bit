@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createSettingsReader } from '../src/modules/settings/settings.reader.js';
-import type { SettingSpec } from '../src/modules/settings/settings.types.js';
+import type {
+  BooleanSettingSpec,
+  DateSettingSpec,
+  IntegerSettingSpec,
+  StringSettingSpec,
+} from '../src/modules/settings/settings.types.js';
 
 function setup(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -14,10 +19,10 @@ function setup(initial: Record<string, string> = {}) {
   return { reader: createSettingsReader(repository), repository, values };
 }
 
-const stringSpec: SettingSpec = { key: 'text', kind: 'string', default: 'fallback', constraints: { maxLength: 10 } };
-const booleanSpec: SettingSpec = { key: 'enabled', kind: 'boolean', default: false };
-const integerSpec: SettingSpec = { key: 'interval', kind: 'integer', default: 24, constraints: { min: 1, max: 48 } };
-const dateSpec: SettingSpec = { key: 'refreshedAt', kind: 'date', default: '' };
+const stringSpec = { key: 'text', kind: 'string', default: 'fallback', constraints: { maxLength: 10 } } satisfies StringSettingSpec;
+const booleanSpec = { key: 'enabled', kind: 'boolean', default: false } satisfies BooleanSettingSpec;
+const integerSpec = { key: 'interval', kind: 'integer', default: 24, constraints: { min: 1, max: 48 } } satisfies IntegerSettingSpec;
+const dateSpec = { key: 'refreshedAt', kind: 'date', default: '' } satisfies DateSettingSpec;
 
 describe('settings reader', () => {
   it('returns typed defaults when settings are missing', async () => {
@@ -44,12 +49,12 @@ describe('settings reader', () => {
   });
 
   it('uses spec defaults for junk, invalid strings, and out-of-range integers', async () => {
-    const validatedStringSpec: SettingSpec = {
+    const validatedStringSpec = {
       key: 'format',
       kind: 'string',
       default: '',
       validate: (value) => { if (!value.startsWith('{')) throw new Error('invalid'); },
-    };
+    } satisfies StringSettingSpec;
     const { reader } = setup({
       text: 'this value is too long',
       enabled: 'yes',

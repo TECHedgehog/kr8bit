@@ -22,6 +22,7 @@ AGENTS.md
 CLAUDE.md
 .aider*
 .github/copilot/
+.github/hooks/
 .codeium/
 .tabnine/
 .continue/
