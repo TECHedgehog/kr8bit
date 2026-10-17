@@ -1,20 +1,9 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-
-const onSettingsChanged = vi.hoisted(() => vi.fn());
-
-vi.mock('../src/modules/repack-catalog/repack-catalog.job.js', () => ({
-  repackCatalogJob: {
-    onSettingsChanged,
-    isRunning: vi.fn(() => false),
-    sync: vi.fn(),
-    audit: vi.fn(),
-  },
-}));
-
-import { buildServer } from '../src/http/server.js';
+import { buildServer, repackCatalogJob } from '../src/http/server.js';
 import { prisma } from '../src/prisma-client.js';
-import { repackCatalogJob } from '../src/modules/repack-catalog/repack-catalog.job.js';
+
+const onSettingsChanged = vi.spyOn(repackCatalogJob, 'onSettingsChanged').mockResolvedValue(undefined);
 
 describe('repack catalog settings routes', () => {
   let app: FastifyInstance;
@@ -60,7 +49,7 @@ describe('repack catalog settings routes', () => {
       expect.objectContaining({ key: 'repackCatalogEnabled', value: 'true' }),
       expect.objectContaining({ key: 'repackCatalogIntervalHours', value: '48' }),
     ]);
-    expect(repackCatalogJob.onSettingsChanged).toHaveBeenCalledWith(
+    expect(onSettingsChanged).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false }),
       expect.objectContaining({ enabled: true, intervalHours: 48 }),
     );
@@ -77,7 +66,7 @@ describe('repack catalog settings routes', () => {
     expect(response.statusCode).toBe(422);
     expect(response.json().code).toBe('VALIDATION_ERROR');
     expect(await prisma.setting.findUnique({ where: { key: 'repackCatalogIntervalHours' } })).toMatchObject({ value: '24' });
-    expect(repackCatalogJob.onSettingsChanged).not.toHaveBeenCalled();
+    expect(onSettingsChanged).not.toHaveBeenCalled();
   });
 
   it('passes enabled-to-disabled transition to job for stopping', async () => {
@@ -85,7 +74,7 @@ describe('repack catalog settings routes', () => {
     const response = await app.inject({ method: 'PUT', url: '/api/repack-catalog/settings', payload: { enabled: false } });
 
     expect(response.statusCode).toBe(200);
-    expect(repackCatalogJob.onSettingsChanged).toHaveBeenCalledWith(
+    expect(onSettingsChanged).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true }),
       expect.objectContaining({ enabled: false }),
     );
@@ -100,7 +89,7 @@ describe('repack catalog settings routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(repackCatalogJob.onSettingsChanged).toHaveBeenCalledWith(
+    expect(onSettingsChanged).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: true, baseUrl: 'https://fitgirl-repacks.site/' }),
       expect.objectContaining({ enabled: true, baseUrl: 'https://fitgirl.example/' }),
     );

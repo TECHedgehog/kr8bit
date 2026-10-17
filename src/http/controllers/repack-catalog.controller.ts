@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors.js';
-import { repackCatalogJob } from '../../modules/repack-catalog/repack-catalog.job.js';
-import { repackCatalogService, type RepackCatalogSettingsUpdate } from '../../modules/repack-catalog/repack-catalog.service.js';
+import type { RepackCatalogJob } from '../../modules/repack-catalog/repack-catalog.job.js';
+import type { RepackCatalogService, RepackCatalogSettingsUpdate } from '../../modules/repack-catalog/repack-catalog.service.js';
 import { artworkService, type ArtworkKind } from '../../modules/artwork/artwork.service.js';
 
 const ARTWORK_KINDS: ArtworkKind[] = ['header', 'cover', 'hero', 'logo'];
@@ -44,7 +44,8 @@ function parseSettingsUpdate(body: unknown): RepackCatalogSettingsUpdate {
   return parsed;
 }
 
-export const repackCatalogController = {
+export function createRepackCatalogController(service: RepackCatalogService, job: RepackCatalogJob) {
+  return {
   async list(req: FastifyRequest, _reply: FastifyReply) {
     const query = (req.query ?? {}) as Record<string, unknown>;
     const { offset, limit } = pageOptions(query);
@@ -59,7 +60,7 @@ export const repackCatalogController = {
     const matchStatus = typeof query.match === 'string'
       ? query.match.split(',').map((value) => value.toUpperCase()).filter((value): value is typeof MATCH_STATUSES[number] => MATCH_STATUSES.includes(value as typeof MATCH_STATUSES[number]))
       : [];
-    return repackCatalogService.list({
+    return service.list({
       offset, limit, query: search || undefined,
       genres: genres.length ? genres : undefined,
       steamDeck: steamDeck.length ? steamDeck : undefined,
@@ -67,30 +68,30 @@ export const repackCatalogController = {
       sort,
     });
   },
-  async genres(_req: FastifyRequest, _reply: FastifyReply) { return { genres: await repackCatalogService.genres() }; },
-  async settings(_req: FastifyRequest, _reply: FastifyReply) { return repackCatalogService.settings(); },
+  async genres(_req: FastifyRequest, _reply: FastifyReply) { return { genres: await service.genres() }; },
+  async settings(_req: FastifyRequest, _reply: FastifyReply) { return service.settings(); },
   async updateSettings(req: FastifyRequest, _reply: FastifyReply) {
     try {
       const update = parseSettingsUpdate(req.body);
-      const { before, after } = await repackCatalogService.updateSettings(update);
-      await repackCatalogJob.onSettingsChanged(before, after);
+      const { before, after } = await service.updateSettings(update);
+      await job.onSettingsChanged(before, after);
       return after;
     } catch (error) {
       if (error instanceof ValidationError) throw new AppError(422, error.message, 'VALIDATION_ERROR');
       throw error;
     }
   },
-  async status(_req: FastifyRequest, _reply: FastifyReply) { return repackCatalogService.statusSnapshot(); },
+  async status(_req: FastifyRequest, _reply: FastifyReply) { return service.statusSnapshot(); },
   async detail(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
-    const game = await repackCatalogService.getGame(id);
+    const game = await service.getGame(id);
     if (!game) throw new NotFoundError('RepackGame', id);
     return game;
   },
   async artwork(req: FastifyRequest, reply: FastifyReply) {
     const { id, kind } = req.params as { id: string; kind: string };
     if (!ARTWORK_KINDS.includes(kind as ArtworkKind)) throw new ValidationError(`invalid artwork kind: ${kind}`);
-    const game = await repackCatalogService.getArtworkGame(id);
+    const game = await service.getArtworkGame(id);
     if (!game) throw new NotFoundError('RepackGame', id);
     const snapshot = game.metadataSnapshot;
     const remoteUrl = snapshot?.[`${kind}Url` as 'coverUrl' | 'headerUrl' | 'heroUrl' | 'logoUrl'];
@@ -107,35 +108,36 @@ export const repackCatalogController = {
   },
   async review(req: FastifyRequest, _reply: FastifyReply) {
     const { offset, limit } = pageOptions((req.query ?? {}) as Record<string, unknown>);
-    return repackCatalogService.review({ offset, limit });
+    return service.review({ offset, limit });
   },
   async sync(req: FastifyRequest, _reply: FastifyReply) {
-    if (repackCatalogJob.isRunning()) throw new ConflictError('repack catalog job already in progress');
+    if (job.isRunning()) throw new ConflictError('repack catalog job already in progress');
     const body = req.body as { fullArchive?: boolean } | null;
-    return repackCatalogJob.sync(body?.fullArchive === true);
+    return job.sync(body?.fullArchive === true);
   },
   async audit(_req: FastifyRequest, _reply: FastifyReply) {
-    if (repackCatalogJob.isRunning()) throw new ConflictError('repack catalog job already in progress');
-    return repackCatalogJob.audit();
+    if (job.isRunning()) throw new ConflictError('repack catalog job already in progress');
+    return job.audit();
   },
   async searchCandidates(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
     const body = req.body as { query?: string } | null;
-    return { candidates: await repackCatalogService.searchCandidates(id, body?.query) };
+    return { candidates: await service.searchCandidates(id, body?.query) };
   },
   async previewCandidate(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
     const body = req.body as { providerName?: string; remoteId?: string } | null;
     if (!body?.providerName || !body.remoteId) throw new ValidationError('providerName and remoteId are required');
-    return repackCatalogService.previewCandidate(id, body.providerName, body.remoteId);
+    return service.previewCandidate(id, body.providerName, body.remoteId);
   },
   async resolveMatch(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };
     const body = req.body as { action?: string; providerName?: string; remoteId?: string } | null;
-    if (body?.action === 'reject') return repackCatalogService.rejectCandidate(id);
+    if (body?.action === 'reject') return service.rejectCandidate(id);
     if (body?.action !== 'accept' || !body.providerName || !body.remoteId) {
       throw new ValidationError('accept requires providerName and remoteId; or action=reject');
     }
-    return repackCatalogService.acceptCandidate(id, body.providerName, body.remoteId);
+    return service.acceptCandidate(id, body.providerName, body.remoteId);
   },
-};
+  };
+}

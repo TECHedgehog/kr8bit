@@ -1,18 +1,26 @@
 import { logger } from '../../logger/index.js';
 import { config } from '../../config/index.js';
-import { repackCatalogService } from './repack-catalog.service.js';
+type RepackSettingsState = Pick<Awaited<ReturnType<RepackCatalogJobService['settings']>>, 'enabled' | 'baseUrl'>;
 
-type RepackSettingsState = Pick<Awaited<ReturnType<typeof repackCatalogService.settings>>, 'enabled' | 'baseUrl'>;
+export interface RepackCatalogJobService {
+  settings(): Promise<{ enabled: boolean; baseUrl: string; intervalHours: number; auditEnabled: boolean; auditIntervalHours: number }>;
+  cancel(): void;
+  isRunning(): boolean;
+  sync(fullArchive?: boolean): Promise<unknown>;
+  audit(): Promise<unknown>;
+}
 
 export class RepackCatalogJob {
   private syncHandle: NodeJS.Timeout | null = null;
   private auditHandle: NodeJS.Timeout | null = null;
   private generation = 0;
 
+  constructor(private readonly service: RepackCatalogJobService) {}
+
   async start(runImmediately = true): Promise<void> {
     const generation = ++this.generation;
     this.clearTimers();
-    const settings = await repackCatalogService.settings();
+    const settings = await this.service.settings();
     if (generation !== this.generation || !settings.enabled) return;
 
     if (runImmediately) this.runSync();
@@ -35,12 +43,12 @@ export class RepackCatalogJob {
   stop(): void {
     this.generation += 1;
     this.clearTimers();
-    repackCatalogService.cancel();
+    this.service.cancel();
   }
 
-  isRunning(): boolean { return repackCatalogService.isRunning(); }
-  sync(fullArchive = false) { return repackCatalogService.sync(fullArchive); }
-  audit() { return repackCatalogService.audit(); }
+  isRunning(): boolean { return this.service.isRunning(); }
+  sync(fullArchive = false) { return this.service.sync(fullArchive); }
+  audit() { return this.service.audit(); }
 
   private clearTimers(): void {
     if (this.syncHandle) clearInterval(this.syncHandle);
@@ -50,12 +58,10 @@ export class RepackCatalogJob {
   }
 
   private runSync(): void {
-    void repackCatalogService.sync().catch((error) => logger.warn({ error }, 'scheduled repack sync failed'));
+    void this.service.sync().catch((error) => logger.warn({ error }, 'scheduled repack sync failed'));
   }
 
   private runAudit(): void {
-    void repackCatalogService.audit().catch((error) => logger.warn({ error }, 'scheduled repack audit failed'));
+    void this.service.audit().catch((error) => logger.warn({ error }, 'scheduled repack audit failed'));
   }
 }
-
-export const repackCatalogJob = new RepackCatalogJob();

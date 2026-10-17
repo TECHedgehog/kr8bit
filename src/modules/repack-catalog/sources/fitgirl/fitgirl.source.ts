@@ -184,3 +184,7 @@ export class FitGirlSource implements RepackSource {
     return parseFitGirlPost(response.html, url);
   }
 }
+
+export function createFitGirlSource(baseUrl: string): RepackSource {
+  return new FitGirlSource(baseUrl);
+}

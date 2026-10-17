@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { buildServer } from './http/server.js';
+import { buildServer, repackCatalogJob } from './http/server.js';
 import { logger } from './logger/index.js';
 import { config } from './config/index.js';
 import { prisma } from './prisma-client.js';
@@ -10,7 +10,6 @@ import { retryMatchJob } from './modules/metadata/retry-match.job.js';
 import { scannerService } from './modules/scanner/scanner.service.js';
 import './shared/bigint.js';
 import { demoService } from './modules/demo/demo-service.js';
-import { repackCatalogJob } from './modules/repack-catalog/repack-catalog.job.js';
 
 let app: FastifyInstance | null = null;
 

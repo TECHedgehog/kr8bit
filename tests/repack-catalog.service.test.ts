@@ -1,42 +1,55 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { repackCatalogRepository } from '../src/modules/repack-catalog/repack-catalog.repository.js';
+import { settingsRepository } from '../src/modules/settings/settings.repository.js';
+import { RepackCatalogService, type RepackCatalogServiceDependencies } from '../src/modules/repack-catalog/repack-catalog.service.js';
 
-const mocks = vi.hoisted(() => ({
+const mocks = {
   settingsGet: vi.fn(), settingsSet: vi.fn(),
-  knownUrls: vi.fn(), upsertPost: vi.fn(), saveCandidates: vi.fn(), acceptMatch: vi.fn(), regroupGames: vi.fn(),
+  knownUrls: vi.fn(), upsertPost: vi.fn(), saveCandidates: vi.fn(), acceptMatch: vi.fn(),
   findRematchableGames: vi.fn(), listGames: vi.fn(), getGame: vi.fn(), listReview: vi.fn(),
+  listAuditPosts: vi.fn(), markAuditSeen: vi.fn(), listGenres: vi.fn(), getArtworkGame: vi.fn(), rejectMatch: vi.fn(),
   createSource: vi.fn(), providerSearch: vi.fn(), providerGetGame: vi.fn(),
-  registryRegister: vi.fn(), providerOrder: vi.fn(), providerResolve: vi.fn(),
-}));
+  providerOrder: vi.fn(), providerResolve: vi.fn(),
+};
 
-vi.mock('../src/modules/settings/settings.repository.js', () => ({ settingsRepository: { get: mocks.settingsGet, set: mocks.settingsSet } }));
-vi.mock('../src/modules/repack-catalog/repack-catalog.repository.js', () => ({
-  repackCatalogRepository: {
-    knownUrls: mocks.knownUrls, upsertPost: mocks.upsertPost,
-    saveCandidates: mocks.saveCandidates, acceptMatch: mocks.acceptMatch,
-    findRematchableGames: mocks.findRematchableGames, listGames: mocks.listGames,
-    getGame: mocks.getGame, listReview: mocks.listReview,
-  },
-}));
-vi.mock('../src/modules/repack-catalog/repack-catalog.regroup.js', () => ({ regroupRepackGames: mocks.regroupGames }));
-vi.mock('../src/modules/repack-catalog/sources/source-registry.js', () => ({
-  repackSourceRegistry: { register: mocks.registryRegister, create: mocks.createSource },
-}));
-vi.mock('../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js')>();
-  return { ...actual, FitGirlSource: class {} };
-});
-vi.mock('../src/modules/metadata/provider-registry.js', () => ({
-  providerRegistry: { order: mocks.providerOrder, resolve: mocks.providerResolve },
-}));
+const fakeRepository: RepackCatalogServiceDependencies['repackCatalogRepository'] = {
+  ...repackCatalogRepository,
+  knownUrls: mocks.knownUrls,
+  upsertPost: mocks.upsertPost,
+  saveCandidates: mocks.saveCandidates,
+  acceptMatch: mocks.acceptMatch,
+  findRematchableGames: mocks.findRematchableGames,
+  listGames: mocks.listGames,
+  getGame: mocks.getGame,
+  listReview: mocks.listReview,
+  listAuditPosts: mocks.listAuditPosts,
+  markAuditSeen: mocks.markAuditSeen,
+  listGenres: mocks.listGenres,
+  getArtworkGame: mocks.getArtworkGame,
+  rejectMatch: mocks.rejectMatch,
+};
 
-import { RepackCatalogService } from '../src/modules/repack-catalog/repack-catalog.service.js';
+const fakeSettingsRepository: RepackCatalogServiceDependencies['settingsRepository'] = {
+  ...settingsRepository,
+  get: mocks.settingsGet,
+  set: mocks.settingsSet,
+};
+
+function createService(): RepackCatalogService {
+  return new RepackCatalogService({
+    repackCatalogRepository: fakeRepository,
+    settingsRepository: fakeSettingsRepository,
+    providerRegistry: { order: mocks.providerOrder, resolve: mocks.providerResolve, has: () => true, names: () => ['steam'] },
+    sourceFactory: mocks.createSource,
+    matchThresholds: { acceptThreshold: 85, flagThreshold: 70 },
+  });
+}
 
 describe('RepackCatalogService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.settingsGet.mockImplementation(async (key: string) => key === 'repackCatalogEnabled' ? 'true' : null);
     mocks.settingsSet.mockResolvedValue({});
-    mocks.regroupGames.mockResolvedValue(undefined);
     mocks.findRematchableGames.mockResolvedValue([]);
     mocks.knownUrls.mockResolvedValue(new Set());
     mocks.saveCandidates.mockResolvedValue({});
@@ -63,7 +76,7 @@ describe('RepackCatalogService', () => {
   });
 
   it('matches once per aggregated game, not once per source post', async () => {
-    const service = new RepackCatalogService();
+    const service = createService();
     const result = await service.sync();
     expect(result.processed).toBe(2);
     expect(mocks.providerSearch).toHaveBeenCalledTimes(1);
@@ -77,7 +90,7 @@ describe('RepackCatalogService', () => {
   });
 
   it('does not start full-history discovery on recent sync', async () => {
-    const service = new RepackCatalogService();
+    const service = createService();
     await service.sync();
     expect(mocks.createSource.mock.results[0].value.discoverPostUrls).toHaveBeenCalledWith(expect.objectContaining({ fullArchive: false }));
     expect(mocks.settingsSet).not.toHaveBeenCalled();
@@ -88,7 +101,7 @@ describe('RepackCatalogService', () => {
       { providerName: 'steam', remoteId: '1', title: 'Example Game', score: 91 },
       { providerName: 'steam', remoteId: '2', title: 'Example Game Deluxe', score: 90 },
     ]);
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -98,7 +111,7 @@ describe('RepackCatalogService', () => {
 
   it('leaves library-equivalent flagged scores in manual review', async () => {
     mocks.providerSearch.mockResolvedValue([{ providerName: 'steam', remoteId: '1', title: 'Example Game', score: 80 }]);
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -108,7 +121,7 @@ describe('RepackCatalogService', () => {
 
   it('keeps games pending when providers return no candidates', async () => {
     mocks.providerSearch.mockResolvedValue([]);
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -120,7 +133,7 @@ describe('RepackCatalogService', () => {
     mocks.providerSearch.mockResolvedValue([
       { providerName: 'steam', remoteId: '1', title: 'Example Game', score: 50 },
     ]);
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -132,7 +145,7 @@ describe('RepackCatalogService', () => {
     mocks.createSource.mockReturnValue({
       name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
     });
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -148,7 +161,7 @@ describe('RepackCatalogService', () => {
     mocks.createSource.mockReturnValue({
       name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn(),
     });
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -170,7 +183,7 @@ describe('RepackCatalogService', () => {
     mocks.providerGetGame.mockResolvedValue({
       remoteId: 'bubsy-base', title: 'Bubsy 4D', developers: [], publishers: [], genres: [],
     });
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -190,7 +203,7 @@ describe('RepackCatalogService', () => {
     mocks.providerSearch.mockResolvedValueOnce([
       { providerName: 'steam', remoteId: 'bubsy-edition', title: 'Bubsy 4D: Digital Pawsome Edition', score: 96 },
     ]);
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -216,7 +229,7 @@ describe('RepackCatalogService', () => {
     mocks.providerGetGame.mockResolvedValueOnce(null).mockResolvedValueOnce({
       remoteId: '360959', title: 'Towerfolk', developers: [], publishers: [], genres: [],
     });
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -243,7 +256,7 @@ describe('RepackCatalogService', () => {
     mocks.providerGetGame.mockResolvedValueOnce(null).mockResolvedValueOnce({
       remoteId: 'bubsy-base', title: 'Bubsy 4D', developers: [], publishers: [], genres: [],
     });
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -263,7 +276,7 @@ describe('RepackCatalogService', () => {
     mocks.providerSearch.mockResolvedValueOnce([]).mockResolvedValueOnce([
       { providerName: 'steam', remoteId: 'bubsy-base', title: 'Bubsy 4D', score: 80 },
     ]);
-    const service = new RepackCatalogService();
+    const service = createService();
 
     await service.sync();
 
@@ -284,7 +297,7 @@ describe('RepackCatalogService', () => {
         markStarted();
       }),
     });
-    const service = new RepackCatalogService();
+    const service = createService();
     const run = service.sync();
     await started;
     service.cancel();

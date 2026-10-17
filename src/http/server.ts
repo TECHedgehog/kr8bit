@@ -16,9 +16,24 @@ import { demoService } from '../modules/demo/demo-service.js';
 import { config } from '../config/index.js';
 import { ensureDemoSession } from './demo-session.js';
 import { developerRoutes } from './routes/developer.routes.js';
-import { repackCatalogRoutes } from './routes/repack-catalog.routes.js';
+import { createRepackCatalogRoutes } from './routes/repack-catalog.routes.js';
+import { repackCatalogRepository } from '../modules/repack-catalog/repack-catalog.repository.js';
+import { createFitGirlSource } from '../modules/repack-catalog/sources/fitgirl/fitgirl.source.js';
+import { RepackCatalogJob } from '../modules/repack-catalog/repack-catalog.job.js';
+import { createRepackCatalogService } from '../modules/repack-catalog/repack-catalog.service.js';
+import { providerRegistry } from '../modules/metadata/provider-registry.js';
+import { settingsRepository } from '../modules/settings/settings.repository.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const repackCatalogService = createRepackCatalogService({
+  repackCatalogRepository,
+  settingsRepository,
+  providerRegistry,
+  sourceFactory: createFitGirlSource,
+  matchThresholds: config.match,
+});
+export const repackCatalogJob = new RepackCatalogJob(repackCatalogService);
 
 function findWebDist(): string | null {
   const candidates = [
@@ -79,7 +94,7 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   }
   await app.register(healthRoutes);
   await app.register(developerRoutes);
-  await app.register(repackCatalogRoutes);
+  await app.register(createRepackCatalogRoutes(repackCatalogService, repackCatalogJob));
   await app.register(settingsRoutes);
   await app.register(scannerRoutes);
   await app.register(libraryRoutes);
