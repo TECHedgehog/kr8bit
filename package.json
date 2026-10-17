@@ -25,7 +25,8 @@
     "test:watch": "vitest",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",
-    "web:lint": "eslint web/src --ext .ts,.tsx"
+    "web:lint": "eslint web/src --ext .ts,.tsx",
+    "web:test": "npm --prefix web test"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

@@ -39,6 +39,9 @@ jobs:
       - name: Web typecheck
         run: npm --prefix web run typecheck
 
+      - name: Web test
+        run: npm run web:test
+
       - name: Test
         env:
           DB_PATH: ${{ runner.temp }}/kr8bit-test.db
