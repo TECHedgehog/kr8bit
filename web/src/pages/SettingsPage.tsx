@@ -1,50 +1,32 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { IconProps } from '@tabler/icons-react';
 import IconAdjustments from '@tabler/icons-react/dist/esm/icons/IconAdjustments.mjs';
-import IconBrandSteam from '@tabler/icons-react/dist/esm/icons/IconBrandSteam.mjs';
-import IconDatabase from '@tabler/icons-react/dist/esm/icons/IconDatabase.mjs';
 import IconLayoutGrid from '@tabler/icons-react/dist/esm/icons/IconLayoutGrid.mjs';
 import IconMapPin from '@tabler/icons-react/dist/esm/icons/IconMapPin.mjs';
 import IconPalette from '@tabler/icons-react/dist/esm/icons/IconPalette.mjs';
-import IconTags from '@tabler/icons-react/dist/esm/icons/IconTags.mjs';
-import IconTool from '@tabler/icons-react/dist/esm/icons/IconTool.mjs';
 import IconWorld from '@tabler/icons-react/dist/esm/icons/IconWorld.mjs';
-import { Glass, animateGlassValue, cubicBezier, glassValue } from '@samasante/liquid-glass';
 import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
 import { ScannerSection } from '../components/ScannerSection';
 import { LibraryLocationSection } from '../components/LibraryLocationSection';
 import { LibraryNamingSection } from '../components/LibraryNamingSection';
-import { useTheme } from '../context/ThemeContext';
-import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../context/GlassTuneContext';
 import { useGlowFollow } from '../hooks/useGlowFollow';
 import { useNavigationPreferences } from '../context/NavigationPreferencesContext';
 import { TodoPanel } from '../components/TodoPanel';
 import { useDeveloperAccess } from '../context/DeveloperAccessContext';
 import { api } from '../api/client';
 import type { RepackSettings } from '../api/types';
-
-const SETTINGS_LENS_MARGIN = 1;
-const SETTINGS_LENS_WIDTH_INSET = 16;
-const SETTINGS_LENS_RISE = 24;
-const SETTINGS_LENS_RADIUS = 24;
-const SETTINGS_LENS_DEPTH = 0.7;
-const SETTINGS_LENS_SCALE_IDLE = 0;
-const SETTINGS_LENS_SCALE_PEAK = 0.05;
-const SETTINGS_MOVE_ANIMATION = { duration: 0.4, ease: cubicBezier(0.42, 0, 0.58, 1) };
-const SETTINGS_RAISE_ANIMATION = { duration: 0.25, ease: cubicBezier(0.42, 0, 0.58, 1) };
-const SETTINGS_LOWER_ANIMATION = { duration: 0.2, ease: cubicBezier(0.33, 1, 0.68, 1) };
-
-type SettingsCategory = 'review' | 'appearance' | 'behavior' | 'locations' | 'sources';
+import { SettingsNavLens } from '../components/SettingsNavLens';
+import { isSettingsCategory, type SettingsCategory } from '../settings-categories';
 
 type SettingsNavigationItem = {
   id: string;
   label: string;
   icon: ComponentType<IconProps>;
   color: string;
-  category?: SettingsCategory;
+  category: SettingsCategory;
 };
 
 const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
@@ -61,26 +43,11 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
   },
   {
     label: 'Library',
-    items: [
-      { id: 'display', label: 'Display', icon: IconLayoutGrid, color: '#06b6d4' },
-      { id: 'locations', label: 'Locations', icon: IconMapPin, color: '#10b981', category: 'locations' },
-      { id: 'metadata', label: 'Metadata', icon: IconTags, color: '#3b82f6' },
-    ],
-  },
-  {
-    label: 'Providers',
-    items: [{ id: 'steam', label: 'Steam', icon: IconBrandSteam, color: '#6366f1' }],
+    items: [{ id: 'locations', label: 'Locations', icon: IconMapPin, color: '#10b981', category: 'locations' }],
   },
   {
     label: 'Sources',
     items: [{ id: 'repack-catalog', label: 'Repack catalog', icon: IconWorld, color: '#f97316', category: 'sources' }],
-  },
-  {
-    label: 'System',
-    items: [
-      { id: 'storage', label: 'Storage', icon: IconDatabase, color: '#f97316' },
-      { id: 'maintenance', label: 'Maintenance', icon: IconTool, color: '#f43f5e' },
-    ],
   },
 ];
 
@@ -95,19 +62,14 @@ export function SettingsPage(): JSX.Element {
     setLastSettingsCategory,
   } = useNavigationPreferences();
   const categoryFromUrl = searchParams.get('category');
-  const initialCategory = categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations' || categoryFromUrl === 'sources'
+  const initialCategory = isSettingsCategory(categoryFromUrl)
     ? categoryFromUrl
-    : rememberSettingsCategory && (lastSettingsCategory === 'review' || lastSettingsCategory === 'appearance' || lastSettingsCategory === 'behavior' || lastSettingsCategory === 'locations' || lastSettingsCategory === 'sources')
+    : rememberSettingsCategory && isSettingsCategory(lastSettingsCategory)
       ? lastSettingsCategory
       : 'review';
   const [category, setCategory] = useState<SettingsCategory>(initialCategory);
-  const { theme } = useTheme();
-  const { pill } = useGlassTune();
   const menuRef = useRef<HTMLElement>(null);
   useGlowFollow(menuRef);
-  const lastCategoryRef = useRef(category);
-  const transitRef = useRef(0);
-  const [isLensMoving, setIsLensMoving] = useState(false);
   const [isTodoOpen, setIsTodoOpen] = useState(false);
   const [repackSettings, setRepackSettings] = useState<RepackSettings | null>(null);
   const [repackSaveState, setRepackSaveState] = useState('');
@@ -137,17 +99,13 @@ export function SettingsPage(): JSX.Element {
     }
   };
   const { enabled: developerToolsEnabled } = useDeveloperAccess();
-  const lensY = useMemo(() => glassValue(0.5), []);
-  const lensW = useMemo(() => glassValue(160), []);
-  const lensH = useMemo(() => glassValue(160), []);
-  const lensScale = useMemo(() => glassValue(SETTINGS_LENS_SCALE_IDLE), []);
   const { background, setBackground } = useEffectsSettings();
   const { tint, darkShade, lightShade, setTint, setDarkShade, setLightShade } = useBackgroundSettings();
   const hasBackgroundEffect = background !== null && BACKGROUND_EFFECTS.some((entry) => entry.id === background);
   const showShadeSelectors = background !== 'dither';
 
   useLayoutEffect(() => {
-    if (categoryFromUrl === 'review' || categoryFromUrl === 'appearance' || categoryFromUrl === 'behavior' || categoryFromUrl === 'locations' || categoryFromUrl === 'sources') {
+    if (isSettingsCategory(categoryFromUrl)) {
       setCategory(categoryFromUrl);
     }
   }, [categoryFromUrl]);
@@ -288,81 +246,17 @@ export function SettingsPage(): JSX.Element {
 
   const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, behavior: renderBehavior, locations: renderLibrary, sources: renderSources };
 
-  useLayoutEffect(() => {
-    const menu = menuRef.current;
-    if (!menu) return;
-    const glass = menu.querySelector('.settings-menu-glass') as HTMLElement | null;
-    const active = menu.querySelector('.settings-menu-content .settings-menu-item.is-active') as HTMLElement | null;
-    if (!glass || !active) return;
-
-    const glassRect = glass.getBoundingClientRect();
-    const activeRect = active.getBoundingClientRect();
-    const activeCenterY = activeRect.top + activeRect.height / 2;
-    const targetY = glassRect.height > 0 ? (activeCenterY - glassRect.top) / glassRect.height : 0.5;
-    const clampedY = Math.max(0, Math.min(1, targetY));
-    const idleW = Math.max(0, menu.offsetWidth - SETTINGS_LENS_WIDTH_INSET);
-    const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
-    const peakW = idleW + SETTINGS_LENS_RISE;
-    const peakH = idleH + SETTINGS_LENS_RISE;
-    const targetChanged = lastCategoryRef.current !== category;
-    lastCategoryRef.current = category;
-
-    if (!targetChanged) {
-      lensY.set(clampedY);
-      lensW.set(idleW);
-      lensH.set(idleH);
-      lensScale.set(SETTINGS_LENS_SCALE_IDLE);
-      return;
-    }
-
-    const transit = ++transitRef.current;
-    setIsLensMoving(true);
-    animateGlassValue(lensY, clampedY, SETTINGS_MOVE_ANIMATION);
-    animateGlassValue(lensW, peakW, {
-      ...SETTINGS_RAISE_ANIMATION,
-      onComplete: () => {
-        if (transitRef.current !== transit) return;
-        animateGlassValue(lensW, idleW, {
-          ...SETTINGS_LOWER_ANIMATION,
-          onComplete: () => {
-            if (transitRef.current === transit) setIsLensMoving(false);
-          },
-        });
-        animateGlassValue(lensH, idleH, SETTINGS_LOWER_ANIMATION);
-        animateGlassValue(lensScale, SETTINGS_LENS_SCALE_IDLE, SETTINGS_LOWER_ANIMATION);
-      },
-    });
-    animateGlassValue(lensH, peakH, SETTINGS_RAISE_ANIMATION);
-    animateGlassValue(lensScale, SETTINGS_LENS_SCALE_PEAK, SETTINGS_RAISE_ANIMATION);
-  }, [category, lensH, lensScale, lensW, lensY]);
-
-  useLayoutEffect(() => {
-    if (isLensMoving) return;
-    const menu = menuRef.current;
-    const active = menu?.querySelector('.settings-menu-content .settings-menu-item.is-active') as HTMLElement | null;
-    const glass = menu?.querySelector('.settings-menu-glass') as HTMLElement | null;
-    if (!menu || !active || !glass) return;
-    const glassRect = glass.getBoundingClientRect();
-    const activeRect = active.getBoundingClientRect();
-    const idleW = Math.max(0, menu.offsetWidth - SETTINGS_LENS_WIDTH_INSET);
-    const idleH = activeRect.height + 2 * SETTINGS_LENS_MARGIN;
-    lensW.set(idleW);
-    lensH.set(idleH);
-    lensY.set(Math.max(0, Math.min(1, (activeRect.top + activeRect.height / 2 - glassRect.top) / glassRect.height)));
-  }, [isLensMoving, lensH, lensW, lensY]);
-
   const renderMenu = (as: 'button' | 'copy') => {
     const content = SETTINGS_GROUPS.map((group) => (
       <section className="settings-menu-group" key={group.label}>
         <h2 className="settings-menu-label">{group.label}</h2>
         <div className="settings-menu-items">
           {group.items.map((item) => {
-            const isAvailable = item.category !== undefined;
             const isActive = item.category === category;
-            const className = `settings-menu-item${isActive ? ' is-active' : ''}${!isAvailable ? ' is-disabled' : ''}`;
+            const className = `settings-menu-item${isActive ? ' is-active' : ''}`;
             const itemContent = <><item.icon className="settings-menu-item-icon" size={18} stroke={1.8} aria-hidden="true" color={as === 'copy' ? item.color : undefined} /><strong>{item.label}</strong></>;
             return as === 'button'
-              ? <button type="button" key={item.id} className={className} onClick={isAvailable ? () => setCategory(item.category!) : undefined} aria-current={isActive ? 'page' : undefined} disabled={!isAvailable}>{itemContent}</button>
+              ? <button type="button" key={item.id} className={className} onClick={() => setCategory(item.category)} aria-current={isActive ? 'page' : undefined}>{itemContent}</button>
               : <div key={item.id} className={className} aria-hidden="true">{itemContent}</div>;
           })}
         </div>
@@ -371,8 +265,6 @@ export function SettingsPage(): JSX.Element {
 
     return as === 'copy' ? <div className="settings-menu-glass-content">{content}</div> : <>{content}</>;
   };
-
-  const behind = theme === 'dark' ? '#1a1d24' : '#e8ebf0';
 
   return (
     <div className="page">
@@ -384,10 +276,8 @@ export function SettingsPage(): JSX.Element {
           </>
         </div>}
         <div className="settings-shell">
-          <nav ref={menuRef} className={`settings-menu glow-follow${isLensMoving ? ' is-moving' : ''}`} aria-label="Settings categories">
-            <div className="settings-menu-glass" aria-hidden="true">
-               <Glass optics={pill.effectiveOptics} width={lensW} height={lensH} radius={SETTINGS_LENS_RADIUS} center={{ x: 0.5, y: lensY }} scale={lensScale} depth={SETTINGS_LENS_DEPTH} refract={renderMenu('copy')} behind={behind} filterResolution={GLASS_FILTER_RESOLUTION} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }} />
-            </div>
+          <nav ref={menuRef} className="settings-menu glow-follow" aria-label="Settings categories">
+            <SettingsNavLens menuRef={menuRef} active={category}>{renderMenu('copy')}</SettingsNavLens>
             <div className="settings-menu-content">{renderMenu('button')}</div>
           </nav>
           <main className="settings-panel">{panels[category]()}</main>
