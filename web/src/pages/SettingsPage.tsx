@@ -24,14 +24,7 @@ import { useNavigationPreferences } from '../context/NavigationPreferencesContex
 import { TodoPanel } from '../components/TodoPanel';
 import { useDeveloperAccess } from '../context/DeveloperAccessContext';
 import { api } from '../api/client';
-
-interface RepackSettings {
-  enabled: boolean;
-  baseUrl: string;
-  intervalHours: number;
-  auditEnabled: boolean;
-  auditIntervalHours: number;
-}
+import type { RepackSettings } from '../api/types';
 
 const SETTINGS_LENS_MARGIN = 1;
 const SETTINGS_LENS_WIDTH_INSET = 16;
@@ -127,12 +120,12 @@ export function SettingsPage(): JSX.Element {
     setRepackSettings(value);
     setRepackSaveState('Saving…');
     try {
-      await api.put('/api/settings', {
-        repackCatalogEnabled: String(value.enabled),
-        repackCatalogFitGirlBaseUrl: value.baseUrl,
-        repackCatalogIntervalHours: String(value.intervalHours),
-        repackCatalogAuditEnabled: String(value.auditEnabled),
-        repackCatalogAuditIntervalHours: String(value.auditIntervalHours),
+      await api.put('/api/repack-catalog/settings', {
+        enabled: value.enabled,
+        baseUrl: value.baseUrl,
+        intervalHours: value.intervalHours,
+        auditEnabled: value.auditEnabled,
+        auditIntervalHours: value.auditIntervalHours,
       });
       const saved = await api.get<RepackSettings>('/api/repack-catalog/settings');
       setRepackSettings(saved);
@@ -261,12 +254,12 @@ export function SettingsPage(): JSX.Element {
           <span className="settings-switch__control"><input type="checkbox" checked={repackSettings?.enabled ?? false} disabled={!repackSettings} onChange={(event) => void saveRepackSettings({ enabled: event.target.checked }).catch(() => {})} aria-label="Enable FitGirl source" /><span className="settings-switch__track" aria-hidden="true"><span className="settings-switch__thumb" /></span></span>
         </label>
         <label className="settings-field"><span>FitGirl site URL</span><input type="url" value={repackSettings?.baseUrl ?? ''} disabled={!repackSettings} onChange={(event) => setRepackSettings((current) => current ? { ...current, baseUrl: event.target.value } : current)} onBlur={() => { if (repackSettings?.baseUrl) void saveRepackSettings({ baseUrl: repackSettings.baseUrl }).catch(() => {}); }} /></label>
-        <label className="settings-field"><span>Recent sync interval (hours)</span><input type="number" min="1" max="8760" value={repackSettings?.intervalHours ?? 24} disabled={!repackSettings} onChange={(event) => setRepackSettings((current) => current ? { ...current, intervalHours: Number(event.target.value) || 24 } : current)} onBlur={() => { if (repackSettings) void saveRepackSettings({ intervalHours: repackSettings.intervalHours }).catch(() => {}); }} /></label>
+        <label className="settings-field"><span>Recent sync interval (hours)</span><input type="number" min={repackSettings?.constraints.intervalHours?.min ?? 1} max={repackSettings?.constraints.intervalHours?.max ?? 8760} value={repackSettings?.intervalHours ?? repackSettings?.defaults.intervalHours ?? 24} disabled={!repackSettings} onChange={(event) => setRepackSettings((current) => current ? { ...current, intervalHours: Number(event.target.value) || current.defaults.intervalHours } : current)} onBlur={() => { if (repackSettings) void saveRepackSettings({ intervalHours: repackSettings.intervalHours }).catch(() => {}); }} /></label>
         <label className="settings-switch">
           <span><strong>Rolling history audit</strong><small>Recheck up to 50 older posts per run to detect edits.</small></span>
           <span className="settings-switch__control"><input type="checkbox" checked={repackSettings?.auditEnabled ?? false} disabled={!repackSettings} onChange={(event) => void saveRepackSettings({ auditEnabled: event.target.checked }).catch(() => {})} aria-label="Enable rolling repack audit" /><span className="settings-switch__track" aria-hidden="true"><span className="settings-switch__thumb" /></span></span>
         </label>
-        <label className="settings-field"><span>Audit interval (hours)</span><input type="number" min="1" max="8760" value={repackSettings?.auditIntervalHours ?? 720} disabled={!repackSettings || !repackSettings.auditEnabled} onChange={(event) => setRepackSettings((current) => current ? { ...current, auditIntervalHours: Number(event.target.value) || 720 } : current)} onBlur={() => { if (repackSettings) void saveRepackSettings({ auditIntervalHours: repackSettings.auditIntervalHours }).catch(() => {}); }} /></label>
+        <label className="settings-field"><span>Audit interval (hours)</span><input type="number" min={repackSettings?.constraints.auditIntervalHours?.min ?? 1} max={repackSettings?.constraints.auditIntervalHours?.max ?? 8760} value={repackSettings?.auditIntervalHours ?? repackSettings?.defaults.auditIntervalHours ?? 720} disabled={!repackSettings || !repackSettings.auditEnabled} onChange={(event) => setRepackSettings((current) => current ? { ...current, auditIntervalHours: Number(event.target.value) || current.defaults.auditIntervalHours } : current)} onBlur={() => { if (repackSettings) void saveRepackSettings({ auditIntervalHours: repackSettings.auditIntervalHours }).catch(() => {}); }} /></label>
         <p className="settings-help" role="status">{repackSaveState}</p>
       </div>
     </SettingsPanel>

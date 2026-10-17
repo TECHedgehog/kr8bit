@@ -4,8 +4,15 @@ import { config } from '../../../config/index.js';
 import { settingsRepository } from '../../settings/settings.repository.js';
 import { steamIndexRepository } from './steam-index.repository.js';
 import { steamAppListClient as defaultAppListClient, type SteamAppListClient } from './steam-index.http.js';
+import type { SettingSpec } from '../../settings/settings.types.js';
 
-const SETTING_LAST_REFRESH = 'steamIndexLastRefresh';
+export const SETTING_LAST_REFRESH = 'steamIndexLastRefresh';
+export const STEAM_INDEX_LAST_REFRESH_SETTING_SPEC: SettingSpec = {
+  key: SETTING_LAST_REFRESH,
+  kind: 'string',
+  default: '',
+  internal: true,
+};
 const FUSE_THRESHOLD = 0.5;
 const FUSE_KEYS = ['name'];
 const SEARCH_LIMIT = 20;

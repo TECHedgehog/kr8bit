@@ -50,14 +50,10 @@ describe('parseSettingsUpsert', () => {
     expect(() => parseSettingsUpsert({ repackCatalogFullImportComplete: 'true' })).toThrow(ValidationError);
   });
 
-  it('validates repack catalog settings', () => {
-    expect(parseSettingsUpsert({ repackCatalogEnabled: 'false', repackCatalogIntervalHours: '24' })).toEqual([
-      { key: 'repackCatalogEnabled', value: 'false' },
-      { key: 'repackCatalogIntervalHours', value: '24' },
-    ]);
-    expect(() => parseSettingsUpsert({ repackCatalogEnabled: 'yes' })).toThrow(ValidationError);
-    expect(() => parseSettingsUpsert({ repackCatalogIntervalHours: '0' })).toThrow(ValidationError);
-    expect(() => parseSettingsUpsert({ repackCatalogFitGirlBaseUrl: 'http://unsafe.test' })).toThrow(ValidationError);
+  it('rejects domain-owned repack and internal library settings', () => {
+    expect(() => parseSettingsUpsert({ repackCatalogEnabled: 'false' })).toThrow(ValidationError);
+    expect(() => parseSettingsUpsert({ repackCatalogUnknown: 'value' })).toThrow(ValidationError);
+    expect(() => parseSettingsUpsert({ libraryManuallyCleared: 'true' })).toThrow(ValidationError);
   });
 
   it('rejects oversized keys and values', () => {

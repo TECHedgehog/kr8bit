@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { ConflictError, NotFoundError, ValidationError } from '../../shared/errors.js';
+import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors.js';
 import { repackCatalogJob } from '../../modules/repack-catalog/repack-catalog.job.js';
-import { repackCatalogService } from '../../modules/repack-catalog/repack-catalog.service.js';
+import { repackCatalogService, type RepackCatalogSettingsUpdate } from '../../modules/repack-catalog/repack-catalog.service.js';
 import { artworkService, type ArtworkKind } from '../../modules/artwork/artwork.service.js';
 
 const ARTWORK_KINDS: ArtworkKind[] = ['header', 'cover', 'hero', 'logo'];
@@ -14,6 +14,34 @@ function pageOptions(query: Record<string, unknown>) {
   if (!Number.isInteger(offset) || offset < 0) throw new ValidationError('offset must be a non-negative integer');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationError('limit must be between 1 and 100');
   return { offset, limit };
+}
+
+function parseSettingsUpdate(body: unknown): RepackCatalogSettingsUpdate {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    throw new ValidationError('repack settings payload must be a JSON object');
+  }
+  const parsed: RepackCatalogSettingsUpdate = {};
+  for (const [key, value] of Object.entries(body)) {
+    switch (key) {
+      case 'enabled':
+      case 'auditEnabled':
+        if (typeof value !== 'boolean') throw new ValidationError(`${key} must be a boolean`);
+        parsed[key] = value;
+        break;
+      case 'baseUrl':
+        if (typeof value !== 'string') throw new ValidationError(`${key} must be a string`);
+        parsed.baseUrl = value;
+        break;
+      case 'intervalHours':
+      case 'auditIntervalHours':
+        if (typeof value !== 'number' || !Number.isInteger(value)) throw new ValidationError(`${key} must be an integer`);
+        parsed[key] = value;
+        break;
+      default:
+        throw new ValidationError(`unknown repack catalog setting: ${key}`);
+    }
+  }
+  return parsed;
 }
 
 export const repackCatalogController = {
@@ -41,6 +69,17 @@ export const repackCatalogController = {
   },
   async genres(_req: FastifyRequest, _reply: FastifyReply) { return { genres: await repackCatalogService.genres() }; },
   async settings(_req: FastifyRequest, _reply: FastifyReply) { return repackCatalogService.settings(); },
+  async updateSettings(req: FastifyRequest, _reply: FastifyReply) {
+    try {
+      const update = parseSettingsUpdate(req.body);
+      const { before, after } = await repackCatalogService.updateSettings(update);
+      await repackCatalogJob.onSettingsChanged(before, after);
+      return after;
+    } catch (error) {
+      if (error instanceof ValidationError) throw new AppError(422, error.message, 'VALIDATION_ERROR');
+      throw error;
+    }
+  },
   async status(_req: FastifyRequest, _reply: FastifyReply) { return repackCatalogService.statusSnapshot(); },
   async detail(req: FastifyRequest, _reply: FastifyReply) {
     const { id } = req.params as { id: string };

@@ -53,14 +53,35 @@ export interface GameListResult {
   total: number;
 }
 
-export interface RepackCatalogSettings {
+interface RepackSettingConstraints {
+  min?: number;
+  max?: number;
+  maxLength?: number;
+  protocol?: string;
+}
+
+export interface RepackSettings {
   enabled: boolean;
   baseUrl: string;
   intervalHours: number;
   auditEnabled: boolean;
   auditIntervalHours: number;
   fullImportComplete: boolean;
+  defaults: {
+    enabled: boolean;
+    baseUrl: string;
+    intervalHours: number;
+    auditEnabled: boolean;
+    auditIntervalHours: number;
+  };
+  constraints: {
+    baseUrl?: RepackSettingConstraints;
+    intervalHours?: RepackSettingConstraints;
+    auditIntervalHours?: RepackSettingConstraints;
+  };
 }
+
+export type RepackCatalogSettings = RepackSettings;
 
 export interface RepackDownloadOption {
   label: string;

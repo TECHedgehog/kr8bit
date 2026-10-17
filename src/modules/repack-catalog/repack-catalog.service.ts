@@ -7,22 +7,33 @@ import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
 import { providerRegistry } from '../metadata/provider-registry.js';
 import { settingsRepository } from '../settings/settings.repository.js';
+import { validateSettingEntries } from '../settings/settings.service.js';
 import type { GameMetadata, MetadataProvider, SearchResult } from '../../shared/types.js';
 import { repackCatalogRepository } from './repack-catalog.repository.js';
+import {
+  REPACK_AUDIT_ENABLED,
+  REPACK_AUDIT_INTERVAL_HOURS,
+  REPACK_BASE_URL,
+  REPACK_CATALOG_SETTING_SPECS,
+  REPACK_CATALOG_USER_SETTING_SPECS,
+  REPACK_ENABLED,
+  REPACK_FULL_IMPORT_COMPLETE,
+  REPACK_INTERVAL_HOURS,
+} from './repack-catalog.settings.js';
 import { FitGirlSource, fitGirlGameTitle, normalizeFitGirlGameTitle } from './sources/fitgirl/fitgirl.source.js';
 import { repackSourceRegistry } from './sources/source-registry.js';
 import { SourceBlockedError } from './source-http-client.js';
 import type { RepackMatchCandidate, RepackMatchStatus, RepackMetadataSnapshot, RepackSource } from './repack-catalog.types.js';
 
-export const REPACK_ENABLED = 'repackCatalogEnabled';
-export const REPACK_BASE_URL = 'repackCatalogFitGirlBaseUrl';
-export const REPACK_INTERVAL_HOURS = 'repackCatalogIntervalHours';
-export const REPACK_AUDIT_ENABLED = 'repackCatalogAuditEnabled';
-export const REPACK_AUDIT_INTERVAL_HOURS = 'repackCatalogAuditIntervalHours';
-export const REPACK_FULL_IMPORT_COMPLETE = 'repackCatalogFullImportComplete';
-const DEFAULT_BASE_URL = 'https://fitgirl-repacks.site/';
-const FULL_IMPORT_SETTING = REPACK_FULL_IMPORT_COMPLETE;
 const SCRAPE_CONCURRENCY = 2;
+
+export interface RepackCatalogSettingsUpdate {
+  enabled?: boolean;
+  baseUrl?: string;
+  intervalHours?: number;
+  auditEnabled?: boolean;
+  auditIntervalHours?: number;
+}
 
 repackSourceRegistry.register('fitgirl', (url) => new FitGirlSource(url));
 
@@ -30,6 +41,10 @@ function settingBool(value: string | null, fallback: boolean): boolean { return 
 function settingNumber(value: string | null, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function specDefault(key: string): string | boolean | number {
+  return REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === key)?.default ?? '';
 }
 
 function candidateFrom(result: SearchResult): RepackMatchCandidate {
@@ -101,14 +116,52 @@ export class RepackCatalogService {
   async enabled(): Promise<boolean> { return settingBool(await settingsRepository.get(REPACK_ENABLED), false); }
 
   async settings() {
+    const enabledDefault = specDefault(REPACK_ENABLED) as boolean;
+    const baseUrlDefault = specDefault(REPACK_BASE_URL) as string;
+    const intervalHoursDefault = specDefault(REPACK_INTERVAL_HOURS) as number;
+    const auditEnabledDefault = specDefault(REPACK_AUDIT_ENABLED) as boolean;
+    const auditIntervalHoursDefault = specDefault(REPACK_AUDIT_INTERVAL_HOURS) as number;
+    const fullImportDefault = specDefault(REPACK_FULL_IMPORT_COMPLETE) as boolean;
     return {
-      enabled: await this.enabled(),
-      baseUrl: (await settingsRepository.get(REPACK_BASE_URL)) ?? DEFAULT_BASE_URL,
-      intervalHours: settingNumber(await settingsRepository.get(REPACK_INTERVAL_HOURS), 24),
-      auditEnabled: settingBool(await settingsRepository.get(REPACK_AUDIT_ENABLED), false),
-      auditIntervalHours: settingNumber(await settingsRepository.get(REPACK_AUDIT_INTERVAL_HOURS), 720),
-      fullImportComplete: settingBool(await settingsRepository.get(FULL_IMPORT_SETTING), false),
+      enabled: settingBool(await settingsRepository.get(REPACK_ENABLED), enabledDefault),
+      baseUrl: (await settingsRepository.get(REPACK_BASE_URL)) ?? baseUrlDefault,
+      intervalHours: settingNumber(await settingsRepository.get(REPACK_INTERVAL_HOURS), intervalHoursDefault),
+      auditEnabled: settingBool(await settingsRepository.get(REPACK_AUDIT_ENABLED), auditEnabledDefault),
+      auditIntervalHours: settingNumber(await settingsRepository.get(REPACK_AUDIT_INTERVAL_HOURS), auditIntervalHoursDefault),
+      fullImportComplete: settingBool(await settingsRepository.get(REPACK_FULL_IMPORT_COMPLETE), fullImportDefault),
+      defaults: {
+        enabled: enabledDefault,
+        baseUrl: baseUrlDefault,
+        intervalHours: intervalHoursDefault,
+        auditEnabled: auditEnabledDefault,
+        auditIntervalHours: auditIntervalHoursDefault,
+      },
+      constraints: {
+        baseUrl: REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === REPACK_BASE_URL)?.constraints,
+        intervalHours: REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === REPACK_INTERVAL_HOURS)?.constraints,
+        auditIntervalHours: REPACK_CATALOG_SETTING_SPECS.find((spec) => spec.key === REPACK_AUDIT_INTERVAL_HOURS)?.constraints,
+      },
     };
+  }
+
+  async updateSettings(next: RepackCatalogSettingsUpdate) {
+    const settingKeys = {
+      enabled: REPACK_ENABLED,
+      baseUrl: REPACK_BASE_URL,
+      intervalHours: REPACK_INTERVAL_HOURS,
+      auditEnabled: REPACK_AUDIT_ENABLED,
+      auditIntervalHours: REPACK_AUDIT_INTERVAL_HOURS,
+    } as const;
+    const entries = Object.entries(next).map(([field, value]) => {
+      const key = settingKeys[field as keyof typeof settingKeys];
+      if (!key) throw new ValidationError(`unknown repack catalog setting: ${field}`);
+      return { key, value: String(value) };
+    });
+    validateSettingEntries(entries, REPACK_CATALOG_USER_SETTING_SPECS);
+    const before = await this.settings();
+    if (entries.length) await settingsRepository.setMany(entries);
+    const after = await this.settings();
+    return { before, after };
   }
 
   isRunning(): boolean { return this.running; }
@@ -167,7 +220,7 @@ export class RepackCatalogService {
         }
       });
       this.status.phase = abortController.signal.aborted ? 'cancelled' : blocked ? 'blocked' : stoppedAfterErrors ? 'stopped' : failures ? 'partial' : 'done';
-      if (fullArchive && !blocked && !abortController.signal.aborted && failures === 0) await settingsRepository.set(FULL_IMPORT_SETTING, 'true');
+      if (fullArchive && !blocked && !abortController.signal.aborted && failures === 0) await settingsRepository.set(REPACK_FULL_IMPORT_COMPLETE, 'true');
       return { processed: this.status.processed, skipped: this.status.skipped, failed: failures, blocked, stoppedAfterErrors, cancelled: abortController.signal.aborted };
     } catch (error) {
       const blocked = error instanceof SourceBlockedError;

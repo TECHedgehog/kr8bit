@@ -5,6 +5,7 @@ export const repackCatalogRoutes: FastifyPluginAsync = async (app) => {
   app.get('/api/repack-catalog', repackCatalogController.list);
   app.get('/api/repack-catalog/genres', repackCatalogController.genres);
   app.get('/api/repack-catalog/settings', repackCatalogController.settings);
+  app.put('/api/repack-catalog/settings', repackCatalogController.updateSettings);
   app.get('/api/repack-catalog/status', repackCatalogController.status);
   app.get('/api/repack-catalog/review', repackCatalogController.review);
   app.post('/api/repack-catalog/sync', repackCatalogController.sync);

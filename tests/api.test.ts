@@ -114,6 +114,17 @@ describe('PUT /api/settings', () => {
     const body = res.json();
     expect(body.code).toBe('VALIDATION_ERROR');
   });
+
+  it('rejects domain-owned repack and internal library settings', async () => {
+    for (const payload of [
+      { repackCatalogEnabled: 'true' },
+      { libraryManuallyCleared: 'true' },
+    ]) {
+      const response = await app.inject({ method: 'PUT', url: '/api/settings', payload });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().code).toBe('VALIDATION_ERROR');
+    }
+  });
 });
 
 describe('todo API', () => {

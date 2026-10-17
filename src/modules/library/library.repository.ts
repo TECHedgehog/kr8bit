@@ -18,8 +18,15 @@ import { DEFAULT_SORT, MAX_PAGE_SIZE } from './library.types.js';
 import { settingsRepository } from '../settings/settings.repository.js';
 import { dirname, sep } from 'node:path';
 import { normalizeForMatch, normalizeGameName } from '../../shared/normalize.js';
+import type { SettingSpec } from '../settings/settings.types.js';
 
 export const LIBRARY_MANUALLY_CLEARED_SETTING = 'libraryManuallyCleared';
+export const LIBRARY_MANUALLY_CLEARED_SETTING_SPEC: SettingSpec = {
+  key: LIBRARY_MANUALLY_CLEARED_SETTING,
+  kind: 'boolean',
+  default: false,
+  internal: true,
+};
 
 export const REFRESH_BATCH_SIZE = 500;
 export const PENDING_BATCH_SIZE = 500;

@@ -1,5 +1,8 @@
 import { logger } from '../../logger/index.js';
+import { config } from '../../config/index.js';
 import { repackCatalogService } from './repack-catalog.service.js';
+
+type RepackSettingsState = Pick<Awaited<ReturnType<typeof repackCatalogService.settings>>, 'enabled' | 'baseUrl'>;
 
 export class RepackCatalogJob {
   private syncHandle: NodeJS.Timeout | null = null;
@@ -17,6 +20,16 @@ export class RepackCatalogJob {
     if (settings.auditEnabled) {
       this.auditHandle = setInterval(() => this.runAudit(), settings.auditIntervalHours * 3_600_000);
     }
+  }
+
+  async onSettingsChanged(before: RepackSettingsState, after: RepackSettingsState): Promise<void> {
+    if (config.demoMode) return;
+    if (!after.enabled) {
+      this.stop();
+      return;
+    }
+    const shouldSync = (!before.enabled && after.enabled) || before.baseUrl !== after.baseUrl;
+    await this.start(shouldSync);
   }
 
   stop(): void {

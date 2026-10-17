@@ -1,8 +1,14 @@
 import { ValidationError } from '../../shared/errors.js';
 import { settingsRepository } from './settings.repository.js';
-import type { Setting } from './settings.types.js';
+import type { Setting, SettingSpec } from './settings.types.js';
 import { config } from '../../config/index.js';
-import { CUSTOM_FORMAT_SETTING, validateFilenameFormat } from '../../shared/filename-format.js';
+import { CUSTOM_FORMAT_SETTING_SPEC } from '../../shared/filename-format.js';
+import { LIBRARY_MANUALLY_CLEARED_SETTING_SPEC } from '../library/library.repository.js';
+import {
+  SETTING_LAST_REFRESH,
+  STEAM_INDEX_LAST_REFRESH_SETTING_SPEC,
+} from '../metadata/steam-index/steam-index.service.js';
+import { REPACK_CATALOG_SETTING_SPECS } from '../repack-catalog/repack-catalog.settings.js';
 
 export interface SettingsEnvSnapshot {
   libraryRoot: string;
@@ -12,18 +18,15 @@ export interface SettingsEnvSnapshot {
   logLevel: string;
 }
 
-// Keys the app writes itself (not user configuration). Rejecting them via
-// PUT /api/settings stops clients from corrupting internal bookkeeping —
-// e.g. setting steamIndexLastRefresh far in the future would suppress
-// Steam index refreshes indefinitely.
-const RESERVED_KEYS = new Set(['steamIndexLastRefresh', 'repackCatalogFullImportComplete']);
-const REPACK_BOOLEAN_SETTINGS = new Set(['repackCatalogEnabled', 'repackCatalogAuditEnabled']);
-const REPACK_INTERVAL_SETTINGS = new Set(['repackCatalogIntervalHours', 'repackCatalogAuditIntervalHours']);
-const REPACK_SETTINGS = new Set([
-  ...REPACK_BOOLEAN_SETTINGS,
-  ...REPACK_INTERVAL_SETTINGS,
-  'repackCatalogFitGirlBaseUrl',
-]);
+const SETTING_SPECS: readonly SettingSpec[] = [
+  ...REPACK_CATALOG_SETTING_SPECS,
+  CUSTOM_FORMAT_SETTING_SPEC,
+  LIBRARY_MANUALLY_CLEARED_SETTING_SPEC,
+  { ...STEAM_INDEX_LAST_REFRESH_SETTING_SPEC, key: SETTING_LAST_REFRESH },
+];
+const RESERVED_KEYS = new Set(SETTING_SPECS.filter((spec) => spec.internal).map((spec) => spec.key));
+const RESERVED_PREFIXES = new Set(SETTING_SPECS.flatMap((spec) => spec.prefix ? [spec.prefix] : []));
+const SPECS_BY_KEY = new Map(SETTING_SPECS.map((spec) => [spec.key, spec]));
 
 const MAX_KEY_LENGTH = 100;
 const MAX_VALUE_LENGTH = 10_000;
@@ -44,39 +47,58 @@ export function parseSettingsUpsert(body: unknown): { key: string; value: string
     if (typeof value !== 'string') {
       throw new ValidationError(`invalid value for ${key}: expected string`);
     }
-    if (key.startsWith('repackCatalog') && !RESERVED_KEYS.has(key) && !REPACK_SETTINGS.has(key)) {
-      throw new ValidationError(`unknown repack catalog setting: ${key}`);
-    }
-    if (REPACK_BOOLEAN_SETTINGS.has(key) && value !== 'true' && value !== 'false') {
-      throw new ValidationError(`${key} must be true or false`);
-    }
-    if (REPACK_INTERVAL_SETTINGS.has(key)) {
-      const hours = Number(value);
-      if (!Number.isInteger(hours) || hours < 1 || hours > 8760) {
-        throw new ValidationError(`${key} must be an integer from 1 to 8760`);
-      }
-    }
-    if (key === 'repackCatalogFitGirlBaseUrl') {
-      try {
-        const url = new URL(value);
-        if (url.protocol !== 'https:' || !url.hostname) throw new Error('invalid source URL');
-      } catch {
-        throw new ValidationError('repackCatalogFitGirlBaseUrl must be an HTTPS URL');
-      }
-    }
-    if (key === CUSTOM_FORMAT_SETTING && value.trim()) {
-      try {
-        validateFilenameFormat(value);
-      } catch (err) {
-        throw new ValidationError((err as Error).message);
-      }
+    if ([...RESERVED_PREFIXES].some((prefix) => key.startsWith(prefix))) {
+      throw new ValidationError(`setting must use its domain endpoint: ${key}`);
     }
     if (value.length > MAX_VALUE_LENGTH) {
       throw new ValidationError(`value too long (max ${MAX_VALUE_LENGTH}) for ${key}`);
     }
-    entries.push({ key, value });
+    const entry = { key, value };
+    const spec = SPECS_BY_KEY.get(key);
+    if (spec) validateSettingEntries([entry], [spec]);
+    entries.push(entry);
   }
   return entries;
+}
+
+export function validateSettingEntries(
+  entries: { key: string; value: string }[],
+  specs: readonly SettingSpec[],
+): void {
+  const specsByKey = new Map(specs.map((spec) => [spec.key, spec]));
+  for (const { key, value } of entries) {
+    const spec = specsByKey.get(key);
+    if (!spec || spec.internal) throw new ValidationError(`setting is not user-configurable: ${key}`);
+    if (value.length > (spec.constraints?.maxLength ?? MAX_VALUE_LENGTH)) {
+      throw new ValidationError(`value too long (max ${spec.constraints?.maxLength ?? MAX_VALUE_LENGTH}) for ${key}`);
+    }
+    if (spec.kind === 'boolean' && value !== 'true' && value !== 'false') {
+      throw new ValidationError(`${key} must be true or false`);
+    }
+    if (spec.kind === 'integer') {
+      const parsed = Number(value);
+      const min = spec.constraints?.min;
+      const max = spec.constraints?.max;
+      if (!Number.isInteger(parsed) || (min !== undefined && parsed < min) || (max !== undefined && parsed > max)) {
+        throw new ValidationError(`${key} must be an integer from ${min ?? '-∞'} to ${max ?? '∞'}`);
+      }
+    }
+    if (spec.constraints?.protocol) {
+      try {
+        const url = new URL(value);
+        if (url.protocol !== spec.constraints.protocol || !url.hostname) throw new Error('invalid URL');
+      } catch {
+        throw new ValidationError(`${key} must be an ${spec.constraints.protocol.slice(0, -1).toUpperCase()} URL`);
+      }
+    }
+    if (value && spec.validate) {
+      try {
+        spec.validate(value);
+      } catch (error) {
+        throw new ValidationError((error as Error).message);
+      }
+    }
+  }
 }
 
 export const settingsService = {

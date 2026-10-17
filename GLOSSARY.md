@@ -18,3 +18,6 @@ Shared classification of metadata search results as pending, flagged, accepted, 
 
 **Demo session**:
 An isolated library namespace rooted at a session-specific path. Demo sessions use the production scanner with in-memory filesystem and metadata-provider adapters.
+
+**Settings spec**:
+Static declaration owned by a domain module describing a setting's key, kind, default, constraints, and internal status. Settings validation composes owner specs; domain endpoints manage domain-specific updates.
