@@ -1,7 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["web/vendor/**"],
-  "ignoreDependencies": ["pino-pretty"],
+  "ignore": ["web/vendor/**", "web/src/components/effects/**", "scripts/migrate-video-urls.js"],
+  "ignoreDependencies": ["pino-pretty", "gsap", "motion"],
   "workspaces": {
     ".": {},
     "web": {}

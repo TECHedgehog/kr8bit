@@ -39,6 +39,9 @@ jobs:
       - name: Web typecheck
         run: npm --prefix web run typecheck
 
+      - name: Check dependency cycles
+        run: npm run lint:cycles
+
       - name: Web test
         run: npm run web:test
 
