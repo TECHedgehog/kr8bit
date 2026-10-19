@@ -28,6 +28,20 @@ export interface SteamGridDbImageResponse {
   errors?: string[];
 }
 
+export interface SteamGridDbGame {
+  id: number;
+  name: string;
+  verified?: boolean;
+  types?: string[];
+  release_date?: number | null;
+}
+
+export interface SteamGridDbGameResponse {
+  success: boolean;
+  data: SteamGridDbGame[];
+  errors?: string[];
+}
+
 export interface SteamGridDbImageQuery {
   styles?: string[];
   dimensions?: string[];

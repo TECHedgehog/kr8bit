@@ -2,7 +2,11 @@ import { normalizeForMatch } from './normalize.js';
 import type { SearchResult } from './types.js';
 
 function matchTokens(title: string): string[] {
-  return normalizeForMatch(title.replace(/&/g, ' and ')).split(' ').filter(Boolean);
+  const folded = title
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/&/g, ' and ');
+  return normalizeForMatch(folded).split(' ').filter(Boolean);
 }
 
 export function scoreTitleMatch(query: string, candidate: string): number {

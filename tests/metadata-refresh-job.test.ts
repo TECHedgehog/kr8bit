@@ -16,7 +16,13 @@ vi.mock('../src/modules/metadata/metadata.service.js', () => ({
 }));
 
 function makeGame(id: string) {
-  return { id, entryName: `Game ${id}` } as unknown as Record<string, unknown>;
+  return {
+    id,
+    entryName: `Game ${id}`,
+    steamAppId: null,
+    matchStatus: 'ACCEPTED',
+    heroUrl: null,
+  } as unknown as Record<string, unknown>;
 }
 
 function makeJob(overrides: { delayMs?: number; concurrency?: number; sleep?: ReturnType<typeof vi.fn> } = {}) {
@@ -97,6 +103,15 @@ describe('MetadataRefreshJob', () => {
     expect(metadataService.refresh).toHaveBeenNthCalledWith(1, '1');
     expect(metadataService.refresh).toHaveBeenNthCalledWith(2, '2');
     expect(job.state()).toEqual({ running: false, processed: 2, failed: 0, succeeded: ['1', '2'], failedIds: [] });
+  });
+
+  it('refreshes eligible IGDB-only games without a Steam app id', async () => {
+    vi.mocked(libraryRepository.findEligibleForRefresh).mockResolvedValue([makeGame('igdb-only')]);
+    vi.mocked(metadataService.refresh).mockResolvedValue(true);
+
+    await makeJob().start();
+
+    expect(metadataService.refresh).toHaveBeenCalledWith('igdb-only');
   });
 
   it('increments failed when refresh throws and continues', async () => {

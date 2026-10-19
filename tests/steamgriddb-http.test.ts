@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { request } from 'undici';
 import { SteamGridDbHttpClientImpl } from '../src/modules/artwork/steamgriddb/steamgriddb.http.js';
-import type { SteamGridDbImage, SteamGridDbImageResponse } from '../src/modules/artwork/steamgriddb/steamgriddb.http.types.js';
+import type {
+  SteamGridDbGame,
+  SteamGridDbGameResponse,
+  SteamGridDbImage,
+  SteamGridDbImageResponse,
+} from '../src/modules/artwork/steamgriddb/steamgriddb.http.types.js';
 
 vi.mock('undici', async (importOriginal) => {
   const actual = await importOriginal<typeof import('undici')>();
@@ -55,6 +60,31 @@ describe('SteamGridDbHttpClientImpl', () => {
     vi.useRealTimers();
   });
 
+  it('searches games by URL-encoded name without exposing API key in URL', async () => {
+    const games: SteamGridDbGame[] = [
+      { id: 29883, name: 'Backyard Baseball', verified: true, release_date: 876441600 },
+    ];
+    const body: SteamGridDbGameResponse = { success: true, data: games };
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(200, body));
+
+    const client = new SteamGridDbHttpClientImpl(apiKey, apiBase, timeoutMs);
+    const result = await client.searchGameByName('Backyard Baseball');
+
+    expect(result).toEqual(games);
+    const [calledUrl, options] = vi.mocked(request).mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(calledUrl).toContain('/search/autocomplete/Backyard%20Baseball');
+    expect(new URL(calledUrl).search).toBe('');
+    expect(options.headers.Authorization).toBe(`Bearer ${apiKey}`);
+  });
+
+  it('returns no name matches on upstream failure', async () => {
+    vi.mocked(request).mockRejectedValueOnce(new Error('network unavailable'));
+
+    const client = new SteamGridDbHttpClientImpl(apiKey, apiBase, timeoutMs);
+
+    await expect(client.searchGameByName('Broken Age')).resolves.toEqual([]);
+  });
+
   it('fetches grids by steam app id', async () => {
     const images = [makeImage({ id: 1, style: 'alternate' }), makeImage({ id: 2, style: 'official' })];
     const body: SteamGridDbImageResponse = { success: true, data: images };
@@ -90,6 +120,26 @@ describe('SteamGridDbHttpClientImpl', () => {
         method: 'GET',
       }),
     );
+  });
+
+  it('fetches grids by SteamGridDB game id', async () => {
+    const images = [makeImage({ id: 11 })];
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(200, { success: true, data: images }));
+
+    const client = new SteamGridDbHttpClientImpl(apiKey, apiBase, timeoutMs);
+
+    await expect(client.getGridsByGameId(29883)).resolves.toEqual(images);
+    expect(request).toHaveBeenCalledWith(expect.stringContaining('/grids/game/29883'), expect.any(Object));
+  });
+
+  it('fetches heroes by SteamGridDB game id', async () => {
+    const images = [makeImage({ id: 12 })];
+    vi.mocked(request).mockResolvedValueOnce(makeResponse(200, { success: true, data: images }));
+
+    const client = new SteamGridDbHttpClientImpl(apiKey, apiBase, timeoutMs);
+
+    await expect(client.getHeroesByGameId(29883)).resolves.toEqual(images);
+    expect(request).toHaveBeenCalledWith(expect.stringContaining('/heroes/game/29883'), expect.any(Object));
   });
 
   it('fetches logos by steam app id', async () => {

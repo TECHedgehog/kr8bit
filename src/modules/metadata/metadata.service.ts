@@ -9,8 +9,12 @@ import type { ProviderRegistry } from '../metadata/provider-registry.js';
 import { providerRegistry as defaultRegistry } from '../metadata/provider-registry.js';
 import { artworkService, type ArtworkService, type ArtworkKind } from '../artwork/artwork.service.js';
 import { steamGridDbHttpClient, type SteamGridDbHttpClient } from '../artwork/steamgriddb/steamgriddb.http.js';
-import type { SteamGridDbImage, SteamGridDbImageQuery } from '../artwork/steamgriddb/steamgriddb.http.types.js';
-import { normalizeGameName } from '../../shared/normalize.js';
+import type {
+  SteamGridDbGame,
+  SteamGridDbImage,
+  SteamGridDbImageQuery,
+} from '../artwork/steamgriddb/steamgriddb.http.types.js';
+import { normalizeForMatch, normalizeGameName } from '../../shared/normalize.js';
 
 function selectBestImage(images: SteamGridDbImage[]): SteamGridDbImage | undefined {
   if (images.length === 0) return undefined;
@@ -25,14 +29,64 @@ function selectBestImage(images: SteamGridDbImage[]): SteamGridDbImage | undefin
   });
 }
 
+function titleKey(title: string): string {
+  return normalizeForMatch(title.normalize('NFD').replace(/\p{M}/gu, ''));
+}
+
+function isYearCompatible(candidateYear: number | undefined, expectedYear: number | undefined): boolean {
+  if (expectedYear === undefined) return true;
+  return candidateYear !== undefined && Math.abs(candidateYear - expectedYear) <= 1;
+}
+
+function selectExactYearMatch<T>(
+  candidates: T[],
+  title: string,
+  expectedYear: number | undefined,
+  candidateTitle: (candidate: T) => string,
+  candidateYear: (candidate: T) => number | undefined,
+): T | undefined {
+  const expectedTitle = titleKey(title);
+  if (!expectedTitle) return undefined;
+
+  return candidates
+    .filter((candidate) => titleKey(candidateTitle(candidate)) === expectedTitle)
+    .filter((candidate) => isYearCompatible(candidateYear(candidate), expectedYear))
+    .sort((left, right) => {
+      if (expectedYear === undefined) return 0;
+      return Math.abs(candidateYear(left)! - expectedYear) - Math.abs(candidateYear(right)! - expectedYear);
+    })[0];
+}
+
+function steamGridDbReleaseYear(game: SteamGridDbGame): number | undefined {
+  if (!game.release_date || game.release_date <= 0) return undefined;
+  const year = new Date(game.release_date * 1000).getUTCFullYear();
+  return year >= 1970 && year <= 2100 ? year : undefined;
+}
+
 const MANUAL_MATCH_SCORE = 100;
+const STEAMGRIDDB_BASE_QUERY: SteamGridDbImageQuery = {
+  types: ['static'],
+  nsfw: 'false',
+  humor: 'false',
+};
+const STEAMGRIDDB_ART_STYLES = ['alternate', 'blurred'];
+const STEAMGRIDDB_LOGO_STYLES = ['official', 'white', 'black', 'transparent'];
+
+type SteamGridDbArtworkClient = Pick<SteamGridDbHttpClient,
+  | 'searchGameByName'
+  | 'getGridsBySteamAppId'
+  | 'getHeroesBySteamAppId'
+  | 'getLogosBySteamAppId'
+  | 'getGridsByGameId'
+  | 'getHeroesByGameId'
+>;
 
 export interface MetadataDeps {
   providers: ProviderRegistry;
   artwork: ArtworkService;
   now: () => Date;
   /** SteamGridDB enrichment client; null/undefined disables enrichment. */
-  steamGridDb?: Pick<SteamGridDbHttpClient, 'getGridsBySteamAppId' | 'getHeroesBySteamAppId' | 'getLogosBySteamAppId'> | null;
+  steamGridDb?: SteamGridDbArtworkClient | null;
 }
 
 const defaultMetadataDeps: MetadataDeps = {
@@ -286,10 +340,11 @@ export class MetadataService {
     options: { isManual: boolean; now: Date },
   ): Promise<{ game: Game; fetchedArtwork: { header: boolean; cover: boolean } }> {
     const isSteam = provider.name === STEAM_PROVIDER_NAME;
+    const releaseYear = metadata.releaseYear ?? game.releaseYear ?? undefined;
 
     const artworkState = isSteam
-      ? await this.cacheSteamArtwork(metadata)
-      : await this.cacheGenericArtwork(provider.name, metadata);
+      ? await this.cacheSteamArtwork(metadata, releaseYear)
+      : await this.cacheGenericArtwork(provider.name, metadata, releaseYear);
 
     const updatePayload: GameUpdateInput = {
       title: metadata.title,
@@ -336,26 +391,66 @@ export class MetadataService {
 
   private async cacheSteamArtwork(
     metadata: GameMetadata,
+    releaseYear?: number,
   ): Promise<ArtworkUrls> {
     const appId = Number(metadata.remoteId);
     const coverCached = await this.deps.artwork.downloadToCache(appId, 'cover', metadata.coverUrl);
     const heroResult = await this.deps.artwork.downloadToCache(appId, 'header', metadata.heroUrl);
     const steamHeroCached = !!heroResult;
-    const sgdb = await this.enrichWithSteamGridDb(appId, !!coverCached, steamHeroCached);
-    let headerCached = heroResult;
-    const heroFallbackUrl = sgdb.heroUrl ?? metadata.headerUrl ?? null;
-    if (!steamHeroCached && heroFallbackUrl) {
-      headerCached = await this.deps.artwork.downloadToCache(appId, 'header', heroFallbackUrl);
+    const sgdb = await this.enrichWithSteamGridDb(
+      appId,
+      metadata.title,
+      releaseYear,
+      !!coverCached,
+      steamHeroCached,
+    );
+    let selectedHeaderUrl = steamHeroCached ? metadata.heroUrl ?? null : sgdb.heroUrl;
+    let selectedHeroUrl = steamHeroCached ? metadata.heroUrl ?? null : sgdb.heroUrl;
+    let headerCached = !!heroResult;
+    if (!steamHeroCached && sgdb.heroUrl) {
+      headerCached = !!await this.deps.artwork.downloadToCache(appId, 'header', sgdb.heroUrl);
     }
-    const heroFallbackCached = !steamHeroCached && heroFallbackUrl
-      ? await this.deps.artwork.downloadToCache(appId, 'hero', heroFallbackUrl)
-      : null;
+    let coverUrl = coverCached ? metadata.coverUrl ?? null : sgdb.gridUrl;
+
+    if (!coverUrl || !selectedHeroUrl) {
+      const igdbMetadata = await this.findIgdbArtwork(metadata.title, releaseYear);
+      if (!coverUrl && igdbMetadata?.coverUrl) {
+        const cached = await this.deps.artwork.downloadToCache(appId, 'cover', igdbMetadata.coverUrl);
+        if (cached) coverUrl = igdbMetadata.coverUrl;
+      }
+
+      const igdbHeroUrl = igdbMetadata?.heroUrl ?? igdbMetadata?.headerUrl;
+      if (!selectedHeroUrl && igdbHeroUrl) {
+        const [headerImageCached, heroImageCached] = await Promise.all([
+          this.deps.artwork.downloadToCache(appId, 'header', igdbHeroUrl),
+          this.deps.artwork.downloadToCache(appId, 'hero', igdbHeroUrl),
+        ]);
+        if (headerImageCached) {
+          selectedHeaderUrl = igdbHeroUrl;
+          headerCached = true;
+        }
+        if (heroImageCached) selectedHeroUrl = igdbHeroUrl;
+      }
+    }
+
+    if (!selectedHeroUrl && metadata.headerUrl) {
+      const [headerImageCached, heroImageCached] = await Promise.all([
+        this.deps.artwork.downloadToCache(appId, 'header', metadata.headerUrl),
+        this.deps.artwork.downloadToCache(appId, 'hero', metadata.headerUrl),
+      ]);
+      if (headerImageCached) {
+        selectedHeaderUrl = metadata.headerUrl;
+        headerCached = true;
+      }
+      if (heroImageCached) selectedHeroUrl = metadata.headerUrl;
+    }
+
     return {
-      coverCached: !!coverCached,
-      headerCached: !!headerCached,
-      coverUrl: coverCached ? (metadata.coverUrl ?? null) : sgdb.gridUrl,
-      headerUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (headerCached ? heroFallbackUrl : null),
-      heroUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (heroFallbackCached ? heroFallbackUrl : null),
+      coverCached: !!coverUrl,
+      headerCached,
+      coverUrl,
+      headerUrl: selectedHeaderUrl,
+      heroUrl: selectedHeroUrl,
       logoUrl: sgdb.logoUrl,
     };
   }
@@ -363,8 +458,9 @@ export class MetadataService {
   private async cacheGenericArtwork(
     providerName: string,
     metadata: GameMetadata,
+    releaseYear?: number,
   ): Promise<ArtworkUrls> {
-    const headerCached = await this.deps.artwork.downloadToCacheGeneric(
+    const initialHeaderCache = await this.deps.artwork.downloadToCacheGeneric(
       providerName,
       metadata.remoteId,
       'header',
@@ -376,65 +472,174 @@ export class MetadataService {
       'cover',
       metadata.coverUrl,
     );
-    const heroCached = await this.deps.artwork.downloadToCacheGeneric(
+    const initialHeroCache = await this.deps.artwork.downloadToCacheGeneric(
       providerName,
       metadata.remoteId,
       'hero',
       metadata.heroUrl,
     );
+    let headerCached = !!initialHeaderCache;
+    let heroCached = !!initialHeroCache;
+    let headerUrl = headerCached ? metadata.headerUrl ?? null : null;
+    let heroUrl = heroCached ? metadata.heroUrl ?? null : null;
+
+    if (!headerCached || !heroCached) {
+      const fallbackHeroUrl = await this.findSteamGridDbHeroByName(metadata.title, releaseYear);
+      if (fallbackHeroUrl) {
+        const [fallbackHeaderCache, fallbackHeroCache] = await Promise.all([
+          headerCached
+            ? Promise.resolve(null)
+            : this.deps.artwork.downloadToCacheGeneric(providerName, metadata.remoteId, 'header', fallbackHeroUrl),
+          heroCached
+            ? Promise.resolve(null)
+            : this.deps.artwork.downloadToCacheGeneric(providerName, metadata.remoteId, 'hero', fallbackHeroUrl),
+        ]);
+        if (fallbackHeaderCache) {
+          headerCached = true;
+          headerUrl = fallbackHeroUrl;
+        }
+        if (fallbackHeroCache) {
+          heroCached = true;
+          heroUrl = fallbackHeroUrl;
+        }
+      }
+    }
+
     return {
       coverCached: !!coverCached,
-      headerCached: !!headerCached,
+      headerCached,
       coverUrl: coverCached ? (metadata.coverUrl ?? null) : null,
-      headerUrl: headerCached ? (metadata.headerUrl ?? null) : null,
-      heroUrl: heroCached ? (metadata.heroUrl ?? null) : null,
+      headerUrl,
+      heroUrl,
       logoUrl: null,
     };
   }
 
   private async enrichWithSteamGridDb(
     steamAppId: number,
+    title: string,
+    releaseYear: number | undefined,
     coverDownloaded = false,
     heroDownloaded = false,
   ): Promise<{ gridUrl: string | null; heroUrl: string | null; logoUrl: string | null }> {
     const client = this.deps.steamGridDb ?? null;
     if (!client) return { gridUrl: null, heroUrl: null, logoUrl: null };
-    const baseQuery: SteamGridDbImageQuery = {
-      types: ['static'],
-      nsfw: 'false',
-      humor: 'false',
-    };
     const [grids, heroes, logos] = await Promise.all([
       coverDownloaded
         ? Promise.resolve([])
         : client.getGridsBySteamAppId(steamAppId, {
-            ...baseQuery,
-            styles: ['alternate', 'blurred'],
+            ...STEAMGRIDDB_BASE_QUERY,
+            styles: STEAMGRIDDB_ART_STYLES,
           }),
       heroDownloaded
         ? Promise.resolve([])
         : client.getHeroesBySteamAppId(steamAppId, {
-            ...baseQuery,
-            styles: ['alternate', 'blurred'],
+            ...STEAMGRIDDB_BASE_QUERY,
+            styles: STEAMGRIDDB_ART_STYLES,
           }),
       client.getLogosBySteamAppId(steamAppId, {
-        ...baseQuery,
-        styles: ['official', 'white', 'black', 'transparent'],
+        ...STEAMGRIDDB_BASE_QUERY,
+        styles: STEAMGRIDDB_LOGO_STYLES,
       }),
     ]);
-    const gridUrl = selectBestImage(grids)?.url ?? null;
-    const heroUrl = selectBestImage(heroes)?.url ?? null;
-    const logoUrl = selectBestImage(logos)?.url ?? null;
-    const [gridCached, heroCached, logoCached] = await Promise.all([
-      gridUrl ? this.deps.artwork.downloadToCache(steamAppId, 'cover', gridUrl) : null,
-      heroUrl ? this.deps.artwork.downloadToCache(steamAppId, 'hero', heroUrl) : null,
-      logoUrl ? this.deps.artwork.downloadToCache(steamAppId, 'logo', logoUrl) : null,
-    ]);
+    let gridUrl = coverDownloaded ? null : await this.cacheBestSteamGridDbImage(steamAppId, 'cover', grids);
+    let heroUrl = heroDownloaded ? null : await this.cacheBestSteamGridDbImage(steamAppId, 'hero', heroes);
+    const logoUrl = await this.cacheBestSteamGridDbImage(steamAppId, 'logo', logos);
+
+    if ((!coverDownloaded && !gridUrl) || (!heroDownloaded && !heroUrl)) {
+      const game = await this.findSteamGridDbGame(title, releaseYear);
+      if (game) {
+        const [nameGrids, nameHeroes] = await Promise.all([
+          !coverDownloaded && !gridUrl
+            ? client.getGridsByGameId(game.id, {
+                ...STEAMGRIDDB_BASE_QUERY,
+                styles: STEAMGRIDDB_ART_STYLES,
+              })
+            : Promise.resolve([]),
+          !heroDownloaded && !heroUrl
+            ? client.getHeroesByGameId(game.id, {
+                ...STEAMGRIDDB_BASE_QUERY,
+                styles: STEAMGRIDDB_ART_STYLES,
+              })
+            : Promise.resolve([]),
+        ]);
+        gridUrl ??= await this.cacheBestSteamGridDbImage(steamAppId, 'cover', nameGrids);
+        heroUrl ??= await this.cacheBestSteamGridDbImage(steamAppId, 'hero', nameHeroes);
+      }
+    }
+
     return {
-      gridUrl: gridCached ? gridUrl : null,
-      heroUrl: heroCached ? heroUrl : null,
-      logoUrl: logoCached ? logoUrl : null,
+      gridUrl,
+      heroUrl,
+      logoUrl,
     };
+  }
+
+  private async cacheBestSteamGridDbImage(
+    steamAppId: number,
+    kind: ArtworkKind,
+    images: SteamGridDbImage[],
+  ): Promise<string | null> {
+    const image = selectBestImage(images);
+    if (!image) return null;
+    const cached = await this.deps.artwork.downloadToCache(steamAppId, kind, image.url);
+    return cached ? image.url : null;
+  }
+
+  private async findSteamGridDbGame(title: string, releaseYear?: number): Promise<SteamGridDbGame | null> {
+    const client = this.deps.steamGridDb ?? null;
+    if (!client) return null;
+    try {
+      const games = await client.searchGameByName(title);
+      const exactMatches = games.filter((game) => titleKey(game.name) === titleKey(title));
+      return exactMatches
+        .filter((game) => isYearCompatible(steamGridDbReleaseYear(game), releaseYear))
+        .sort((left, right) => Number(right.verified) - Number(left.verified))
+        .sort((left, right) => {
+          if (releaseYear === undefined) return 0;
+          return Math.abs(steamGridDbReleaseYear(left)! - releaseYear)
+            - Math.abs(steamGridDbReleaseYear(right)! - releaseYear);
+        })[0] ?? null;
+    } catch (error) {
+      logger.warn({ title, err: (error as Error).message }, 'steamgriddb name search failed');
+      return null;
+    }
+  }
+
+  private async findSteamGridDbHeroByName(title: string, releaseYear?: number): Promise<string | null> {
+    const client = this.deps.steamGridDb ?? null;
+    if (!client) return null;
+    const game = await this.findSteamGridDbGame(title, releaseYear);
+    if (!game) return null;
+    try {
+      const images = await client.getHeroesByGameId(game.id, {
+        ...STEAMGRIDDB_BASE_QUERY,
+        styles: STEAMGRIDDB_ART_STYLES,
+      });
+      return selectBestImage(images)?.url ?? null;
+    } catch (error) {
+      logger.warn({ title, gameId: game.id, err: (error as Error).message }, 'steamgriddb hero lookup failed');
+      return null;
+    }
+  }
+
+  private async findIgdbArtwork(title: string, releaseYear?: number): Promise<GameMetadata | null> {
+    const igdb = this.deps.providers.resolve('igdb');
+    if (!igdb) return null;
+    try {
+      const results = await igdb.search(title);
+      const match = selectExactYearMatch(
+        results,
+        title,
+        releaseYear,
+        (result) => result.title,
+        (result) => result.releaseYear,
+      );
+      return match ? await igdb.getGame(match.remoteId) : null;
+    } catch (error) {
+      logger.warn({ title, err: (error as Error).message }, 'igdb artwork fallback failed');
+      return null;
+    }
   }
 }
 

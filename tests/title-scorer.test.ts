@@ -10,6 +10,10 @@ describe('scoreTitleMatch', () => {
     expect(scoreTitleMatch('Black Myth - Wukong', 'Black Myth: Wukong')).toBe(100);
   });
 
+  it('folds diacritics for equivalent title spellings', () => {
+    expect(scoreTitleMatch('Bō: Path of the Teal Lotus', 'Bo - Path of the Teal Lotus')).toBe(100);
+  });
+
   it('scores token overlap symmetrically', () => {
     expect(scoreTitleMatch('Black Myth', 'Black Myth: Wukong')).toBe(80);
   });

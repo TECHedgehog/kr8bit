@@ -281,7 +281,7 @@ export function createLibraryRepository(scope?: string) {
               { description: null },
               { coverUrl: null },
               { headerUrl: null },
-              { steamAppId: { not: null }, heroUrl: null },
+              { heroUrl: null },
             ],
           },
           orderBy: { createdAt: 'asc' },

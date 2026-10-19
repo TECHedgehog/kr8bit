@@ -15,6 +15,8 @@ import type {
   MetadataProvider,
   SearchResult,
 } from '../src/shared/types.js';
+import type { SteamGridDbHttpClient } from '../src/modules/artwork/steamgriddb/steamgriddb.http.js';
+import type { SteamGridDbGame, SteamGridDbImage } from '../src/modules/artwork/steamgriddb/steamgriddb.http.types.js';
 
 const tmpBase = join(os.tmpdir(), 'kr8bit-meta-');
 let tmpDir: string;
@@ -71,6 +73,46 @@ function mockRegistry(providers: MetadataProvider[]): ProviderRegistry {
     order: () => [...providers],
     has: (name: string) => byName.has(name),
     names: () => providers.map((p) => p.name),
+  };
+}
+
+function mockSteamGridDb(): SteamGridDbHttpClient {
+  return {
+    searchGameByName: vi.fn(async () => []),
+    getGridsBySteamAppId: vi.fn(async () => []),
+    getHeroesBySteamAppId: vi.fn(async () => []),
+    getLogosBySteamAppId: vi.fn(async () => []),
+    getGridsByGameId: vi.fn(async () => []),
+    getHeroesByGameId: vi.fn(async () => []),
+  };
+}
+
+function sgdbGame(id: number, name: string, releaseYear: number): SteamGridDbGame {
+  return {
+    id,
+    name,
+    verified: true,
+    release_date: Date.UTC(releaseYear, 0, 1) / 1000,
+  };
+}
+
+function sgdbImage(id: number, url: string): SteamGridDbImage {
+  return {
+    id,
+    score: 0,
+    style: 'alternate',
+    url,
+    thumb: url,
+    tags: [],
+    author: { name: 'test', steam64: '0', avatar: '' },
+    language: 'en',
+    notes: null,
+    width: 1920,
+    height: 620,
+    upvotes: 0,
+    downvotes: 0,
+    humor: false,
+    nsfw: false,
   };
 }
 
@@ -328,9 +370,12 @@ describe('MetadataService.assign (steam)', () => {
       artwork,
       now: () => new Date(),
       steamGridDb: {
+        searchGameByName: vi.fn(async () => []),
         getGridsBySteamAppId: vi.fn(async () => []),
         getHeroesBySteamAppId: vi.fn(async () => []),
         getLogosBySteamAppId: vi.fn(async () => []),
+        getGridsByGameId: vi.fn(async () => []),
+        getHeroesByGameId: vi.fn(async () => []),
       },
     });
 
@@ -339,6 +384,120 @@ describe('MetadataService.assign (steam)', () => {
     expect(assigned.game.coverUrl).toBeNull();
     expect(assigned.game.heroUrl).toBe('https://x/valid-header.jpg');
     expect(assigned.game.headerUrl).toBe('https://x/valid-header.jpg');
+  });
+
+  it('fills Steam cover from same-year IGDB after rejecting wrong-year SGDB art', async () => {
+    const gameId = await createGame();
+    const steam = mockSteamProvider([], [], {
+      '3935020': {
+        remoteId: '3935020',
+        title: 'Backyard Baseball',
+        releaseYear: 2026,
+        developers: [],
+        publishers: [],
+        genres: [],
+        coverUrl: 'https://steam.invalid/library_600x900.jpg',
+        heroUrl: 'https://steam.invalid/library_hero.jpg',
+        headerUrl: 'https://steam.invalid/header.jpg',
+      },
+    });
+    const igdb = mockProvider('igdb', [
+      { providerName: 'igdb', remoteId: 'old', title: 'Backyard Baseball', releaseYear: 1997, score: 100 },
+      { providerName: 'igdb', remoteId: 'new', title: 'Backyard Baseball', releaseYear: 2026, score: 100 },
+    ], {
+      new: {
+        remoteId: 'new',
+        title: 'Backyard Baseball',
+        releaseYear: 2026,
+        developers: [],
+        publishers: [],
+        genres: [],
+        coverUrl: 'https://images.example/backyard-2026.jpg',
+      },
+    });
+    const artwork = mockArtwork();
+    (artwork.downloadToCache as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_appId: number, _kind: string, url: string) =>
+        url?.includes('library_') ? null : '/fake/cache/path',
+    );
+    const steamGridDb = mockSteamGridDb();
+    steamGridDb.searchGameByName = vi.fn(async () => [sgdbGame(29883, 'Backyard Baseball', 1997)]);
+    steamGridDb.getGridsByGameId = vi.fn(async () => [
+      sgdbImage(1, 'https://sgdb.example/backyard-1997.png'),
+    ]);
+    const service = new MetadataService({
+      providers: mockRegistry([steam, igdb]),
+      artwork,
+      now: () => new Date(),
+      steamGridDb,
+    });
+
+    const assigned = await service.assign(gameId, 'steam', '3935020');
+
+    expect(steamGridDb.getGridsByGameId).not.toHaveBeenCalled();
+    expect(igdb.search).toHaveBeenCalledWith('Backyard Baseball');
+    expect(igdb.getGame).toHaveBeenCalledWith('new');
+    expect(assigned.game.coverUrl).toBe('https://images.example/backyard-2026.jpg');
+    expect(assigned.game.heroUrl).toBe('https://steam.invalid/header.jpg');
+  });
+
+  it('fills Dancing Line cover but rejects fuzzy Log.in IGDB artwork', async () => {
+    const dancingId = await createGame({ entryName: 'Dancing Line.7z' });
+    const dancingSteam = mockSteamProvider([], [], {
+      '4395300': {
+        remoteId: '4395300', title: 'Dancing Line', releaseYear: 2016,
+        developers: [], publishers: [], genres: [],
+        coverUrl: 'https://steam.invalid/library_600x900.jpg',
+        heroUrl: 'https://steam.invalid/library_hero.jpg',
+        headerUrl: 'https://steam.invalid/dancing-header.jpg',
+      },
+    });
+    const dancingIgdb = mockProvider('igdb', [
+      { providerName: 'igdb', remoteId: 'dancing', title: 'Dancing Line', releaseYear: 2016, score: 100 },
+    ], {
+      dancing: {
+        remoteId: 'dancing', title: 'Dancing Line', releaseYear: 2016,
+        developers: [], publishers: [], genres: [], coverUrl: 'https://images.example/dancing-line.jpg',
+      },
+    });
+    const artwork = mockArtwork();
+    (artwork.downloadToCache as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_appId: number, _kind: string, url: string) =>
+        url?.includes('library_') ? null : '/fake/cache/path',
+    );
+    const service = new MetadataService({
+      providers: mockRegistry([dancingSteam, dancingIgdb]),
+      artwork,
+      now: () => new Date(),
+    });
+
+    const dancing = await service.assign(dancingId, 'steam', '4395300');
+
+    expect(dancing.game.coverUrl).toBe('https://images.example/dancing-line.jpg');
+
+    const loginId = await createGame({ entryName: 'Log.in.7z' });
+    const loginSteam = mockSteamProvider([], [], {
+      '4244930': {
+        remoteId: '4244930', title: 'Log.in', releaseYear: 2026,
+        developers: [], publishers: [], genres: [],
+        coverUrl: 'https://steam.invalid/library_600x900.jpg',
+        heroUrl: 'https://steam.invalid/library_hero.jpg',
+        headerUrl: 'https://steam.invalid/login-header.jpg',
+      },
+    });
+    const loginIgdb = mockProvider('igdb', [
+      { providerName: 'igdb', remoteId: 'log-jammers', title: 'Log Jammers', releaseYear: 2020, score: 76 },
+    ], {});
+    const loginService = new MetadataService({
+      providers: mockRegistry([loginSteam, loginIgdb]),
+      artwork,
+      now: () => new Date(),
+    });
+
+    const login = await loginService.assign(loginId, 'steam', '4244930');
+
+    expect(login.game.coverUrl).toBeNull();
+    expect(login.game.heroUrl).toBe('https://steam.invalid/login-header.jpg');
   });
 
   it('throws when game does not exist', async () => {
@@ -450,6 +609,40 @@ describe('MetadataService.assign (igdb)', () => {
       'hero',
       'https://x/igdb-hero.jpg',
     );
+  });
+
+  it('fills missing generic header and hero from year-matched SGDB game', async () => {
+    const gameId = await createGame({ steamAppId: null });
+    const igdb = mockProvider('igdb', [], {
+      broken: {
+        remoteId: 'broken', title: 'Broken Age', releaseYear: 2014,
+        developers: [], publishers: [], genres: [], coverUrl: 'https://images.example/broken-age.jpg',
+      },
+    });
+    const steamGridDb = mockSteamGridDb();
+    steamGridDb.searchGameByName = vi.fn(async () => [sgdbGame(2545, 'Broken Age', 2014)]);
+    steamGridDb.getHeroesByGameId = vi.fn(async () => [
+      sgdbImage(2, 'https://sgdb.example/broken-age-hero.png'),
+    ]);
+    const artwork = mockArtwork();
+    const service = new MetadataService({
+      providers: mockRegistry([igdb]),
+      artwork,
+      now: () => new Date(),
+      steamGridDb,
+    });
+
+    const assigned = await service.assign(gameId, 'igdb', 'broken');
+
+    expect(steamGridDb.searchGameByName).toHaveBeenCalledWith('Broken Age');
+    expect(steamGridDb.getHeroesByGameId).toHaveBeenCalledWith(2545, expect.objectContaining({
+      styles: ['alternate', 'blurred'],
+      types: ['static'],
+      nsfw: 'false',
+      humor: 'false',
+    }));
+    expect(assigned.game.headerUrl).toBe('https://sgdb.example/broken-age-hero.png');
+    expect(assigned.game.heroUrl).toBe('https://sgdb.example/broken-age-hero.png');
   });
 });
 

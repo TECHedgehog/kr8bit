@@ -140,6 +140,43 @@ describe('libraryRepository', () => {
     expect(result.items[0].title).toContain('Elder');
   });
 
+  it('refreshes old IGDB matches missing hero artwork without looping recently refreshed games', async () => {
+    const oldMatch = await libraryRepository.create({
+      entryPath: '/games/igdb-hero-missing.7z',
+      entryType: EntryType.ARCHIVE,
+      entryName: 'IGDB Hero Missing.7z',
+      sizeBytes: 1,
+      matchStatus: MatchStatus.ACCEPTED,
+    });
+    await libraryRepository.update(oldMatch.id, {
+      title: 'IGDB Hero Missing',
+      description: 'Description',
+      coverUrl: 'https://images.example/cover.jpg',
+      headerUrl: 'https://images.example/header.jpg',
+      matchedAt: new Date('2020-01-01T00:00:00.000Z'),
+    });
+
+    const recentMatch = await libraryRepository.create({
+      entryPath: '/games/igdb-recent.7z',
+      entryType: EntryType.ARCHIVE,
+      entryName: 'IGDB Recent.7z',
+      sizeBytes: 1,
+      matchStatus: MatchStatus.ACCEPTED,
+    });
+    await libraryRepository.update(recentMatch.id, {
+      title: 'IGDB Recent',
+      description: 'Description',
+      coverUrl: 'https://images.example/cover.jpg',
+      headerUrl: 'https://images.example/header.jpg',
+      matchedAt: new Date(),
+    });
+
+    const eligible = await libraryRepository.findEligibleForRefresh();
+
+    expect(eligible.map((game) => game.id)).toContain(oldMatch.id);
+    expect(eligible.map((game) => game.id)).not.toContain(recentMatch.id);
+  });
+
   it('findById throws NotFoundError when missing', async () => {
     expect.assertions(1);
     try {

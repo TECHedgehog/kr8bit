@@ -3,13 +3,18 @@ import type {
   SteamGridDbImage,
   SteamGridDbImageQuery,
   SteamGridDbImageResponse,
+  SteamGridDbGame,
+  SteamGridDbGameResponse,
 } from './steamgriddb.http.types.js';
 import { requestJson } from '../../../shared/http-client.js';
 
 export interface SteamGridDbHttpClient {
+  searchGameByName(name: string): Promise<SteamGridDbGame[]>;
   getGridsBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
   getHeroesBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
   getLogosBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
+  getGridsByGameId(gameId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
+  getHeroesByGameId(gameId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]>;
 }
 
 export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
@@ -18,6 +23,12 @@ export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
     private readonly apiBase: string,
     private readonly timeoutMs: number,
   ) {}
+
+  async searchGameByName(name: string): Promise<SteamGridDbGame[]> {
+    const normalized = name.trim();
+    if (!normalized) return [];
+    return this.fetchGames(`/search/autocomplete/${encodeURIComponent(normalized)}`);
+  }
 
   async getGridsBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
     return this.fetchImages(`/grids/steam/${steamAppId}`, query);
@@ -29,6 +40,28 @@ export class SteamGridDbHttpClientImpl implements SteamGridDbHttpClient {
 
   async getLogosBySteamAppId(steamAppId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
     return this.fetchImages(`/logos/steam/${steamAppId}`, query);
+  }
+
+  async getGridsByGameId(gameId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
+    return this.fetchImages(`/grids/game/${gameId}`, query);
+  }
+
+  async getHeroesByGameId(gameId: number, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
+    return this.fetchImages(`/heroes/game/${gameId}`, query);
+  }
+
+  private async fetchGames(path: string): Promise<SteamGridDbGame[]> {
+    try {
+      const body = await requestJson<SteamGridDbGameResponse>(`${this.apiBase}${path}`, {
+        label: 'steamgriddb',
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+        headersTimeoutMs: this.timeoutMs,
+        bodyTimeoutMs: this.timeoutMs,
+      });
+      return body.success ? body.data : [];
+    } catch {
+      return [];
+    }
   }
 
   private async fetchImages(path: string, query?: SteamGridDbImageQuery): Promise<SteamGridDbImage[]> {
