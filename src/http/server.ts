@@ -24,6 +24,7 @@ import { RepackCatalogJob } from '../modules/repack-catalog/repack-catalog.job.j
 import { createRepackCatalogService } from '../modules/repack-catalog/repack-catalog.service.js';
 import { providerRegistry } from '../modules/metadata/provider-registry.js';
 import { settingsRepository } from '../modules/settings/settings.repository.js';
+import { diagnosticsRoutes } from './routes/diagnostics.routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -84,6 +85,14 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           message: 'metadata and artwork services are disabled in demo mode',
         });
       }
+      if (req.url.startsWith('/api/diagnostics')) {
+        return reply.status(503).send({
+          statusCode: 503,
+          code: 'DEMO_OFFLINE',
+          error: 'DemoOfflineError',
+          message: 'diagnostics are disabled in demo mode',
+        });
+      }
       if (req.url.startsWith('/api/repack-catalog')) {
         return reply.status(503).send({
           statusCode: 503,
@@ -101,6 +110,7 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   await app.register(scannerRoutes);
   await app.register(libraryRoutes);
   await app.register(metadataRoutes);
+  await app.register(diagnosticsRoutes);
   await app.register(databaseRoutes);
   await app.register(todosRoutes);
   app.get('/api/demo/status', async () => demoService.status());

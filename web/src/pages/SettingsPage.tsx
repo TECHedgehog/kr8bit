@@ -21,6 +21,7 @@ import type { RepackSettings } from '../api/types';
 import { SettingsNavLens } from '../components/SettingsNavLens';
 import { isSettingsCategory, type SettingsCategory } from '../settings-categories';
 import { useRepackCatalogEnabled } from '../context/RepackCatalogEnabledContext';
+import { DiagnosticsSection } from '../components/DiagnosticsSection';
 
 type SettingsNavigationItem = {
   id: string;
@@ -148,16 +149,7 @@ export function SettingsPage(): JSX.Element {
             <li><span>Metadata providers</span><strong>Not configured</strong></li>
           </ul>
         </article>
-        <article className="settings-review-card">
-          <div className="settings-review-card__heading">
-            <div>
-              <p className="settings-review-card__eyebrow">Next steps</p>
-              <h3>Configuration</h3>
-            </div>
-          </div>
-          <p className="settings-review-copy">Connect services and add library locations to get started.</p>
-          <span className="settings-review-placeholder">Placeholder panel</span>
-        </article>
+        <DiagnosticsSection />
       </div>
     </SettingsPanel>
   );

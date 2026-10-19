@@ -45,3 +45,9 @@ Release-name phrase that distinguishes a game edition, such as Deluxe Edition or
 
 **Base game name**:
 Game title without release-specific edition, version, bundle, or distribution details.
+
+**Diagnostic report**:
+Exportable summary explaining current library metadata and artwork state, including results of read-only checks.
+
+**Diagnosis**:
+Current-state explanation of a game's metadata match and artwork availability.
