@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Glass, animateGlassValue, cubicBezier, glassValue } from '@samasante/liquid-glass';
 import { GLASS_FILTER_RESOLUTION, useGlassTune } from '../context/GlassTuneContext';
 import { useTheme } from '../context/ThemeContext';
@@ -20,24 +20,26 @@ type SettingsNavLensProps = {
 export function SettingsNavLens({ menuRef, active, children }: SettingsNavLensProps): JSX.Element {
   const { pill } = useGlassTune();
   const { theme } = useTheme();
-  const { lensY, lensW, lensH, lensScale } = useSettingsNavLens(menuRef, active);
+  const { lensY, lensW, lensH, lensScale, isGeometryReady } = useSettingsNavLens(menuRef, active);
   const behind = theme === 'dark' ? '#1a1d24' : '#e8ebf0';
 
   return (
     <div className="settings-menu-glass" aria-hidden="true">
-      <Glass
-        optics={pill.effectiveOptics}
-        width={lensW}
-        height={lensH}
-        radius={SETTINGS_LENS_RADIUS}
-        center={{ x: 0.5, y: lensY }}
-        scale={lensScale}
-        depth={SETTINGS_LENS_DEPTH}
-        refract={children}
-        behind={behind}
-        filterResolution={GLASS_FILTER_RESOLUTION}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
-      />
+      {isGeometryReady && (
+        <Glass
+          optics={pill.effectiveOptics}
+          width={lensW}
+          height={lensH}
+          radius={SETTINGS_LENS_RADIUS}
+          center={{ x: 0.5, y: lensY }}
+          scale={lensScale}
+          depth={SETTINGS_LENS_DEPTH}
+          refract={children}
+          behind={behind}
+          filterResolution={GLASS_FILTER_RESOLUTION}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
+        />
+      )}
     </div>
   );
 }
@@ -50,8 +52,29 @@ function useSettingsNavLens(menuRef: RefObject<HTMLElement>, active: SettingsCat
   const lensW = useMemo(() => glassValue(160), []);
   const lensH = useMemo(() => glassValue(160), []);
   const lensScale = useMemo(() => glassValue(getLensScale()), []);
+  const [isGeometryReady, setIsGeometryReady] = useState(false);
+
+  // The ancestor nav ref is not committed during this child's layout effect.
+  useEffect(() => {
+    if (isGeometryReady) return;
+    const menu = menuRef.current;
+    if (!menu) return;
+    const glass = menu.querySelector('.settings-menu-glass') as HTMLElement | null;
+    const activeItem = menu.querySelector('.settings-menu-content .settings-menu-item.is-active') as HTMLElement | null;
+    if (!glass || !activeItem) return;
+
+    const glassRect = glass.getBoundingClientRect();
+    const activeRect = activeItem.getBoundingClientRect();
+    const idleSize = getLensSize(menu.offsetWidth, activeRect.height);
+    lensY.set(getLensY(activeRect.top + activeRect.height / 2, glassRect.top, glassRect.height));
+    lensW.set(idleSize.width);
+    lensH.set(idleSize.height);
+    lensScale.set(getLensScale());
+    setIsGeometryReady(true);
+  }, [active, isGeometryReady, lensH, lensScale, lensW, lensY, menuRef]);
 
   useLayoutEffect(() => {
+    if (!isGeometryReady) return;
     const menu = menuRef.current;
     if (!menu) return;
     const glass = menu.querySelector('.settings-menu-glass') as HTMLElement | null;
@@ -93,14 +116,14 @@ function useSettingsNavLens(menuRef: RefObject<HTMLElement>, active: SettingsCat
     });
     animateGlassValue(lensH, peakSize.height, SETTINGS_RAISE_ANIMATION);
     animateGlassValue(lensScale, getLensScale(true), SETTINGS_RAISE_ANIMATION);
-  }, [active, lensH, lensScale, lensW, lensY, menuRef]);
+  }, [active, isGeometryReady, lensH, lensScale, lensW, lensY, menuRef]);
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
     if (!menu) return;
     menu.classList.toggle('is-moving', isLensMoving);
     return () => menu.classList.remove('is-moving');
-  }, [isLensMoving, menuRef]);
+  }, [isGeometryReady, isLensMoving, menuRef]);
 
   useLayoutEffect(() => {
     if (isLensMoving) return;
@@ -114,7 +137,7 @@ function useSettingsNavLens(menuRef: RefObject<HTMLElement>, active: SettingsCat
     lensW.set(idleSize.width);
     lensH.set(idleSize.height);
     lensY.set(getLensY(activeRect.top + activeRect.height / 2, glassRect.top, glassRect.height));
-  }, [isLensMoving, lensH, lensW, lensY, menuRef]);
+  }, [isGeometryReady, isLensMoving, lensH, lensW, lensY, menuRef]);
 
-  return { lensY, lensW, lensH, lensScale };
+  return { lensY, lensW, lensH, lensScale, isGeometryReady };
 }
