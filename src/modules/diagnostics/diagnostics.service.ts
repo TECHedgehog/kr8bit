@@ -198,13 +198,16 @@ function defaultProviderHealth(providers: MetadataProvider[]): DiagnosticReport[
 
 export class DiagnosticsService {
   private readonly providersByName: Map<string, MetadataProvider>;
+  private providerHealth: DiagnosticReport['providerHealth'];
 
   constructor(private readonly deps: DiagnosticsServiceDeps) {
     this.providersByName = new Map(deps.providers.map((provider) => [provider.name, provider]));
+    this.providerHealth = [...deps.providerHealth];
   }
 
   async prepare(): Promise<DiagnosticPreparation> {
     const games = await this.deps.games.listAll();
+    if (games.length > 0) await this.probeIgdbHealth();
     const manualMatches = new Set<string>();
     await Promise.all(games
       .filter((game) => game.matchStatus === MatchStatus.MANUAL && game.steamAppId === null)
@@ -334,7 +337,7 @@ export class DiagnosticsService {
           steamGridDb: config.steamgriddb.enabled,
         },
       },
-      providerHealth: this.deps.providerHealth,
+      providerHealth: this.providerHealth,
       summary: {
         totalGames: preparation.totalGames,
         problemGames: games.length,
@@ -385,6 +388,22 @@ export class DiagnosticsService {
       };
     } catch (error) {
       return { report: { ...match, status: 'error', error: safeError(error) } };
+    }
+  }
+
+  private async probeIgdbHealth(): Promise<void> {
+    const igdb = this.providersByName.get('igdb');
+    if (!igdb) return;
+
+    try {
+      const results = await igdb.search('kr8bit diagnostics health check');
+      this.providerHealth = this.providerHealth.map((provider) => provider.name === 'igdb'
+        ? { ...provider, detail: `IGDB API probe succeeded (${results.length} results)` }
+        : provider);
+    } catch (error) {
+      this.providerHealth = this.providerHealth.map((provider) => provider.name === 'igdb'
+        ? { ...provider, detail: `IGDB API probe failed: ${safeError(error)}` }
+        : provider);
     }
   }
 }

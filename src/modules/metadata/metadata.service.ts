@@ -343,15 +343,19 @@ export class MetadataService {
     const steamHeroCached = !!heroResult;
     const sgdb = await this.enrichWithSteamGridDb(appId, !!coverCached, steamHeroCached);
     let headerCached = heroResult;
-    if (!steamHeroCached && sgdb.heroUrl) {
-      headerCached = await this.deps.artwork.downloadToCache(appId, 'header', sgdb.heroUrl);
+    const heroFallbackUrl = sgdb.heroUrl ?? metadata.headerUrl ?? null;
+    if (!steamHeroCached && heroFallbackUrl) {
+      headerCached = await this.deps.artwork.downloadToCache(appId, 'header', heroFallbackUrl);
     }
+    const heroFallbackCached = !steamHeroCached && heroFallbackUrl
+      ? await this.deps.artwork.downloadToCache(appId, 'hero', heroFallbackUrl)
+      : null;
     return {
       coverCached: !!coverCached,
       headerCached: !!headerCached,
-      coverUrl: coverCached ? (metadata.coverUrl ?? null) : (sgdb.gridUrl ?? metadata.coverUrl ?? null),
-      headerUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? metadata.headerUrl ?? null),
-      heroUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (sgdb.heroUrl ?? null),
+      coverUrl: coverCached ? (metadata.coverUrl ?? null) : sgdb.gridUrl,
+      headerUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (headerCached ? heroFallbackUrl : null),
+      heroUrl: steamHeroCached ? (metadata.heroUrl ?? null) : (heroFallbackCached ? heroFallbackUrl : null),
       logoUrl: sgdb.logoUrl,
     };
   }
@@ -381,8 +385,8 @@ export class MetadataService {
     return {
       coverCached: !!coverCached,
       headerCached: !!headerCached,
-      coverUrl: metadata.coverUrl ?? null,
-      headerUrl: metadata.headerUrl ?? null,
+      coverUrl: coverCached ? (metadata.coverUrl ?? null) : null,
+      headerUrl: headerCached ? (metadata.headerUrl ?? null) : null,
       heroUrl: heroCached ? (metadata.heroUrl ?? null) : null,
       logoUrl: null,
     };
@@ -421,10 +425,16 @@ export class MetadataService {
     const gridUrl = selectBestImage(grids)?.url ?? null;
     const heroUrl = selectBestImage(heroes)?.url ?? null;
     const logoUrl = selectBestImage(logos)?.url ?? null;
-    if (gridUrl) await this.deps.artwork.downloadToCache(steamAppId, 'cover', gridUrl);
-    if (heroUrl) await this.deps.artwork.downloadToCache(steamAppId, 'hero', heroUrl);
-    if (logoUrl) await this.deps.artwork.downloadToCache(steamAppId, 'logo', logoUrl);
-    return { gridUrl, heroUrl, logoUrl };
+    const [gridCached, heroCached, logoCached] = await Promise.all([
+      gridUrl ? this.deps.artwork.downloadToCache(steamAppId, 'cover', gridUrl) : null,
+      heroUrl ? this.deps.artwork.downloadToCache(steamAppId, 'hero', heroUrl) : null,
+      logoUrl ? this.deps.artwork.downloadToCache(steamAppId, 'logo', logoUrl) : null,
+    ]);
+    return {
+      gridUrl: gridCached ? gridUrl : null,
+      heroUrl: heroCached ? heroUrl : null,
+      logoUrl: logoCached ? logoUrl : null,
+    };
   }
 }
 

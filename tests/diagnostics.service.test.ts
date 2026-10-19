@@ -44,13 +44,14 @@ function makeService(options: {
   games?: Game[];
   providers?: MetadataProvider[];
   matches?: Array<{ providerName: string; remoteId: string; matchScore: number | null; isPrimary: boolean }>;
+  providerHealth?: Array<{ name: string; enabled: boolean; detail: string }>;
   artworkProbe?: (url: string) => Promise<{ status: 'available' | 'unavailable' | 'redirect' | 'unsupported' | 'error'; statusCode?: number }>;
 } = {}): DiagnosticsService {
   return new DiagnosticsService({
     games: { listAll: async () => options.games ?? [] },
     providerMatches: { findByGame: async () => options.matches ?? [] },
     providers: options.providers ?? [],
-    providerHealth: [],
+    providerHealth: options.providerHealth ?? [],
     now: () => new Date('2026-10-19T12:00:00.000Z'),
     appVersion: 'test-version',
     artworkProbe: options.artworkProbe ?? (async () => ({ status: 'available', statusCode: 200 })),
@@ -58,6 +59,25 @@ function makeService(options: {
 }
 
 describe('DiagnosticsService', () => {
+  it('reports live IGDB search health and exposes provider errors', async () => {
+    const provider: MetadataProvider = {
+      name: 'igdb',
+      search: vi.fn(async () => { throw new Error('igdb http 403'); }),
+      getGame: vi.fn(async () => null),
+    };
+    const service = makeService({
+      games: [game()],
+      providers: [provider],
+      providerHealth: [{ name: 'igdb', enabled: true, detail: 'IGDB provider active' }],
+    });
+
+    const prepared = await service.prepare();
+    const report = service.createReport(prepared, []);
+
+    expect(provider.search).toHaveBeenCalledWith('kr8bit diagnostics health check');
+    expect(report.providerHealth[0].detail).toContain('IGDB API probe failed: igdb http 403');
+  });
+
   it('selects unmatched and incomplete games, excludes healthy games', async () => {
     const healthy = game({
       id: 'healthy',

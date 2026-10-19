@@ -244,7 +244,7 @@ describe('ScannerService.start', () => {
 
     const provider: MetadataProvider = {
       name: 'mock',
-      search: vi.fn(async (): Promise<SearchResult[]> => [{ providerName: 'steam', remoteId: '7', title: 'Skyrim', score: 75 }]),
+      search: vi.fn(async (): Promise<SearchResult[]> => [{ providerName: 'steam', remoteId: '7', title: 'Skyrim Deluxe', score: 75 }]),
       getGame: vi.fn(),
     } as unknown as MetadataProvider;
 
@@ -390,7 +390,7 @@ describe('ScannerService.start', () => {
     const firstProvider: MetadataProvider = {
       name: 'steam',
       search: vi.fn(async (): Promise<SearchResult[]> => [
-        { providerName: 'steam', remoteId: '1', title: 'Game', score: 95 },
+        { providerName: 'steam', remoteId: '1', title: 'Game Extra', score: 95 },
       ]),
       getGame: vi.fn(),
     } as unknown as MetadataProvider;

@@ -86,13 +86,13 @@ describe('IgdbProvider.search', () => {
     expect(await provider.search('Inexistent Game 12345')).toEqual([]);
   });
 
-  it('returns empty list on HTTP error', async () => {
+  it('surfaces HTTP errors from search', async () => {
     const client: IgdbHttpClient = {
       searchGames: vi.fn(async () => { throw new Error('igdb http 429'); }),
       getGame: vi.fn(),
     };
     const provider = new IgdbProvider(client);
-    expect(await provider.search('Anything')).toEqual([]);
+    await expect(provider.search('Anything')).rejects.toThrow('igdb http 429');
   });
 
   it('limits results to SEARCH_LIMIT', async () => {
@@ -164,6 +164,7 @@ describe('IgdbProvider.getGame', () => {
     expect(result!.description).toBe('A puzzle game.');
     expect(result!.coverUrl).toBe('https://images.igdb.com/igdb/cover/abc/t_1080p/co_abc.jpg');
     expect(result!.headerUrl).toBe('https://images.igdb.com/igdb/artwork/def/t_1080p/ar_def.jpg');
+    expect(result!.heroUrl).toBe(result!.headerUrl);
     expect(result!.screenshots).toEqual([
       {
         url: 'https://images.igdb.com/igdb/screenshot/sss/t_screenshot_huge/ss_sss.jpg',
@@ -184,13 +185,13 @@ describe('IgdbProvider.getGame', () => {
     expect(await provider.getGame('0')).toBeNull();
   });
 
-  it('returns null on HTTP error', async () => {
+  it('surfaces HTTP errors from getGame', async () => {
     const client: IgdbHttpClient = {
       searchGames: vi.fn(),
       getGame: vi.fn(async () => { throw new Error('igdb http 503'); }),
     };
     const provider = new IgdbProvider(client);
-    expect(await provider.getGame('620')).toBeNull();
+    await expect(provider.getGame('620')).rejects.toThrow('igdb http 503');
   });
 
   it('omits header when no artworks', async () => {

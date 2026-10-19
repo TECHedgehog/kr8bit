@@ -23,7 +23,8 @@ let tmpArtwork: string;
 function mockArtwork(): ArtworkService {
   return {
     cachePath: vi.fn((appId: number, kind: string) => join(tmpArtwork, String(appId), kind)),
-    downloadToCache: vi.fn(async () => '/fake/cache/path'),
+    downloadToCache: vi.fn(async (_appId: number, _kind: string, url?: string | null) =>
+      url ? '/fake/cache/path' : null),
     exists: vi.fn(async () => false),
     readWithContentType: vi.fn(async () => null),
     remove: vi.fn(async () => undefined),
@@ -31,7 +32,8 @@ function mockArtwork(): ArtworkService {
       (provider: string, remoteId: string, kind: string) =>
         join(tmpArtwork, provider, remoteId, kind),
     ),
-    downloadToCacheGeneric: vi.fn(async () => '/fake/cache/generic'),
+    downloadToCacheGeneric: vi.fn(async (_provider: string, _remoteId: string, _kind: string, url?: string | null) =>
+      url ? '/fake/cache/generic' : null),
     readWithContentTypeGeneric: vi.fn(async () => null),
     removeGeneric: vi.fn(async () => undefined),
   } as unknown as ArtworkService;
@@ -237,7 +239,7 @@ describe('MetadataService.assign (steam)', () => {
     expect(assigned.fetchedArtwork.cover).toBe(true);
     expect(assigned.providerName).toBe('steam');
 
-    expect(artwork.downloadToCache).toHaveBeenCalledTimes(2);
+    expect(artwork.downloadToCache).toHaveBeenCalledTimes(4);
     expect(artwork.downloadToCacheGeneric).not.toHaveBeenCalled();
 
     expect(await providerMatchRepository.findByGame(gameId)).toEqual([]);
@@ -301,6 +303,42 @@ describe('MetadataService.assign (steam)', () => {
     expect(result.fetchedArtwork.header).toBe(false);
     expect(result.fetchedArtwork.cover).toBe(false);
     expect(result.game.title).toBe('Game');
+  });
+
+  it('drops unavailable Steam URLs and uses cached header as hero fallback', async () => {
+    const gameId = await createGame();
+    const provider = mockProvider('steam', [], {
+      '7': {
+        remoteId: '7',
+        title: 'Game',
+        developers: [],
+        publishers: [],
+        genres: [],
+        coverUrl: 'https://x/dead-cover.jpg',
+        heroUrl: 'https://x/dead-hero.jpg',
+        headerUrl: 'https://x/valid-header.jpg',
+      },
+    });
+    const artwork = mockArtwork();
+    const download = artwork.downloadToCache as ReturnType<typeof vi.fn>;
+    download.mockImplementation(async (_appId: number, _kind: string, url: string) =>
+      url?.includes('dead-') ? null : '/fake/cache/path');
+    const service = new MetadataService({
+      providers: mockRegistry([provider]),
+      artwork,
+      now: () => new Date(),
+      steamGridDb: {
+        getGridsBySteamAppId: vi.fn(async () => []),
+        getHeroesBySteamAppId: vi.fn(async () => []),
+        getLogosBySteamAppId: vi.fn(async () => []),
+      },
+    });
+
+    const assigned = await service.assign(gameId, 'steam', '7');
+
+    expect(assigned.game.coverUrl).toBeNull();
+    expect(assigned.game.heroUrl).toBe('https://x/valid-header.jpg');
+    expect(assigned.game.headerUrl).toBe('https://x/valid-header.jpg');
   });
 
   it('throws when game does not exist', async () => {

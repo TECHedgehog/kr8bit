@@ -11,6 +11,7 @@ import {
   REGION_TAGS,
   REPACK_GROUPS,
   SCENE_NOISE_TAGS,
+  TAIL_EDITION_MARKERS,
   VERSION_PATTERN,
   VERSION_STRIP_PATTERN,
   escapeVocabulary,
@@ -38,6 +39,10 @@ const PREFIX_GROUP_PATTERN = /^(?:rld|sr|flt)-/i;
 const LANGUAGE_CODES = `(?:${escapeVocabulary(LANGUAGE_TAGS)})`;
 const LANGUAGE_PATTERN = new RegExp(`\\b(?:MULTI\\d*|${LANGUAGE_CODES})(?:\\s*[/,+-]\\s*\\b${LANGUAGE_CODES})*\\b`, 'gi');
 const LANGUAGE_SUFFIX_PATTERN = new RegExp(`(?:^|\\s)((?:MULTI\\d*|\\b${LANGUAGE_CODES}\\b)(?:\\s*[/,+-]\\s*(?:MULTI\\d*|\\b${LANGUAGE_CODES}\\b))*)$`, 'i');
+const TAIL_EDITION_PATTERN = new RegExp(
+  `(?:\\s*[:,;–—-]\\s*|\\s+)(${escapeVocabulary(TAIL_EDITION_MARKERS)})[\\s*!?.–—-]*$`,
+  'i',
+);
 const NOISE_PATTERN = new RegExp(`\\b(?:${NOISE_TAGS.join('|')})\\b`, 'gi');
 const DELIMITED_SCENE_NOISE_PATTERN = new RegExp(`[([][^)\\]]*(?:${SCENE_NOISE_TAGS.join('|')})[^)\\]]*[)\\]]`, 'gi');
 const SUFFIX_SCENE_NOISE_PATTERN = new RegExp(`(?:^|[\\s._-])(?:${SCENE_NOISE_TAGS.join('|')})$`, 'i');
@@ -127,7 +132,8 @@ export function parseReleaseName(rawName: string, entryType?: EntryType): Parsed
   name = name.replace(LANGUAGE_PATTERN, (match, offset: number, full: string) => {
     const before = full.slice(0, offset);
     const after = full.slice(offset + match.length);
-    if (!/[([]\s*$/.test(before) && /^[^\])]*[)\]]/.test(after)) return match;
+    const isDelimitedTag = /[([]\s*$/.test(before) && /^[^\])]*[)\]]/.test(after);
+    if (!isDelimitedTag) return match;
     languages.push(match);
     return ' ';
   });
@@ -136,6 +142,12 @@ export function parseReleaseName(rawName: string, entryType?: EntryType): Parsed
   name = name.replace(DISC_PATTERN, (match) => { noise.push(match); return ' '; });
   name = name.replace(DEV_STAGE_PATTERN, (match) => { noise.push(match); return ' '; });
   name = removeKnownEditions(name, editions);
+  name = name.replace(TAIL_EDITION_PATTERN, (_match, edition: string, offset: number, full: string) => {
+    const baseTitle = full.slice(0, offset).trim();
+    if (!baseTitle) return _match;
+    editions.push({ name: edition, known: true });
+    return ' ';
+  });
   const strippedNoiseEdition = new RegExp(`\\b(?:${NOISE_TAGS.join('|')})\\s+Edition\\b`, 'gi');
   name = name.replace(strippedNoiseEdition, (match) => { noise.push(match); return ' '; });
   name = removeUnknownEditionSuffix(name, editions);

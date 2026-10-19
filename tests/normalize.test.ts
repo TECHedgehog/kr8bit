@@ -165,6 +165,24 @@ describe('normalizeGameName', () => {
     expect(normalizeGameName('Bloodborne: GOTY Edition.7z').query).toBe('Bloodborne');
   });
 
+  it('preserves language words inside titles and strips trailing language tags', () => {
+    expect(normalizeGameName('JDM - Japanese Drift Master').query).toBe('JDM - Japanese Drift Master');
+    expect(normalizeGameName('The Spanish Flu').query).toBe('The Spanish Flu');
+    expect(normalizeGameName('Some Game EN').query).toBe('Some Game');
+    expect(normalizeGameName('Game (EN/RU)').query).toBe('Game');
+  });
+
+  it('strips known edition markers only at title end', () => {
+    expect(normalizeGameName('The House of Da Vinci Enhanced').query).toBe('The House of Da Vinci');
+    expect(parseReleaseName('The House of Da Vinci Enhanced').editions).toEqual([
+      { name: 'Enhanced', known: true },
+    ]);
+    expect(normalizeGameName('Broken Age - The Complete Adventure').query)
+      .toBe('Broken Age - The Complete Adventure');
+    expect(normalizeGameName('Scott Pilgrim vs The World CE').query)
+      .toBe('Scott Pilgrim vs The World');
+  });
+
   it('removes Edition orphaned by stripped soundtrack noise', () => {
     expect(normalizeGameName('LEGO Party! Soundtrack Edition.7z').query).toBe('LEGO Party!');
   });

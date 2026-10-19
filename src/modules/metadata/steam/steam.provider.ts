@@ -32,13 +32,7 @@ export class SteamProvider implements MetadataProvider {
     const local = await this.searchViaIndex(normalized);
     if (local.length > 0) return local;
 
-    let response;
-    try {
-      response = await this.client.searchStore(normalized);
-    } catch (err) {
-      logger.warn({ err: (err as Error).message, query: normalized }, 'steam storesearch failed');
-      return [];
-    }
+    const response = await this.client.searchStore(normalized);
 
     return this.rankStoreSearchResults(response?.items ?? [], normalized);
   }
@@ -52,13 +46,7 @@ export class SteamProvider implements MetadataProvider {
     const normalized = query.trim();
     if (!normalized) return [];
 
-    let response;
-    try {
-      response = await this.client.searchStore(normalized);
-    } catch (err) {
-      logger.warn({ err: (err as Error).message, query: normalized }, 'steam fallback storesearch failed');
-      return [];
-    }
+    const response = await this.client.searchStore(normalized);
 
     return this.rankStoreSearchResults(response?.items ?? [], normalized);
   }
@@ -101,24 +89,19 @@ export class SteamProvider implements MetadataProvider {
     const appId = Number(remoteId);
     if (!Number.isInteger(appId) || appId <= 0) return null;
 
-    try {
-      const [response, deckCompat] = await Promise.all([
-        this.client.fetchAppDetails(appId),
-        this.client.fetchDeckCompatibility(appId).catch((err) => {
-          logger.warn({ appId, err: (err as Error).message }, 'steam deck compatibility failed');
-          return null;
-        }),
-      ]);
-      const entry = response[String(appId)];
-      if (!entry?.success || !entry.data) {
-        logger.info({ appId }, 'steam appdetails: not success');
+    const [response, deckCompat] = await Promise.all([
+      this.client.fetchAppDetails(appId),
+      this.client.fetchDeckCompatibility(appId).catch((err) => {
+        logger.warn({ appId, err: (err as Error).message }, 'steam deck compatibility failed');
         return null;
-      }
-      return this.mapDetails(entry.data, deckCompat);
-    } catch (err) {
-      logger.warn({ appId, err: (err as Error).message }, 'steam appdetails failed');
+      }),
+    ]);
+    const entry = response[String(appId)];
+    if (!entry?.success || !entry.data) {
+      logger.info({ appId }, 'steam appdetails: not success');
       return null;
     }
+    return this.mapDetails(entry.data, deckCompat);
   }
 
   private buildResult(item: SteamStoreSearchItem, score: number | undefined): SearchResult {

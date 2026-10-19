@@ -83,14 +83,14 @@ describe('SteamProvider.search', () => {
     expect(await provider.search('Inexistent Game 12345')).toEqual([]);
   });
 
-  it('returns empty list on HTTP error', async () => {
+  it('surfaces HTTP errors from search', async () => {
     const client: SteamHttpClient = {
       searchStore: vi.fn(async () => { throw new Error('bad gateway'); }),
       fetchAppDetails: vi.fn(),
       fetchDeckCompatibility: vi.fn(async () => null),
     };
     const provider = new SteamProvider(client);
-    expect(await provider.search('Anything')).toEqual([]);
+    await expect(provider.search('Anything')).rejects.toThrow('bad gateway');
   });
 
   it('limits results to SEARCH_LIMIT', async () => {
@@ -146,14 +146,14 @@ describe('SteamProvider.resolveByStoreSearch', () => {
     expect(await provider.resolveByStoreSearch('   ')).toEqual([]);
   });
 
-  it('returns empty array on HTTP error', async () => {
+  it('surfaces HTTP errors from fallback storesearch', async () => {
     const client: SteamHttpClient = {
       searchStore: vi.fn(async () => { throw new Error('bad gateway'); }),
       fetchAppDetails: vi.fn(),
       fetchDeckCompatibility: vi.fn(async () => null),
     };
     const provider = new SteamProvider(client, null);
-    expect(await provider.resolveByStoreSearch('Anything')).toEqual([]);
+    await expect(provider.resolveByStoreSearch('Anything')).rejects.toThrow('bad gateway');
   });
 });
 
@@ -205,14 +205,14 @@ describe('SteamProvider.getGame', () => {
     expect(await provider.getGame('0')).toBeNull();
   });
 
-  it('returns null on HTTP error', async () => {
+  it('surfaces HTTP errors from getGame', async () => {
     const client: SteamHttpClient = {
       searchStore: vi.fn(),
       fetchAppDetails: vi.fn(async () => { throw new Error('steam http 429'); }),
       fetchDeckCompatibility: vi.fn(async () => null),
     };
     const provider = new SteamProvider(client);
-    expect(await provider.getGame('620')).toBeNull();
+    await expect(provider.getGame('620')).rejects.toThrow('steam http 429');
   });
 });
 

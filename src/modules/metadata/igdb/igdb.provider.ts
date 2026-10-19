@@ -29,16 +29,7 @@ export class IgdbProvider implements MetadataProvider {
     const normalized = query.trim();
     if (!normalized) return [];
 
-    let response: IgdbGame[];
-    try {
-      response = await this.client.searchGames(normalized);
-    } catch (err) {
-      logger.warn(
-        { err: (err as Error).message, query: normalized },
-        'igdb search failed',
-      );
-      return [];
-    }
+    const response: IgdbGame[] = await this.client.searchGames(normalized);
 
     if (!response || response.length === 0) return [];
 
@@ -59,20 +50,12 @@ export class IgdbProvider implements MetadataProvider {
     const id = Number(remoteId);
     if (!Number.isInteger(id) || id <= 0) return null;
 
-    try {
-      const game = await this.client.getGame(id);
-      if (!game) {
-        logger.info({ igdbId: id }, 'igdb game not found');
-        return null;
-      }
-      return this.mapGame(game);
-    } catch (err) {
-      logger.warn(
-        { igdbId: id, err: (err as Error).message },
-        'igdb getGame failed',
-      );
+    const game = await this.client.getGame(id);
+    if (!game) {
+      logger.info({ igdbId: id }, 'igdb game not found');
       return null;
     }
+    return this.mapGame(game);
   }
 
   private buildResult(item: IgdbGame, score: number | undefined): SearchResult {
@@ -119,6 +102,7 @@ export class IgdbProvider implements MetadataProvider {
       genres,
       coverUrl: normalizeIgdbImageUrl(game.cover?.url, IGDB_IMAGE_SIZE_COVER),
       headerUrl: normalizeIgdbImageUrl(firstArtwork, IGDB_IMAGE_SIZE_HEADER),
+      heroUrl: normalizeIgdbImageUrl(firstArtwork, IGDB_IMAGE_SIZE_HEADER),
       screenshots: screenshots.length > 0 ? screenshots : undefined,
     };
   }

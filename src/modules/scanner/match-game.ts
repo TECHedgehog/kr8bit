@@ -5,7 +5,8 @@ import type { MetadataProvider, SearchResult } from '../../shared/types.js';
 import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
 import type { Game } from '../library/library.types.js';
 import { libraryRepository } from '../library/library.repository.js';
-import { normalizeGameName } from '../../shared/normalize.js';
+import { normalizeGameName, stripEditionPhrase } from '../../shared/normalize.js';
+import { scoreSearchResults } from '../../shared/title-scorer.js';
 import { applyMatchResult } from './match-apply.js';
 
 export interface MatchPipelineDeps {
@@ -20,11 +21,29 @@ export async function searchAllProviders(
   providers: MetadataProvider[],
   logContext: Record<string, unknown> = {},
 ): Promise<SearchResult[]> {
+  let results = await searchProvidersForQuery(query, providers, logContext);
+  const fallbackQueries = getFallbackQueries(query);
+  for (const fallbackQuery of fallbackQueries) {
+    if (results.length > 0) break;
+    results = await searchProvidersForQuery(fallbackQuery, providers, {
+      ...logContext,
+      fallbackQuery,
+    });
+  }
+
+  const baseQuery = fallbackQueries.at(-1) ?? stripEditionPhrase(query) ?? query;
+  return scoreSearchResults(query, results, baseQuery);
+}
+
+async function searchProvidersForQuery(
+  query: string,
+  providers: MetadataProvider[],
+  logContext: Record<string, unknown>,
+): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
   for (const provider of providers) {
     try {
-      const partial = await provider.search(query);
-      results.push(...partial);
+      results.push(...await provider.search(query));
     } catch (err) {
       logger.warn(
         { err: (err as Error).message, provider: provider.name, query, ...logContext },
@@ -44,7 +63,13 @@ export async function applyDecisionToGame(
   gameId: string,
   decision: MatchDecision,
   now: Date,
+  hasExistingMatch = false,
 ): Promise<boolean> {
+  if (!decision.result && hasExistingMatch) {
+    logger.debug({ gameId }, 'match retry: preserving existing match on empty result');
+    return false;
+  }
+
   const applied = decision.result
     ? await applyMatchResult(gameId, decision, now)
     : false;
@@ -87,6 +112,20 @@ export async function matchGame(
   const normalized = normalizeGameName(game.entryName);
   const results = await searchAllProviders(normalized.query, deps.providers, { gameId: game.id });
   const decision = decideMatch(results, config.match);
-  const applied = await applyDecisionToGame(game.id, decision, deps.now());
+  const hasExistingMatch = game.steamAppId !== null
+    || game.title !== null
+    || game.matchStatus === MatchStatus.FLAGGED
+    || game.matchStatus === MatchStatus.ACCEPTED;
+  const applied = await applyDecisionToGame(game.id, decision, deps.now(), hasExistingMatch);
   return { decision, applied };
+}
+
+function getFallbackQueries(query: string): string[] {
+  const candidates = [
+    stripEditionPhrase(query),
+    query.split(/\s+[–—-]\s+/u, 2)[0]?.trim() ?? null,
+  ];
+  return [...new Set(candidates.filter((candidate): candidate is string =>
+    !!candidate && candidate.length > 0 && candidate !== query,
+  ))];
 }

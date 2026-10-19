@@ -5,6 +5,7 @@ import { providerRegistry } from '../src/modules/metadata/provider-registry.js';
 import { normalizeGameName } from '../src/shared/normalize.js';
 import { decideMatch } from '../src/shared/match-policy.js';
 import { applyMatchResult } from '../src/modules/scanner/match-apply.js';
+import { applyDecisionToGame, matchGame } from '../src/modules/scanner/match-game.js';
 import { metadataRefreshJob } from '../src/modules/metadata/metadata-refresh.job.js';
 import { RetryMatchJob } from '../src/modules/metadata/retry-match.job.js';
 
@@ -21,7 +22,8 @@ vi.mock('../src/modules/metadata/provider-registry.js', () => ({
   },
 }));
 
-vi.mock('../src/shared/normalize.js', () => ({
+vi.mock('../src/shared/normalize.js', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../src/shared/normalize.js')>(),
   normalizeGameName: vi.fn(),
 }));
 
@@ -41,7 +43,14 @@ vi.mock('../src/modules/metadata/metadata-refresh.job.js', () => ({
 }));
 
 function makeGame(id: string, entryName: string) {
-  return { id, entryName } as unknown as Record<string, unknown>;
+  return {
+    id,
+    entryName,
+    steamAppId: null,
+    title: null,
+    matchStatus: MatchStatus.PENDING,
+    matchScore: null,
+  } as unknown as Record<string, unknown>;
 }
 
 function makeProvider(name: string, results: unknown[]) {
@@ -78,6 +87,52 @@ beforeEach(() => {
 });
 
 describe('RetryMatchJob', () => {
+  it('retries base title and rescoring full-title candidate', async () => {
+    vi.mocked(normalizeGameName).mockReturnValue({ query: 'Black Myth - Wukong' });
+    const candidate = {
+      providerName: 'steam',
+      remoteId: '1',
+      title: 'Black Myth: Wukong',
+      score: 54,
+    };
+    const provider = {
+      name: 'steam',
+      search: vi.fn(async (query: string) => query === 'Black Myth' ? [candidate] : []),
+    };
+    vi.mocked(decideMatch).mockReturnValue(
+      makeDecision(MatchStatus.ACCEPTED, 100, candidate) as never,
+    );
+    const game = {
+      id: 'game-1',
+      entryName: 'Black Myth - Wukong.7z',
+      steamAppId: null,
+      title: null,
+    };
+
+    await matchGame(game as never, {
+      providers: [provider] as never,
+      now: () => new Date('2024-08-01T00:00:00Z'),
+      metadataRefresh: { refresh: vi.fn(async () => undefined) },
+    });
+
+    expect(provider.search).toHaveBeenNthCalledWith(1, 'Black Myth - Wukong');
+    expect(provider.search).toHaveBeenNthCalledWith(2, 'Black Myth');
+    expect(decideMatch).toHaveBeenCalledWith(
+      [expect.objectContaining({ title: 'Black Myth: Wukong', score: 100 })],
+      expect.any(Object),
+    );
+  });
+
+  it('preserves existing match when retry search returns no result', async () => {
+    const decision = makeDecision(MatchStatus.PENDING, 0, null);
+
+    const applied = await applyDecisionToGame('matched-game', decision as never, new Date(), true);
+
+    expect(applied).toBe(false);
+    expect(libraryRepository.update).not.toHaveBeenCalled();
+    expect(applyMatchResult).not.toHaveBeenCalled();
+  });
+
   it('is not running initially', () => {
     const job = makeJob();
     expect(job.isRunning()).toBe(false);

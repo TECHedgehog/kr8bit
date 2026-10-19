@@ -15,6 +15,8 @@ export const KNOWN_EDITIONS = [
   'remaster', 'remastered', 'goty', 'directors cut', "director's cut",
 ] as const;
 
+export const TAIL_EDITION_MARKERS = ['enhanced', 'complete', 'bundle', 'CE'] as const;
+
 export const EDITION_WORDS_FOR_FILENAME = [
   'Game of the Year', 'Definitive', 'Complete', 'Ultimate', 'Deluxe', 'Gold', 'Platinum',
   'Premium', 'Legendary', 'Anniversary', 'Remastered', 'Enhanced', 'Special', 'Collector(?:\'s)?',
