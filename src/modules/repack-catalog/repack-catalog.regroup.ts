@@ -5,9 +5,12 @@ export async function regroupRepackGames(
   normalize: (title: string) => { gameTitle: string; normalizedTitle: string },
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const games = await tx.repackGame.findMany({ include: { posts: { select: { id: true, title: true, publishedAt: true } } } });
+    const games = await tx.repackGame.findMany({
+      include: { posts: { select: { id: true, title: true, normalizedTitle: true, publishedAt: true } } },
+    });
     const groups = new Map<string, { gameTitle: string; normalizedTitle: string; posts: string[]; games: typeof games }>();
     const postOwners = new Map(games.flatMap((game) => game.posts.map((post) => [post.id, game.id] as const)));
+    const postNormalizedTitles = new Map(games.flatMap((game) => game.posts.map((post) => [post.id, post.normalizedTitle] as const)));
     const postPublishedAt = new Map(games.flatMap((game) => game.posts.map((post) => [post.id, post.publishedAt] as const)));
     const winnerDetails = new Map<string, { title: string; normalizedTitle: string }>();
 
@@ -49,13 +52,19 @@ export async function regroupRepackGames(
       const winnerId = winners.get(normalizedTitle)!;
       const winner = winnerDetails.get(winnerId)!;
       return winner.title !== group.gameTitle || winner.normalizedTitle !== normalizedTitle
-        || group.posts.some((postId) => postOwners.get(postId) !== winnerId);
+        || group.posts.some((postId) => postOwners.get(postId) !== winnerId
+          || postNormalizedTitles.get(postId) !== normalizedTitle);
     });
     if (!needsRewrite) return;
 
     for (const [normalizedTitle, group] of orderedGroups) {
       const winnerId = winners.get(normalizedTitle)!;
-      if (group.posts.length) await tx.repackPost.updateMany({ where: { id: { in: group.posts } }, data: { gameId: winnerId } });
+      if (group.posts.length) {
+        await tx.repackPost.updateMany({
+          where: { id: { in: group.posts } },
+          data: { gameId: winnerId, normalizedTitle },
+        });
+      }
     }
     if (duplicateIds.length) await tx.repackGame.deleteMany({ where: { id: { in: duplicateIds } } });
 

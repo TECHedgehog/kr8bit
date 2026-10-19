@@ -65,6 +65,26 @@ describe('regroupRepackGames', () => {
     expect(games.map((game) => game.posts[0].title)).toEqual(['Alpha Game', 'Beta Game']);
   });
 
+  it('recomputes legacy grouping keys and merges newly equivalent release variants', async () => {
+    await repackCatalogRepository.upsertPost(post(
+      'https://fitgirl.test/variant-tenoke/', 'Variant Game [TENOKE]', 'variant tenoke',
+    ));
+    await repackCatalogRepository.upsertPost(post(
+      'https://fitgirl.test/variant-language/', 'Variant Game [English]', 'variant english',
+    ));
+
+    await regroupRepackGames((title) => ({
+      gameTitle: fitGirlGameTitle(title), normalizedTitle: normalizeFitGirlGameTitle(title),
+    }));
+
+    const page = await repackCatalogRepository.listGames({ offset: 0, limit: 20 });
+    expect(page.total).toBe(1);
+    expect(page.items[0].normalizedTitle).toBe('variant game');
+    expect(page.items[0].posts).toHaveLength(2);
+    const postKeys = await prisma.repackPost.findMany({ select: { normalizedTitle: true } });
+    expect(postKeys).toEqual([{ normalizedTitle: 'variant game' }, { normalizedTitle: 'variant game' }]);
+  });
+
   it('regroups games without posts from their game title', async () => {
     const orphan = await prisma.repackGame.create({ data: { title: 'Orphan Game', normalizedTitle: 'old orphan' } });
 

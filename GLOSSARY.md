@@ -27,3 +27,21 @@ Template used to generate game entry names. Supported tags come from the library
 
 **Rename preview**:
 Per-game projection of a proposed naming-format application, including readiness, unchanged paths, conflicts, and unavailable entries.
+
+**Release name**:
+Name attached to a game distribution, including identifying title and release-specific details.
+
+**Normalized name**:
+Canonical title representation used to identify the same game across release variants.
+
+**Match key**:
+Comparison-friendly form of a normalized name, used to group or recognize equivalent titles.
+
+**Group tag**:
+Release marker identifying the group that prepared or distributed a game release.
+
+**Edition phrase**:
+Release-name phrase that distinguishes a game edition, such as Deluxe Edition or Game of the Year.
+
+**Base game name**:
+Game title without release-specific edition, version, bundle, or distribution details.

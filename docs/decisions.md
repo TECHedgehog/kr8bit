@@ -693,3 +693,27 @@ Job-start endpoints (`/api/scanner/run`, `/api/metadata/refresh-all`, `/api/meta
 - Every PR and every published image runs the complete verification suite.
 - Publish latency increases by the CI duration (acceptable; correctness over speed).
 - Local docker builds remain unverified by CI (image build itself only runs in the publish workflow).
+
+---
+
+## ADR-033 — Shared Release-Name Parsing
+
+**Status:** Accepted (2026-10-17)
+
+### Context
+Game library names and repack post names describe the same underlying game, but normalization and release metadata extraction used overlapping, separately maintained tag lists. That allowed provider-search queries and repack grouping keys to diverge as release naming conventions expanded.
+
+### Decision
+- Use one shared release-name parser and vocabulary for release groups, editions, languages, platforms, regions, versions, builds, DLC markers, and release noise.
+- Derive provider-search names, display titles, match keys, and release metadata from that parse. Provider-search names and repack grouping keys remove non-identifying release variants; display titles preserve unknown edition phrases.
+- Repack catalog game titles show the base game name only. Edition, version, and bundle variants remain visible on their individual repack posts.
+- Strip recognized languages and platform/architecture tags from search and grouping names. Preserve unknown edition phrases for full-title provider search, with existing base-title fallback.
+- Extend supported release variants to language labels, platform/architecture suffixes, dash-suffix groups, scene prefixes, modern group tags, scene noise, and build/update/date forms.
+- Recompute stored `RepackGame` and `RepackPost` grouping keys during regroup. Existing group merges retain the highest-ranked match status.
+
+### Consequences
+- Release-name rules stay centralized; source-specific preprocessing remains where source title formats require it.
+- New vocabulary can change `normalizedTitle`, merging or splitting existing repack groups during regroup.
+- Repack catalog game titles omit edition phrases; the corresponding FitGirl posts retain variant details.
+- Platform/language words that are part of a title require delimiter/suffix boundaries; regression fixtures cover risky short tokens.
+- Vocabulary remains code-defined; configuration and non-FitGirl source onboarding remain separate work.

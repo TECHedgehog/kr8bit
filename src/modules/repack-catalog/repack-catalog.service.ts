@@ -1,5 +1,4 @@
 import { logger } from '../../logger/index.js';
-import { decodeHtmlEntities } from '../../shared/html-entities.js';
 import { normalizeGameName, stripEditionPhrase } from '../../shared/normalize.js';
 import { MatchStatus } from '../../shared/enums.js';
 import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
@@ -25,7 +24,7 @@ import {
   REPACK_INTERVAL_HOURS,
   REPACK_INTERVAL_HOURS_SPEC,
 } from './repack-catalog.settings.js';
-import { fitGirlGameTitle, normalizeFitGirlGameTitle } from './sources/fitgirl/fitgirl.source.js';
+import { fitGirlGameTitle, fitGirlSearchTitle, normalizeFitGirlGameTitle } from './sources/fitgirl/fitgirl.source.js';
 import { SourceBlockedError } from './source-http-client.js';
 import type { RepackMatchCandidate, RepackMatchStatus, RepackMetadataSnapshot, RepackSource } from './repack-catalog.types.js';
 
@@ -346,8 +345,8 @@ export class RepackCatalogService {
   }
 
   private async matchGame(id: string, title: string): Promise<void> {
-    const displayTitle = fitGirlGameTitle(decodeHtmlEntities(title));
-    const fullQuery = normalizeGameName(displayTitle).query;
+    const searchTitle = fitGirlSearchTitle(title);
+    const fullQuery = normalizeGameName(searchTitle).query;
     let candidates = await this.findCandidates(fullQuery);
     const decision = decideMatch(candidates, this.dependencies.matchThresholds);
     let reviewCandidates: RepackMatchCandidate[] | null = null;
@@ -364,7 +363,7 @@ export class RepackCatalogService {
       reviewWasFlagged = true;
     }
 
-    const baseTitle = stripEditionPhrase(displayTitle);
+    const baseTitle = stripEditionPhrase(searchTitle);
     const baseQuery = baseTitle ? normalizeGameName(baseTitle).query : '';
     if (baseQuery && baseQuery !== fullQuery) {
       const baseCandidates = await this.findCandidates(baseQuery);

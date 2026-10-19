@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { fitGirlGameTitle, FitGirlSource, normalizeFitGirlGameTitle, parseFitGirlListing, parseFitGirlPost } from '../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js';
+import { fitGirlGameTitle, fitGirlSearchTitle, FitGirlSource, normalizeFitGirlGameTitle, parseFitGirlListing, parseFitGirlPost } from '../src/modules/repack-catalog/sources/fitgirl/fitgirl.source.js';
 import { SourceHttpClient } from '../src/modules/repack-catalog/source-http-client.js';
 
 const listingFixture = new URL('./fixtures/fitgirl/listing.html', import.meta.url);
@@ -36,14 +36,33 @@ describe('FitGirl parser', () => {
     expect(normalizeFitGirlGameTitle('GTA V v2 + 10 DLCs')).toBe('gta v');
   });
 
-  it('cleans display titles without stripping unknown editions', () => {
+  it('uses base titles for display while preserving substantive edition for search', () => {
     expect(fitGirlGameTitle('Dragon’s Dogma 2: Deluxe Edition* –')).toBe('Dragon’s Dogma 2');
-    expect(fitGirlGameTitle('Bubsy 4D: Digital Pawsome Edition')).toBe('Bubsy 4D: Digital Pawsome Edition');
+    expect(fitGirlGameTitle('Bubsy 4D: Digital Pawsome Edition')).toBe('Bubsy 4D');
+    expect(fitGirlSearchTitle('Bubsy 4D: Digital Pawsome Edition')).toBe('Bubsy 4D: Digital Pawsome Edition');
     expect(fitGirlGameTitle('Superhero Simulator + Bonus OST')).toBe('Superhero Simulator');
     expect(fitGirlGameTitle('MechWarrior 5: Mercenaries – Succession Wars Edition, v1.15.398 + 10 DLCs/Bonuses'))
-      .toBe('MechWarrior 5: Mercenaries – Succession Wars Edition');
-    expect(fitGirlGameTitle('LEGO Party! Soundtrack Edition, v1.6.62 + 2 DLCs/Bonuses')).toBe('LEGO Party! Edition');
+      .toBe('MechWarrior 5: Mercenaries');
+    expect(fitGirlGameTitle('LEGO Party! Soundtrack Edition, v1.6.62 + 2 DLCs/Bonuses')).toBe('LEGO Party!');
     expect(fitGirlGameTitle('Invincible VS, Season 2 Patch + 22 DLCs')).toBe('Invincible VS');
+  });
+
+  it('strips GOTY edition and DLC-bundle suffixes from repack display titles', () => {
+    expect(fitGirlGameTitle('Bloodborne: Game of the Year Edition – v1.09 + DLCs')).toBe('Bloodborne');
+    expect(fitGirlGameTitle('Bloodborne: GOTY Edition – v1.09')).toBe('Bloodborne');
+    expect(fitGirlGameTitle('ContractVille & All DLCs Bundle')).toBe('ContractVille');
+    expect(fitGirlGameTitle('Game A & Game B')).toBe('Game A & Game B');
+  });
+
+  it('strips release labels, content tails, and opaque build suffixes', () => {
+    expect(fitGirlGameTitle('God of War III – (Recompiled for PC )')).toBe('God of War III');
+    expect(fitGirlGameTitle('Towerfolk – (Release)')).toBe('Towerfolk');
+    expect(fitGirlGameTitle('Warhammer 40,000: Boltgun 2 – +775')).toBe('Warhammer 40,000: Boltgun 2');
+    expect(fitGirlGameTitle('Bubsy 4D: Digital Pawsome Edition, + Content')).toBe('Bubsy 4D');
+    expect(fitGirlSearchTitle('Bubsy 4D: Digital Pawsome Edition, + Content'))
+      .toBe('Bubsy 4D: Digital Pawsome Edition');
+    expect(fitGirlGameTitle('Wild West Supermarket Simulator – .682a'))
+      .toBe('Wild West Supermarket Simulator');
   });
 
   it('decodes numeric entities before normalizing FitGirl titles', async () => {

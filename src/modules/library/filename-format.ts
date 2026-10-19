@@ -1,4 +1,5 @@
 import { ValidationError } from '../../shared/errors.js';
+import { EDITION_WORDS_FOR_FILENAME, FILENAME_PLATFORM_TAGS, escapeVocabulary } from '../../shared/release-vocabulary.js';
 import type { StringSettingSpec } from '../settings/settings.types.js';
 
 export const DEFAULT_FILENAME_FORMAT = '{title} ({year}) [{edition}]';
@@ -16,6 +17,8 @@ export const CUSTOM_FORMAT_SETTING_SPEC = {
 
 const TAG_PATTERN = /\{([^}]+)\}/gi;
 const VALID_TAGS = new Set<string>(FORMAT_TAGS);
+const FILENAME_EDITION_PATTERN = new RegExp(`\\b((${EDITION_WORDS_FOR_FILENAME.join('|')}) Edition?)\\b`, 'i');
+const FILENAME_PLATFORM_PATTERN = new RegExp(`\\b(${escapeVocabulary(FILENAME_PLATFORM_TAGS)})\\b`, 'i');
 
 export interface FilenameFormatSource {
   title: string | null;
@@ -48,12 +51,12 @@ export function resolveFilenameFormat(override?: string, savedCustomFormat?: str
 
 function extractEdition(game: FilenameFormatSource): string {
   const source = `${game.title ?? ''} ${game.originalEntryName ?? ''}`;
-  return source.match(/\b((?:Game of the Year|Definitive|Complete|Ultimate|Deluxe|Gold|Platinum|Premium|Legendary|Anniversary|Remastered|Enhanced|Special|Collector(?:'s)?|Director(?:'s)? Cut) Edition?)\b/i)?.[1] ?? '';
+  return source.match(FILENAME_EDITION_PATTERN)?.[1] ?? '';
 }
 
 function extractPlatform(game: FilenameFormatSource): string {
   const source = `${game.title ?? ''} ${game.originalEntryName ?? ''}`;
-  return source.match(/\b(PC|Windows|Linux|macOS|Mac|Switch|PS[345]|Xbox(?: One| Series)?|Steam Deck)\b/i)?.[1] ?? '';
+  return source.match(FILENAME_PLATFORM_PATTERN)?.[1] ?? '';
 }
 
 export function renderFilenameFormat(game: FilenameFormatSource, format: string): string {

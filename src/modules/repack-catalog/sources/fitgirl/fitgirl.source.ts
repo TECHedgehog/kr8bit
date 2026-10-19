@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cleanGameTitle, normalizeForMatch, normalizeGameName } from '../../../../shared/normalize.js';
+import { cleanGameTitle, normalizeForMatch, normalizeGameName, stripEditionPhrase } from '../../../../shared/normalize.js';
 import { decodeHtmlEntities } from '../../../../shared/html-entities.js';
 import type { RepackDownloadOption, RepackPostInput, RepackSource } from '../../repack-catalog.types.js';
 import { SourceHttpClient } from '../../source-http-client.js';
@@ -84,17 +84,15 @@ export function normalizeFitGirlGameTitle(title: string): string {
   return normalizeForMatch(normalizeGameName(fitGirlGameTitle(title)).query);
 }
 
+export function fitGirlSearchTitle(title: string): string {
+  const searchTitle = decodeHtmlEntities(title)
+    .replace(/[,;:–—-]?\s+(?:season|volume|chapter|episode|act|book|part|round|stage)\s*#?\s*\d+(?:\.\d+)*\b.*$/i, '');
+  return cleanGameTitle(searchTitle);
+}
+
 export function fitGirlGameTitle(title: string): string {
-  const baseTitle = decodeHtmlEntities(title)
-    .replace(/[\s:–-]+(?:update|patch|hotfix|build)\b.*$/i, '')
-    .replace(/[,;:–—-]?\s+(?:season|volume|chapter|episode|act|book|part|round|stage)\s*#?\s*\d+(?:\.\d+)*\b.*$/i, '')
-    .replace(/[,;\s:–—-]+v\d+(?:\.\d+)*(?:\s*(?:\+|and)?\s*\d*\s*DLCs?)?.*$/i, '')
-    .replace(/\s*(?:\+|and)\s*\d+\s*DLCs?\b.*$/i, '')
-    .replace(/\s+\d+\s+DLCs?\b.*$/i, '')
-    .replace(/\s+all\s+DLCs?\b.*$/i, '')
-    .replace(/[\s:–-]+DLC\b.*$/i, '')
-    .replace(/\s+(?:FitGirl\s+)?Repack$/i, '');
-  return cleanGameTitle(baseTitle);
+  const searchTitle = fitGirlSearchTitle(title);
+  return stripEditionPhrase(searchTitle) ?? searchTitle;
 }
 
 export function parseFitGirlPost(html: string, pageUrl: string): RepackPostInput | null {

@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import { cleanGameTitle, normalizeGameName, normalizeForMatch, stripEditionPhrase } from '../src/shared/normalize.js';
+import { parseReleaseName } from '../src/shared/release-name.js';
+import { releaseNameFixtures } from './release-name.fixtures.js';
+
+describe('shared release-name parser', () => {
+  it.each(releaseNameFixtures)('normalizes $category: $input', ({ input, query, group }) => {
+    expect(normalizeGameName(input).query).toBe(query);
+    if (group) expect(parseReleaseName(input).group).toBe(group);
+  });
+
+  it('retains unknown editions while marking them unknown', () => {
+    const parsed = parseReleaseName('Bubsy 4D: Digital Pawsome Edition');
+    expect(parsed.baseTitle).toBe('Bubsy 4D: Digital Pawsome Edition');
+    expect(parsed.editions).toEqual([{ name: 'Digital Pawsome Edition', known: false }]);
+  });
+
+  it('extracts language, platform, region, version, DLC, and group fields', () => {
+    expect(parseReleaseName('Game (EN/RU) (US) PC x64 v1.2.3 + DLC: Expansion Pack (DODI)')).toMatchObject({
+      baseTitle: 'Game', version: '1.2.3', group: 'DODI', dlcs: ['Expansion Pack'],
+      languages: ['EN/RU'], platform: 'x64', region: 'US',
+    });
+  });
+});
 
 describe('normalizeGameName', () => {
   it('strips .7z extension', () => {
@@ -139,6 +161,20 @@ describe('normalizeGameName', () => {
     expect(normalizeGameName('Mass Effect Legendary Edition.7z').query).toBe('Mass Effect');
     expect(normalizeGameName('Witcher 3 GOTY.7z').query).toBe('Witcher 3');
     expect(normalizeGameName('Deus Ex Mankind Divided Directors Cut.7z').query).toBe('Deus Ex Mankind Divided');
+    expect(normalizeGameName('Bloodborne: Game of the Year Edition.7z').query).toBe('Bloodborne');
+    expect(normalizeGameName('Bloodborne: GOTY Edition.7z').query).toBe('Bloodborne');
+  });
+
+  it('removes Edition orphaned by stripped soundtrack noise', () => {
+    expect(normalizeGameName('LEGO Party! Soundtrack Edition.7z').query).toBe('LEGO Party!');
+  });
+
+  it('strips delimited release labels and opaque release suffixes', () => {
+    expect(normalizeGameName('God of War III – (Recompiled for PC )').query).toBe('God of War III');
+    expect(normalizeGameName('Towerfolk – (Release)').query).toBe('Towerfolk');
+    expect(normalizeGameName('Warhammer 40,000: Boltgun 2 – +775').query).toBe('Warhammer 40 000: Boltgun 2');
+    expect(normalizeGameName('Wild West Supermarket Simulator – .682a').query)
+      .toBe('Wild West Supermarket Simulator');
   });
 
   it('does not strip bare HD from title', () => {
