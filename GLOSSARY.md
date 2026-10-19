@@ -51,3 +51,12 @@ Exportable summary explaining current library metadata and artwork state, includ
 
 **Diagnosis**:
 Current-state explanation of a game's metadata match and artwork availability.
+
+**Repack**:
+Compressed redistribution of a game release, prepared by a repack source and offering selective download components.
+
+**Repack catalog**:
+Browsable collection of repack games grouped by base game, each carrying release posts and a match decision against the game library.
+
+**Repack source**:
+External site polled for new repack releases. One configured source feeds the repack catalog; sync and audit jobs keep it current.

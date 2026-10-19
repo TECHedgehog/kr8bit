@@ -3431,20 +3431,15 @@ button.game-detail-close:hover:not(:disabled) {
 .settings-field input:disabled { opacity: .55; }
 
 .repack-catalog-page { --accent: #f97316; --accent-hover: #fb923c; --accent-subtle: color-mix(in srgb, #f97316 14%, transparent); --accent-glow: color-mix(in srgb, #f97316 28%, transparent); }
-.repack-catalog-page .library-title::before { content: 'REPACK CATALOG'; display: block; margin-bottom: 4px; color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .16em; }
-.repack-catalog-page .library-title { color: var(--text); }
 .repack-source-notice, .repack-job-message { margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-muted); }
 .repack-source-notice a { margin-left: var(--space-2); color: var(--accent); }
 .repack-source-notice strong { color: var(--text); }
-.repack-empty-state { padding: var(--space-8) var(--space-4); color: var(--text-muted); text-align: center; }
-.repack-empty-state h2 { margin: 0 0 var(--space-2); color: var(--text); }
-.repack-empty-state p { margin: 0; }
 .repack-card { position: relative; }
 .repack-card__status, .repack-card__post-count { position: absolute; z-index: 2; top: var(--space-3); padding: 5px 8px; border: 1px solid color-mix(in srgb, white 22%, transparent); border-radius: var(--radius-full); background: color-mix(in srgb, #101216 78%, transparent); color: white; font-size: 9px; font-weight: 800; letter-spacing: .08em; line-height: 1; text-transform: uppercase; backdrop-filter: blur(10px); }
 .repack-card__status { left: var(--space-3); }
-.repack-card__status--matched { color: #86efac; }
-.repack-card__status--review { color: #fcd34d; }
-.repack-card__status--rejected { color: #fda4af; }
+.repack-card__status--matched { color: var(--success); }
+.repack-card__status--review { color: var(--warning); }
+.repack-card__status--rejected { color: var(--danger); }
 .repack-card__post-count { right: var(--space-3); color: rgb(255 255 255 / 82%); }
 .repack-catalog-controls { display: grid; gap: var(--space-3); }
 .repack-source-status { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
