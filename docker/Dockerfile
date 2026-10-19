@@ -4,9 +4,11 @@
 FROM node:20-slim AS web-builder
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
+COPY web/vendor ./vendor
 RUN npm ci
 COPY web/tsconfig.json web/vite.config.ts web/index.html ./
 COPY web/src ./src
+COPY web/public ./public
 RUN npm run build
 
 # ---- Stage 2: server build ----
