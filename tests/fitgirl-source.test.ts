@@ -94,4 +94,21 @@ describe('FitGirl parser', () => {
     expect(urls).toContain('https://fitgirl.test/second/');
     expect(calls).toContain('https://fitgirl.test/page/2/');
   });
+
+  it('discovers archive pages beyond the previous 500-page limit', async () => {
+    const calls: string[] = [];
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      calls.push(url);
+      const page = Number(new URL(url).pathname.match(/\/page\/(\d+)\//)?.[1] ?? 1);
+      const nextPage = page < 501 ? `<a rel="next" href="https://fitgirl.test/page/${page + 1}/">Older posts</a>` : '';
+      return new Response(nextPage, { headers: { 'content-type': 'text/html' } });
+    };
+    const client = new SourceHttpClient({ minDelayMs: 0, maxDelayMs: 0, sleep: async () => undefined, fetchImpl });
+    const source = new FitGirlSource('https://fitgirl.test/', client);
+
+    await expect(source.discoverPostUrls({ fullArchive: true })).resolves.toEqual([]);
+    expect(calls).toHaveLength(501);
+    expect(calls).toContain('https://fitgirl.test/page/501/');
+  });
 });

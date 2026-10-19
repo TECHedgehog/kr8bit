@@ -5,7 +5,7 @@ import type { RepackDownloadOption, RepackPostInput, RepackSource } from '../../
 import { SourceHttpClient } from '../../source-http-client.js';
 
 const NON_GAME_TITLE = /\b(donation|donate|contact|privacy policy|about us|cookie policy|terms of service)\b/i;
-const MAX_ARCHIVE_PAGES = 500;
+const MAX_ARCHIVE_PAGES = 1_000;
 const RECENT_LISTING_PAGES = 3;
 const ARTICLE_PATTERN = /<article\b[^>]*>[\s\S]*?<\/article>/gi;
 const TITLE_PATTERN = /<h[1-3]\b[^>]*class=["'][^"']*entry-title[^"']*["'][^>]*>([\s\S]*?)<\/h[1-3]>/i;
