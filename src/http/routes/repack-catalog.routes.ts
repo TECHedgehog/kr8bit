@@ -1,10 +1,15 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { RepackCatalogJob } from '../../modules/repack-catalog/repack-catalog.job.js';
 import type { RepackCatalogService } from '../../modules/repack-catalog/repack-catalog.service.js';
+import { artworkService, type ArtworkService } from '../../modules/artwork/artwork.service.js';
 import { createRepackCatalogController } from '../controllers/repack-catalog.controller.js';
 
-export function createRepackCatalogRoutes(service: RepackCatalogService, job: RepackCatalogJob): FastifyPluginAsync {
-  const controller = createRepackCatalogController(service, job);
+export function createRepackCatalogRoutes(
+  service: RepackCatalogService,
+  job: RepackCatalogJob,
+  artwork: ArtworkService = artworkService,
+): FastifyPluginAsync {
+  const controller = createRepackCatalogController(service, job, artwork);
   return async (app) => {
     app.get('/api/repack-catalog', controller.list);
     app.get('/api/repack-catalog/genres', controller.genres);

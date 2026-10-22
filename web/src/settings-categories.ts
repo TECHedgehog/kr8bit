@@ -1,4 +1,4 @@
-export const SETTINGS_CATEGORIES = ['review', 'appearance', 'behavior', 'locations', 'sources'] as const;
+export const SETTINGS_CATEGORIES = ['review', 'appearance', 'behavior', 'locations', 'sources', 'maintenance'] as const;
 
 export type SettingsCategory = typeof SETTINGS_CATEGORIES[number];
 

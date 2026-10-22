@@ -37,6 +37,8 @@ export interface RepackMatchCandidate {
 
 export interface RepackMetadataSnapshot {
   remoteId: string;
+  providerName?: string;
+  fetchedAt?: string;
   title: string;
   releaseYear?: number;
   description?: string;

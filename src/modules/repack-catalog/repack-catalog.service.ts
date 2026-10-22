@@ -1,5 +1,6 @@
 import { logger } from '../../logger/index.js';
-import { normalizeGameName, stripEditionPhrase } from '../../shared/normalize.js';
+import { getTitleVariants, normalizeGameName, stripEditionPhrase } from '../../shared/normalize.js';
+import { config } from '../../config/index.js';
 import { MatchStatus } from '../../shared/enums.js';
 import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
 import { NotFoundError, ValidationError } from '../../shared/errors.js';
@@ -10,6 +11,11 @@ import { validateSettingEntries } from '../settings/settings.service.js';
 import type { GameMetadata, MetadataProvider, SearchResult } from '../../shared/types.js';
 import type { repackCatalogRepository } from './repack-catalog.repository.js';
 import type { regroupRepackGames } from './repack-catalog.regroup.js';
+import { libraryRepository } from '../library/library.repository.js';
+import { providerMatchRepository } from '../metadata/provider-match.repository.js';
+import { artworkService, type ArtworkKind, type ArtworkService } from '../artwork/artwork.service.js';
+import { steamGridDbHttpClient, type SteamGridDbHttpClient } from '../artwork/steamgriddb/steamgriddb.http.js';
+import { SteamGridDbFallback, type SteamGridDbArtworkKind } from '../artwork/steamgriddb-fallback.js';
 import {
   REPACK_AUDIT_ENABLED,
   REPACK_AUDIT_ENABLED_SPEC,
@@ -29,6 +35,7 @@ import { SourceBlockedError } from './source-http-client.js';
 import type { RepackMatchCandidate, RepackMatchStatus, RepackMetadataSnapshot, RepackSource } from './repack-catalog.types.js';
 
 const SCRAPE_CONCURRENCY = 2;
+const METADATA_REFRESH_BATCH_SIZE = 500;
 
 export interface RepackCatalogSettingsUpdate {
   enabled?: boolean;
@@ -45,6 +52,18 @@ export interface RepackCatalogServiceDependencies {
   sourceFactory: (baseUrl: string) => RepackSource;
   matchThresholds: { acceptThreshold: number; flagThreshold: number };
   regroupGames: typeof regroupRepackGames;
+  libraryRepository?: Pick<typeof libraryRepository, 'findByNormalizedTitle'>;
+  providerMatchRepository?: Pick<typeof providerMatchRepository, 'findPrimaryByGame'>;
+  artworkService?: Pick<ArtworkService, 'downloadToCacheGeneric'>;
+  steamGridDb?: SteamGridDbHttpClient | null;
+  now?: () => Date;
+}
+
+export interface RepackArtworkSource {
+  providerName: string;
+  remoteId: string;
+  url: string;
+  steamAppId?: number;
 }
 
 function candidateFrom(result: SearchResult): RepackMatchCandidate {
@@ -67,9 +86,11 @@ function repackStatusFromDecision(decision: MatchDecision): RepackMatchStatus {
   }
 }
 
-function snapshotFrom(metadata: GameMetadata): RepackMetadataSnapshot {
+function snapshotFrom(metadata: GameMetadata, providerName: string, fetchedAt: Date): RepackMetadataSnapshot {
   return {
     remoteId: metadata.remoteId,
+    providerName,
+    fetchedAt: fetchedAt.toISOString(),
     title: metadata.title,
     releaseYear: metadata.releaseYear,
     description: metadata.description,
@@ -107,9 +128,19 @@ export class RepackCatalogService {
   private status = { phase: 'idle', processed: 0, skipped: 0, failed: 0, total: 0, startedAt: null as string | null };
 
   private readonly settingsReader;
+  private readonly libraryRepository: Pick<typeof libraryRepository, 'findByNormalizedTitle'>;
+  private readonly providerMatchRepository: Pick<typeof providerMatchRepository, 'findPrimaryByGame'>;
+  private readonly artwork: Pick<ArtworkService, 'downloadToCacheGeneric'>;
+  private readonly steamGridDb: SteamGridDbFallback;
+  private readonly now: () => Date;
 
   constructor(private readonly dependencies: RepackCatalogServiceDependencies) {
     this.settingsReader = createSettingsReader(dependencies.settingsRepository);
+    this.libraryRepository = dependencies.libraryRepository ?? libraryRepository;
+    this.providerMatchRepository = dependencies.providerMatchRepository ?? providerMatchRepository;
+    this.artwork = dependencies.artworkService ?? artworkService;
+    this.steamGridDb = new SteamGridDbFallback(dependencies.steamGridDb === undefined ? steamGridDbHttpClient : dependencies.steamGridDb);
+    this.now = dependencies.now ?? (() => new Date());
   }
 
   async enabled(): Promise<boolean> { return this.settingsReader.boolean(REPACK_ENABLED_SPEC); }
@@ -171,11 +202,12 @@ export class RepackCatalogService {
       const config = await this.settings();
       const source = this.sourceForBase(config.baseUrl);
       await this.regroupCatalog();
+      const metadataBudget = { remaining: METADATA_REFRESH_BATCH_SIZE };
       const rematchable = await this.dependencies.repackCatalogRepository.findRematchableGames();
       const attemptedGames = new Set(rematchable.map((game) => game.normalizedTitle));
       await mapWithLimit(rematchable, SCRAPE_CONCURRENCY, async (game) => {
         try {
-          await this.matchGame(game.id, game.posts?.[0]?.title ?? game.title);
+          await this.matchGame(game.id, game.posts?.[0]?.title ?? game.title, metadataBudget);
         } catch (error) {
           logger.warn({ gameId: game.id, err: (error as Error).message }, 'repack metadata retry failed');
         }
@@ -193,7 +225,7 @@ export class RepackCatalogService {
         const game = saved.game;
         if (game && !attemptedGames.has(game.normalizedTitle) && game.matchStatus === 'PENDING') {
           attemptedGames.add(game.normalizedTitle);
-          await this.matchGame(game.id, post.title);
+          await this.matchGame(game.id, post.title, metadataBudget);
         }
       }, (url, error) => logger.warn({ url, err: (error as Error).message }, 'repack post fetch failed'));
       const { blocked, stoppedAfterErrors, failed: failures } = result;
@@ -250,7 +282,82 @@ export class RepackCatalogService {
   list(options: { offset: number; limit: number; query?: string; genres?: string[]; steamDeck?: number[]; matchStatus?: RepackMatchStatus[]; sort?: 'title-asc' | 'title-desc' | 'newest' | 'oldest' }) { return this.dependencies.repackCatalogRepository.listGames(options); }
   genres() { return this.dependencies.repackCatalogRepository.listGenres(); }
   getGame(id: string) { return this.dependencies.repackCatalogRepository.getGame(id); }
-  getArtworkGame(id: string) { return this.dependencies.repackCatalogRepository.getArtworkGame(id); }
+  async getArtworkSources(id: string, kind: ArtworkKind): Promise<RepackArtworkSource[]> {
+    const game = await this.dependencies.repackCatalogRepository.getArtworkGame(id);
+    if (!game) throw new NotFoundError('RepackGame', id);
+
+    const sources: RepackArtworkSource[] = [];
+    const urlKey = `${kind}Url` as 'coverUrl' | 'headerUrl' | 'heroUrl' | 'logoUrl';
+    const snapshotUrl = game.metadataSnapshot?.[urlKey];
+    const snapshotProvider = game.providerName ?? game.metadataSnapshot?.providerName;
+    if (snapshotUrl && snapshotProvider && game.metadataSnapshot) {
+      sources.push({
+        providerName: snapshotProvider,
+        remoteId: game.metadataSnapshot.remoteId,
+        url: snapshotUrl,
+      });
+    }
+
+    const libraryGame = await this.libraryRepository.findByNormalizedTitle(game.normalizedTitle, kind);
+    if (libraryGame) {
+      const remoteUrl = libraryGame[urlKey];
+      if (remoteUrl) {
+        const primaryMatch = await this.providerMatchRepository.findPrimaryByGame(libraryGame.id);
+        if (primaryMatch && primaryMatch.providerName !== 'steam') {
+          sources.push({ providerName: primaryMatch.providerName, remoteId: primaryMatch.remoteId, url: remoteUrl });
+        } else if (libraryGame.steamAppId) {
+          sources.push({ providerName: 'steam', remoteId: String(libraryGame.steamAppId), url: remoteUrl, steamAppId: libraryGame.steamAppId });
+        } else if (primaryMatch) {
+          sources.push({ providerName: primaryMatch.providerName, remoteId: primaryMatch.remoteId, url: remoteUrl });
+        } else {
+          sources.push({ providerName: 'library', remoteId: libraryGame.id, url: remoteUrl });
+        }
+      }
+    }
+
+    if (kind === 'cover') {
+      const bestCandidate = [...game.matchCandidates]
+        .sort((left, right) => right.score - left.score)
+        .find((candidate) => candidate.score > 0 && candidate.coverUrl);
+      if (bestCandidate?.coverUrl) {
+        sources.push({
+          providerName: bestCandidate.providerName,
+          remoteId: bestCandidate.remoteId,
+          url: bestCandidate.coverUrl,
+        });
+      }
+    }
+    return sources;
+  }
+
+  async getSteamGridDbArtworkSource(id: string, kind: ArtworkKind): Promise<RepackArtworkSource | null> {
+    const game = await this.dependencies.repackCatalogRepository.getArtworkGame(id);
+    if (!game) throw new NotFoundError('RepackGame', id);
+    const artworkKind: SteamGridDbArtworkKind | null = kind === 'header' ? 'hero'
+      : kind === 'cover' || kind === 'hero' || kind === 'logo' ? kind
+        : null;
+    if (!artworkKind) return null;
+    const snapshot = game.metadataSnapshot;
+    const appIdValue = game.providerName === 'steam'
+      ? game.providerRemoteId
+      : snapshot?.providerName === 'steam' ? snapshot.remoteId : null;
+    const steamAppId = appIdValue && /^\d+$/.test(appIdValue) ? Number(appIdValue) : undefined;
+    const candidate = [...game.matchCandidates].sort((left, right) => right.score - left.score)[0];
+    const title = snapshot?.title ?? candidate?.title ?? game.title;
+    const year = snapshot?.releaseYear ?? candidate?.releaseYear ?? undefined;
+    const titleVariants = [...new Set([
+      ...getTitleVariants(title), ...getTitleVariants(game.title),
+    ])];
+    const match = await this.steamGridDb.findArtwork({
+      steamAppId, title, titleVariants, releaseYear: year, kind: artworkKind,
+    });
+    if (!match) return null;
+    return {
+      providerName: 'steamgriddb',
+      remoteId: String(match.image.id),
+      url: match.image.url,
+    };
+  }
   review(options: { offset: number; limit: number }) { return this.dependencies.repackCatalogRepository.listReview(options); }
   statusSnapshot() { return this.jobStatus(); }
 
@@ -273,9 +380,12 @@ export class RepackCatalogService {
     if (!candidate) throw new ValidationError('candidate not found; search candidates first');
     const provider = this.dependencies.providerRegistry.resolve(providerName);
     if (!provider) throw new ValidationError(`unknown provider: ${providerName}`);
-    const snapshot = await provider.getGame(remoteId);
-    if (!snapshot) throw new NotFoundError('ProviderGame', remoteId);
-    return this.dependencies.repackCatalogRepository.acceptMatch(id, candidate, snapshotFrom(snapshot));
+    const metadata = await provider.getGame(remoteId);
+    if (!metadata) throw new NotFoundError('ProviderGame', remoteId);
+    const snapshot = await this.enrichSnapshot(candidate, metadata, game.title);
+    return this.dependencies.repackCatalogRepository.acceptMatch(
+      id, candidate, snapshot, game.matchCandidates as RepackMatchCandidate[],
+    );
   }
 
   async previewCandidate(id: string, providerName: string, remoteId: string) {
@@ -344,17 +454,25 @@ export class RepackCatalogService {
     return { blocked, stoppedAfterErrors, failed };
   }
 
-  private async matchGame(id: string, title: string): Promise<void> {
+  private async matchGame(id: string, title: string, metadataBudget: { remaining: number }): Promise<void> {
+    const currentGame = await this.dependencies.repackCatalogRepository.getArtworkGame(id);
+    if (!currentGame) throw new NotFoundError('RepackGame', id);
+    const currentSnapshot = currentGame.metadataSnapshot;
+    const metadataCache = new Map<string, RepackMetadataSnapshot | null>();
     const searchTitle = fitGirlSearchTitle(title);
-    const fullQuery = normalizeGameName(searchTitle).query;
+    const normalizedSearch = normalizeGameName(searchTitle);
+    const fullQuery = normalizedSearch.query;
     let candidates = await this.findCandidates(fullQuery);
-    const decision = decideMatch(candidates, this.dependencies.matchThresholds);
+    let decision = decideMatch(candidates, this.dependencies.matchThresholds);
     let reviewCandidates: RepackMatchCandidate[] | null = null;
     let reviewScore = -1;
     let reviewWasFlagged = false;
 
     if (decision.status === MatchStatus.ACCEPTED) {
-      if (await this.acceptBestCandidate(id, candidates, this.dependencies.matchThresholds.acceptThreshold)) return;
+      if (await this.acceptBestCandidate(
+        id, candidates, this.dependencies.matchThresholds.acceptThreshold,
+        currentGame, currentSnapshot, metadataBudget, metadataCache, searchTitle,
+      )) return;
       reviewCandidates = candidates;
       reviewScore = decision.score;
     } else if (decision.status === MatchStatus.FLAGGED) {
@@ -369,7 +487,10 @@ export class RepackCatalogService {
       const baseCandidates = await this.findCandidates(baseQuery);
       const baseDecision = decideMatch(baseCandidates, this.dependencies.matchThresholds);
       if (baseDecision.status === MatchStatus.ACCEPTED) {
-        if (await this.acceptBestCandidate(id, baseCandidates, this.dependencies.matchThresholds.acceptThreshold)) return;
+        if (await this.acceptBestCandidate(
+          id, baseCandidates, this.dependencies.matchThresholds.acceptThreshold,
+          currentGame, currentSnapshot, metadataBudget, metadataCache, baseTitle ?? searchTitle,
+        )) return;
         if (!reviewWasFlagged || baseDecision.score > reviewScore) {
           reviewCandidates = baseCandidates;
           reviewScore = baseDecision.score;
@@ -380,34 +501,177 @@ export class RepackCatalogService {
         reviewScore = baseDecision.score;
         reviewWasFlagged = true;
       }
+      if (baseDecision.score > decision.score && !reviewWasFlagged) {
+        candidates = baseCandidates;
+        decision = baseDecision;
+      }
+    }
+
+    if (decision.status === MatchStatus.PENDING && !reviewCandidates) {
+      const steamGridDbGame = await this.steamGridDb.findGame(searchTitle, normalizedSearch.yearDetected);
+      if (steamGridDbGame) {
+        const recovered = await this.findCandidates(steamGridDbGame.name);
+        const recoveredDecision = decideMatch(recovered, this.dependencies.matchThresholds);
+        if (recoveredDecision.score > 0) {
+          candidates = recovered;
+          decision = recoveredDecision;
+          if (decision.status === MatchStatus.ACCEPTED) {
+            if (await this.acceptBestCandidate(
+              id, candidates, this.dependencies.matchThresholds.acceptThreshold,
+              currentGame, currentSnapshot, metadataBudget, metadataCache, steamGridDbGame.name,
+            )) return;
+            reviewCandidates = candidates;
+            reviewScore = decision.score;
+          } else if (decision.status === MatchStatus.FLAGGED) {
+            reviewCandidates = candidates;
+            reviewScore = decision.score;
+            reviewWasFlagged = true;
+          }
+        }
+      }
     }
 
     if (reviewCandidates) {
-      await this.dependencies.repackCatalogRepository.saveCandidates(id, reviewCandidates, 'REVIEW', reviewScore);
+      const provisionalCandidate = [...reviewCandidates].sort((left, right) => right.score - left.score)[0];
+      const provisionalSnapshot = provisionalCandidate
+        ? await this.getCandidateSnapshot(
+          provisionalCandidate, currentGame, currentSnapshot, metadataBudget, metadataCache, searchTitle,
+        )
+        : null;
+      const snapshotToSave = provisionalSnapshot ?? (
+        currentSnapshot && this.snapshotMatchesCandidate(currentSnapshot, currentGame, provisionalCandidate)
+          ? currentSnapshot
+          : null
+      );
+      await this.dependencies.repackCatalogRepository.saveCandidates(
+        id, reviewCandidates, 'REVIEW', reviewScore, snapshotToSave,
+      );
       return;
     }
 
-    await this.dependencies.repackCatalogRepository.saveCandidates(id, candidates, repackStatusFromDecision(decision), decision.score);
+    await this.dependencies.repackCatalogRepository.saveCandidates(
+      id, candidates, repackStatusFromDecision(decision), decision.score, null,
+    );
   }
 
   private async acceptBestCandidate(
     id: string,
     candidates: RepackMatchCandidate[],
     acceptThreshold: number,
+    currentGame: NonNullable<Awaited<ReturnType<typeof this.dependencies.repackCatalogRepository.getArtworkGame>>>,
+    currentSnapshot: RepackMetadataSnapshot | null,
+    metadataBudget: { remaining: number },
+    metadataCache: Map<string, RepackMetadataSnapshot | null>,
+    searchTitle: string,
   ): Promise<boolean> {
     for (const candidate of candidates) {
       if (candidate.score < acceptThreshold) break;
-      const provider: MetadataProvider | null = this.dependencies.providerRegistry.resolve(candidate.providerName);
-      if (!provider) continue;
-      const metadata = await provider.getGame(candidate.remoteId).catch((error) => {
-        logger.warn({ provider: provider.name, remoteId: candidate.remoteId, err: (error as Error).message }, 'repack metadata fetch failed');
-        return null;
-      });
-      if (!metadata) continue;
-      await this.dependencies.repackCatalogRepository.acceptMatch(id, candidate, snapshotFrom(metadata));
+      const snapshot = await this.getCandidateSnapshot(
+        candidate, currentGame, currentSnapshot, metadataBudget, metadataCache, searchTitle,
+      );
+      if (!snapshot) continue;
+      await this.dependencies.repackCatalogRepository.acceptMatch(
+        id, candidate, snapshot, candidates,
+      );
       return true;
     }
     return false;
+  }
+
+  private snapshotMatchesCandidate(
+    snapshot: RepackMetadataSnapshot,
+    game: NonNullable<Awaited<ReturnType<typeof this.dependencies.repackCatalogRepository.getArtworkGame>>>,
+    candidate?: RepackMatchCandidate,
+  ): boolean {
+    if (!candidate || snapshot.remoteId !== candidate.remoteId) return false;
+    return (snapshot.providerName ?? game.providerName) === candidate.providerName;
+  }
+
+  private async getCandidateSnapshot(
+    candidate: RepackMatchCandidate,
+    game: NonNullable<Awaited<ReturnType<typeof this.dependencies.repackCatalogRepository.getArtworkGame>>>,
+    currentSnapshot: RepackMetadataSnapshot | null,
+    metadataBudget: { remaining: number },
+    metadataCache: Map<string, RepackMetadataSnapshot | null>,
+    searchTitle: string,
+  ): Promise<RepackMetadataSnapshot | null> {
+    const cacheKey = `${candidate.providerName}:${candidate.remoteId}`;
+    if (metadataCache.has(cacheKey)) return metadataCache.get(cacheKey) ?? null;
+    if (currentSnapshot && this.snapshotMatchesCandidate(currentSnapshot, game, candidate)) {
+      const fetchedAt = Date.parse(currentSnapshot.fetchedAt ?? '');
+      if (Number.isFinite(fetchedAt) && this.now().getTime() - fetchedAt < config.metadata.refreshMinAgeMs) {
+        return currentSnapshot;
+      }
+    }
+    if (metadataBudget.remaining <= 0) return null;
+    metadataBudget.remaining -= 1;
+    const provider: MetadataProvider | null = this.dependencies.providerRegistry.resolve(candidate.providerName);
+    if (!provider) {
+      metadataCache.set(cacheKey, null);
+      return null;
+    }
+    const metadata = await provider.getGame(candidate.remoteId).catch((error) => {
+      logger.warn({ provider: provider.name, remoteId: candidate.remoteId, err: (error as Error).message }, 'repack metadata fetch failed');
+      return null;
+    });
+    if (!metadata) {
+      metadataCache.set(cacheKey, null);
+      return null;
+    }
+    const snapshot = await this.enrichSnapshot(candidate, metadata, searchTitle);
+    metadataCache.set(cacheKey, snapshot);
+    return snapshot;
+  }
+
+  private async enrichSnapshot(
+    candidate: RepackMatchCandidate,
+    metadata: GameMetadata,
+    searchTitle: string,
+  ): Promise<RepackMetadataSnapshot> {
+    const snapshot = snapshotFrom(metadata, candidate.providerName, this.now());
+    const steamAppId = candidate.providerName === 'steam' && /^\d+$/.test(candidate.remoteId)
+      ? Number(candidate.remoteId)
+      : undefined;
+    const titleVariants = [...new Set([
+      ...getTitleVariants(metadata.title), ...getTitleVariants(searchTitle),
+    ])];
+    const directUrls: Partial<Record<ArtworkKind, string>> = {
+      cover: snapshot.coverUrl,
+      hero: snapshot.heroUrl,
+      logo: snapshot.logoUrl,
+    };
+    for (const kind of ['cover', 'hero', 'logo'] as const) {
+      const directUrl = directUrls[kind];
+      if (directUrl && await this.artwork.downloadToCacheGeneric(candidate.providerName, candidate.remoteId, kind, directUrl)) {
+        continue;
+      }
+      const fallback = await this.steamGridDb.findArtwork({
+        steamAppId, title: metadata.title, titleVariants, releaseYear: metadata.releaseYear, kind,
+      });
+      const fallbackUrl = fallback?.image.url;
+      const cached = fallbackUrl && await this.artwork.downloadToCacheGeneric(
+        candidate.providerName, candidate.remoteId, kind, fallbackUrl,
+      );
+      const selectedUrl = cached ? fallbackUrl : undefined;
+      if (kind === 'cover') snapshot.coverUrl = selectedUrl;
+      else if (kind === 'hero') snapshot.heroUrl = selectedUrl;
+      else snapshot.logoUrl = selectedUrl;
+    }
+
+    if (snapshot.headerUrl) {
+      const cachedHeader = await this.artwork.downloadToCacheGeneric(
+        candidate.providerName, candidate.remoteId, 'header', snapshot.headerUrl,
+      );
+      if (!cachedHeader) snapshot.headerUrl = undefined;
+    }
+    if (!snapshot.headerUrl && snapshot.heroUrl) {
+      const cachedHeader = await this.artwork.downloadToCacheGeneric(
+        candidate.providerName, candidate.remoteId, 'header', snapshot.heroUrl,
+      );
+      if (cachedHeader) snapshot.headerUrl = snapshot.heroUrl;
+    }
+    snapshot.fetchedAt = this.now().toISOString();
+    return snapshot;
   }
 }
 

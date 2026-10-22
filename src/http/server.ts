@@ -10,7 +10,7 @@ import { settingsRoutes } from './routes/settings.routes.js';
 import { scannerRoutes } from './routes/scanner.routes.js';
 import { libraryRoutes } from './routes/library.routes.js';
 import { metadataRoutes } from './routes/metadata.routes.js';
-import { databaseRoutes } from './routes/database.routes.js';
+import { createDatabaseRoutes } from './routes/database.routes.js';
 import { todosRoutes } from './routes/todos.routes.js';
 import { demoService } from '../modules/demo/demo-service.js';
 import { config } from '../config/index.js';
@@ -25,6 +25,8 @@ import { createRepackCatalogService } from '../modules/repack-catalog/repack-cat
 import { providerRegistry } from '../modules/metadata/provider-registry.js';
 import { settingsRepository } from '../modules/settings/settings.repository.js';
 import { diagnosticsRoutes } from './routes/diagnostics.routes.js';
+import { createMaintenanceRoutes } from './routes/maintenance.routes.js';
+import { createMaintenanceService } from '../modules/maintenance/maintenance.service.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +39,7 @@ const repackCatalogService = createRepackCatalogService({
   regroupGames: regroupRepackGames,
 });
 export const repackCatalogJob = new RepackCatalogJob(repackCatalogService);
+const maintenanceService = createMaintenanceService(repackCatalogJob);
 
 function findWebDist(): string | null {
   const candidates = [
@@ -101,6 +104,14 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           message: 'repack catalog is disabled in demo mode',
         });
       }
+      if (req.url.startsWith('/api/maintenance')) {
+        return reply.status(503).send({
+          statusCode: 503,
+          code: 'DEMO_OFFLINE',
+          error: 'DemoOfflineError',
+          message: 'maintenance actions are disabled in demo mode',
+        });
+      }
     });
   }
   await app.register(healthRoutes);
@@ -111,7 +122,8 @@ async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   await app.register(libraryRoutes);
   await app.register(metadataRoutes);
   await app.register(diagnosticsRoutes);
-  await app.register(databaseRoutes);
+  await app.register(createMaintenanceRoutes(maintenanceService));
+  await app.register(createDatabaseRoutes(repackCatalogJob));
   await app.register(todosRoutes);
   app.get('/api/demo/status', async () => demoService.status());
 }

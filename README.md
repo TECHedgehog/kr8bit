@@ -97,14 +97,17 @@ POST   /api/games/:id/metadata/assign
 POST   /api/games/:id/metadata/refresh
 DELETE /api/games/:id/metadata
 GET    /api/games/:id/artwork/:kind            (kind = header | cover | hero | logo)
-POST   /api/metadata/refresh-all               (202; 409 if already running)
-GET    /api/metadata/refresh-all/status
-POST   /api/metadata/retry-matches             (202; 409 if already running)
-GET    /api/metadata/retry-matches/status
 POST   /api/metadata/index/refresh
 GET    /api/metadata/search-steam?q=
 POST   /api/database/reset
 POST   /api/database/cleanup
+POST   /api/maintenance/library/wipe           (confirm: DELETE_LIBRARY)
+POST   /api/maintenance/repack/wipe            (confirm: DELETE_REPACK)
+POST   /api/maintenance/artwork-cache/clear    (confirm: CLEAR_ARTWORK_CACHE)
+POST   /api/maintenance/metadata/refresh       (202; refresh all matched games)
+GET    /api/maintenance/metadata/status
+POST   /api/maintenance/artwork/recheck         (202; check all matched games)
+GET    /api/maintenance/artwork/status
 ```
 
 Error envelope:

@@ -56,7 +56,10 @@ Current-state explanation of a game's metadata match and artwork availability.
 Compressed redistribution of a game release, prepared by a repack source and offering selective download components.
 
 **Repack catalog**:
-Browsable collection of repack games grouped by base game, each carrying release posts and a match decision against the game library.
+Browsable collection of repack games grouped by base game, each carrying release posts and a match decision against metadata providers. REVIEW entries may carry provisional metadata without an accepted match.
 
 **Repack source**:
 External site polled for new repack releases. One configured source feeds the repack catalog; sync and audit jobs keep it current.
+
+**Provisional snapshot**:
+Provider metadata associated with a reviewable match candidate, available to enrich catalog browsing without marking the match accepted.

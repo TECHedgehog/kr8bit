@@ -7,6 +7,8 @@ import {
 import { scannerService } from '../scanner/scanner.service.js';
 import { metadataRefreshJob } from '../metadata/metadata-refresh.job.js';
 import { retryMatchJob } from '../metadata/retry-match.job.js';
+import { metadataFullRefreshJob } from '../metadata/metadata-full-refresh.job.js';
+import { artworkRecheckJob } from '../artwork/artwork-recheck.job.js';
 import { AppError } from '../../shared/errors.js';
 
 export const databaseService = {
@@ -16,7 +18,9 @@ export const databaseService = {
     if (
       scannerService.isRunning() ||
       metadataRefreshJob.isRunning() ||
-      retryMatchJob.isRunning()
+      retryMatchJob.isRunning() ||
+      metadataFullRefreshJob.isRunning() ||
+      artworkRecheckJob.isRunning()
     ) {
       throw new AppError(409, 'scan already running', 'SCAN_RUNNING');
     }

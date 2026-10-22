@@ -125,6 +125,36 @@ export function createLibraryRepository(scope?: string) {
       }
     },
 
+    async findByNormalizedTitle(
+      title: string,
+      artworkKind: 'header' | 'cover' | 'hero' | 'logo',
+    ): Promise<Pick<Game, 'id' | 'entryName' | 'title' | 'steamAppId' | 'coverUrl' | 'headerUrl' | 'heroUrl' | 'logoUrl'> | null> {
+      const artworkField = `${artworkKind}Url`;
+      try {
+        const rows = await prisma.game.findMany({
+          where: {
+            matchStatus: { in: [MatchStatus.ACCEPTED, MatchStatus.FLAGGED, MatchStatus.MANUAL] },
+            [artworkField]: { not: null },
+          },
+          select: {
+            id: true, entryName: true, title: true, steamAppId: true,
+            coverUrl: true, headerUrl: true, heroUrl: true, logoUrl: true,
+          },
+          orderBy: { updatedAt: 'desc' },
+        });
+        const normalizedTitle = normalizeForMatch(title);
+        const byMetadataTitle = rows.find((game) =>
+          normalizeForMatch(normalizeGameName(game.title ?? '').query) === normalizedTitle,
+        );
+        if (byMetadataTitle) return byMetadataTitle;
+        return rows.find((game) =>
+          normalizeForMatch(normalizeGameName(game.entryName).query) === normalizedTitle,
+        ) ?? null;
+      } catch (err) {
+        throw mapPrismaError(err, 'Game', title);
+      }
+    },
+
     async list(filter: GameListFilter = {}): Promise<GameListResult> {
       const limit = Math.min(filter.limit ?? 50, MAX_PAGE_SIZE);
       const offset = Math.max(filter.offset ?? 0, 0);

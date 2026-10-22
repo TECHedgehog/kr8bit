@@ -67,6 +67,66 @@ describe('GET /api/demo/status', () => {
   });
 });
 
+describe('maintenance actions', () => {
+  it('requires action-specific confirmation for destructive actions', async () => {
+    const paths = [
+      '/api/maintenance/library/wipe',
+      '/api/maintenance/repack/wipe',
+      '/api/maintenance/artwork-cache/clear',
+    ];
+    for (const url of paths) {
+      const response = await app.inject({ method: 'POST', url, payload: {} });
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
+  it('wipes library rows while preserving unrelated settings', async () => {
+    await prisma.setting.create({ data: { key: 'keepMe', value: 'yes' } });
+    await createGame({ entryName: 'Keep Files.7z', status: MatchStatus.ACCEPTED });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/maintenance/library/wipe',
+      payload: { confirm: 'DELETE_LIBRARY' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ games: 1 });
+    expect(await prisma.game.count()).toBe(0);
+    expect(await prisma.setting.findUnique({ where: { key: 'keepMe' } })).toMatchObject({ value: 'yes' });
+    expect(await prisma.setting.findUnique({ where: { key: 'libraryManuallyCleared' } })).toMatchObject({ value: 'true' });
+  });
+
+  it('wipes repack rows and resets only its full-import marker', async () => {
+    await prisma.setting.createMany({ data: [
+      { key: 'repackCatalogEnabled', value: 'true' },
+      { key: 'repackCatalogFullImportComplete', value: 'true' },
+    ] });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/maintenance/repack/wipe',
+      payload: { confirm: 'DELETE_REPACK' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(await prisma.setting.findUnique({ where: { key: 'repackCatalogEnabled' } })).toMatchObject({ value: 'true' });
+    expect(await prisma.setting.findUnique({ where: { key: 'repackCatalogFullImportComplete' } })).toMatchObject({ value: 'false' });
+  });
+
+  it('starts both full refresh jobs', async () => {
+    const metadata = await app.inject({ method: 'POST', url: '/api/maintenance/metadata/refresh' });
+    expect(metadata.statusCode).toBe(202);
+    await vi.waitFor(async () => {
+      const status = await app.inject({ method: 'GET', url: '/api/maintenance/metadata/status' });
+      expect(status.json().running).toBe(false);
+    });
+    const artwork = await app.inject({ method: 'POST', url: '/api/maintenance/artwork/recheck' });
+
+    expect(artwork.statusCode).toBe(202);
+  });
+});
+
 describe('GET /api/settings', () => {
   it('returns env and empty kv', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/settings' });

@@ -67,6 +67,17 @@ describe('detectContentType', () => {
 });
 
 describe('ArtworkService', () => {
+  it('clears the complete artwork cache', async () => {
+    const svc = new ArtworkService(tmpDir, { download: vi.fn() });
+    const artworkDir = join(tmpDir, 'artwork');
+    await fs.mkdir(join(artworkDir, '620'), { recursive: true });
+    await fs.writeFile(join(artworkDir, '620', 'cover'), 'image');
+
+    await svc.clearAll();
+
+    expect(await fileExists(artworkDir)).toBe(false);
+  });
+
   it('computes deterministic cache path (no extension)', () => {
     const svc = new ArtworkService(tmpDir, { download: vi.fn() });
     expect(svc.cachePath(620, 'header')).toBe(join(tmpDir, 'artwork', '620', 'header'));

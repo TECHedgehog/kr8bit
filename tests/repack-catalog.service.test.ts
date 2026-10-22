@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RepackCatalogService, type RepackCatalogServiceDependencies } from '../src/modules/repack-catalog/repack-catalog.service.js';
+import type { SteamGridDbHttpClient } from '../src/modules/artwork/steamgriddb/steamgriddb.http.js';
+import type { SteamGridDbGame, SteamGridDbImage } from '../src/modules/artwork/steamgriddb/steamgriddb.http.types.js';
 
 const mocks = {
   settingsGet: vi.fn(), settingsSet: vi.fn(), settingsSetMany: vi.fn(), settingsList: vi.fn(), settingsDelete: vi.fn(), regroupGames: vi.fn(),
@@ -34,7 +36,28 @@ const fakeSettingsRepository: RepackCatalogServiceDependencies['settingsReposito
   delete: mocks.settingsDelete,
 };
 
-function createService(): RepackCatalogService {
+const fakeArtworkService: NonNullable<RepackCatalogServiceDependencies['artworkService']> = {
+  downloadToCacheGeneric: vi.fn(),
+};
+
+function steamGridDbClient(gameName = 'Clean Game', gridUrl = 'https://art.test/grid.png'): SteamGridDbHttpClient {
+  const game: SteamGridDbGame = { id: 7, name: gameName, verified: true };
+  const image: SteamGridDbImage = {
+    id: 22, score: 10, style: 'alternate', url: gridUrl, thumb: '', tags: [],
+    author: { name: '', steam64: '', avatar: '' }, language: 'en', notes: null,
+    width: 600, height: 900, upvotes: 0, downvotes: 0,
+  };
+  return {
+    searchGameByName: vi.fn().mockResolvedValue([game]),
+    getGridsBySteamAppId: vi.fn().mockResolvedValue([image]),
+    getHeroesBySteamAppId: vi.fn().mockResolvedValue([]),
+    getLogosBySteamAppId: vi.fn().mockResolvedValue([]),
+    getGridsByGameId: vi.fn().mockResolvedValue([image]),
+    getHeroesByGameId: vi.fn().mockResolvedValue([]),
+  };
+}
+
+function createService(steamGridDb: RepackCatalogServiceDependencies['steamGridDb'] = null): RepackCatalogService {
   return new RepackCatalogService({
     repackCatalogRepository: fakeRepository,
     settingsRepository: fakeSettingsRepository,
@@ -42,6 +65,8 @@ function createService(): RepackCatalogService {
     sourceFactory: mocks.createSource,
     matchThresholds: { acceptThreshold: 85, flagThreshold: 70 },
     regroupGames: mocks.regroupGames,
+    artworkService: fakeArtworkService,
+    steamGridDb,
   });
 }
 
@@ -56,6 +81,16 @@ describe('RepackCatalogService', () => {
     mocks.knownUrls.mockResolvedValue(new Set());
     mocks.saveCandidates.mockResolvedValue({});
     mocks.acceptMatch.mockResolvedValue({});
+    mocks.getArtworkGame.mockResolvedValue({
+      providerName: null, providerRemoteId: null, title: 'Example Game', normalizedTitle: 'example game',
+      metadataSnapshot: null, matchCandidates: [],
+    });
+    vi.mocked(fakeArtworkService.downloadToCacheGeneric).mockResolvedValue('/cache/artwork');
+    mocks.getArtworkGame.mockResolvedValue({
+      providerName: null, providerRemoteId: null, title: 'Example Game', normalizedTitle: 'example game',
+      metadataSnapshot: null, matchCandidates: [],
+    });
+    vi.mocked(fakeArtworkService.downloadToCacheGeneric).mockResolvedValue('/cache/artwork');
     const provider = { name: 'steam', search: mocks.providerSearch, getGame: mocks.providerGetGame };
     mocks.providerOrder.mockReturnValue([provider]);
     mocks.providerResolve.mockReturnValue(provider);
@@ -122,8 +157,21 @@ describe('RepackCatalogService', () => {
 
     await service.sync();
 
-    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-1', expect.any(Array), 'REVIEW', 80);
+    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-1', expect.any(Array), 'REVIEW', 80, expect.any(Object));
     expect(mocks.acceptMatch).not.toHaveBeenCalled();
+  });
+
+  it('stores provisional provider metadata for flagged matches', async () => {
+    mocks.providerSearch.mockResolvedValue([{ providerName: 'steam', remoteId: '1', title: 'Example Game', score: 80 }]);
+    const service = createService();
+
+    await service.sync();
+
+    const provisional = mocks.saveCandidates.mock.calls[0][4];
+    expect(provisional).toMatchObject({
+      remoteId: '1', providerName: 'steam', title: 'Example Game', genres: [],
+    });
+    expect(provisional?.fetchedAt).toEqual(expect.any(String));
   });
 
   it('keeps games pending when providers return no candidates', async () => {
@@ -132,8 +180,73 @@ describe('RepackCatalogService', () => {
 
     await service.sync();
 
-    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-1', [], 'PENDING', 0);
+    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-1', [], 'PENDING', 0, null);
     expect(mocks.acceptMatch).not.toHaveBeenCalled();
+  });
+
+  it('uses exact SteamGridDB title to retry provider metadata search', async () => {
+    mocks.upsertPost.mockResolvedValue({ game: { id: 'catalog-clean', title: 'Noisy Game', normalizedTitle: 'noisy game', matchStatus: 'PENDING' } });
+    mocks.createSource.mockReturnValue({
+      name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue(['https://fitgirl.test/noisy/']),
+      fetchPost: vi.fn().mockResolvedValue({
+        source: 'fitgirl', sourceUrl: 'https://fitgirl.test/noisy/', title: 'Noisy Game', gameTitle: 'Noisy Game',
+        normalizedTitle: 'noisy game', tags: [], details: {}, downloadOptions: [], postKind: 'GAME', contentHash: 'noisy',
+      }),
+    });
+    mocks.providerSearch.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { providerName: 'steam', remoteId: '99', title: 'Clean Game', score: 95 },
+    ]);
+    mocks.providerGetGame.mockResolvedValue({
+      remoteId: '99', title: 'Clean Game', developers: [], publishers: [], genres: [],
+    });
+    const sgdb = steamGridDbClient('Noisy Game');
+    const service = createService(sgdb);
+
+    await service.sync();
+
+    expect(mocks.providerSearch).toHaveBeenNthCalledWith(1, 'Noisy Game');
+    expect(mocks.providerSearch).toHaveBeenNthCalledWith(2, 'Noisy Game');
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-clean', expect.objectContaining({ remoteId: '99' }), expect.any(Object), expect.any(Array));
+  });
+
+  it('reuses fresh provisional metadata instead of refetching provider data', async () => {
+    mocks.findRematchableGames.mockResolvedValue([{
+      id: 'catalog-review', title: 'Example Game', normalizedTitle: 'example game', posts: [{ title: 'Example Game' }],
+    }]);
+    mocks.createSource.mockReturnValue({ name: 'fitgirl', discoverPostUrls: vi.fn().mockResolvedValue([]), fetchPost: vi.fn() });
+    const snapshot = {
+      remoteId: '1', providerName: 'steam', fetchedAt: new Date().toISOString(), title: 'Example Game',
+      developers: [], publishers: [], genres: [], coverUrl: 'cached-cover',
+    };
+    mocks.getArtworkGame.mockResolvedValue({
+      providerName: null, providerRemoteId: null, title: 'Example Game', normalizedTitle: 'example game',
+      metadataSnapshot: snapshot, matchCandidates: [],
+    });
+    mocks.providerSearch.mockResolvedValue([{ providerName: 'steam', remoteId: '1', title: 'Example Game', score: 80 }]);
+    mocks.providerSearch.mockResolvedValue([{ providerName: 'steam', remoteId: '1', title: 'Example Game', score: 80 }]);
+    const service = createService();
+
+    await service.sync();
+
+    expect(mocks.providerGetGame).not.toHaveBeenCalled();
+    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-review', expect.any(Array), 'REVIEW', 80, snapshot);
+  });
+
+  it('replaces a dead Steam cover URL with SteamGridDB artwork', async () => {
+    mocks.providerGetGame.mockResolvedValue({
+      remoteId: '1', title: 'Example Game', developers: [], publishers: [], genres: [],
+      coverUrl: 'https://steam.test/dead.jpg',
+    });
+    vi.mocked(fakeArtworkService.downloadToCacheGeneric).mockImplementation(async (_provider, _id, _kind, url) =>
+      url === 'https://steam.test/dead.jpg' ? null : '/cache/artwork',
+    );
+    const sgdb = steamGridDbClient();
+    const service = createService(sgdb);
+
+    await service.sync();
+
+    expect(mocks.acceptMatch.mock.calls[0][2].coverUrl).toBe('https://art.test/grid.png');
+    expect(sgdb.getGridsBySteamAppId).toHaveBeenCalledWith(1, expect.any(Object));
   });
 
   it('marks below-threshold candidates rejected', async () => {
@@ -144,7 +257,7 @@ describe('RepackCatalogService', () => {
 
     await service.sync();
 
-    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-1', expect.any(Array), 'REJECTED', 50);
+    expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-1', expect.any(Array), 'REJECTED', 50, null);
   });
 
   it('retries existing pending matches once at sync start', async () => {
@@ -157,7 +270,7 @@ describe('RepackCatalogService', () => {
     await service.sync();
 
     expect(mocks.providerSearch).toHaveBeenCalledTimes(1);
-    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-existing', expect.any(Object), expect.any(Object));
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-existing', expect.any(Object), expect.any(Object), expect.any(Array));
   });
 
   it('searches using the library-normalized title', async () => {
@@ -196,7 +309,7 @@ describe('RepackCatalogService', () => {
 
     expect(mocks.providerSearch).toHaveBeenNthCalledWith(1, 'Bubsy 4D: Digital Pawsome Edition');
     expect(mocks.providerSearch).toHaveBeenNthCalledWith(2, 'Bubsy 4D');
-    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-base' }), expect.any(Object));
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-base' }), expect.any(Object), expect.any(Array));
   });
 
   it('keeps a confident edition-specific match without base fallback', async () => {
@@ -215,7 +328,7 @@ describe('RepackCatalogService', () => {
     await service.sync();
 
     expect(mocks.providerSearch).toHaveBeenCalledTimes(1);
-    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-edition' }), expect.any(Object));
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-edition' }), expect.any(Object), expect.any(Array));
   });
 
   it('tries other accepted candidates when best provider has no metadata', async () => {
@@ -244,7 +357,7 @@ describe('RepackCatalogService', () => {
     expect(mocks.providerGetGame).toHaveBeenNthCalledWith(2, '360959');
     expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-towerfolk', expect.objectContaining({
       providerName: 'igdb', remoteId: '360959',
-    }), expect.any(Object));
+    }), expect.any(Object), expect.any(Array));
   });
 
   it('tries base-game fallback after edition candidate metadata fetch fails', async () => {
@@ -269,7 +382,7 @@ describe('RepackCatalogService', () => {
 
     expect(mocks.providerSearch).toHaveBeenNthCalledWith(1, 'Bubsy 4D: Digital Pawsome Edition');
     expect(mocks.providerSearch).toHaveBeenNthCalledWith(2, 'Bubsy 4D');
-    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-base' }), expect.any(Object));
+    expect(mocks.acceptMatch).toHaveBeenCalledWith('catalog-bubsy', expect.objectContaining({ remoteId: 'bubsy-base' }), expect.any(Object), expect.any(Array));
   });
 
   it('uses base-game candidates for review when fallback is flagged', async () => {
@@ -289,7 +402,7 @@ describe('RepackCatalogService', () => {
 
     expect(mocks.saveCandidates).toHaveBeenCalledWith('catalog-bubsy', [
       { providerName: 'steam', remoteId: 'bubsy-base', title: 'Bubsy 4D', releaseYear: undefined, coverUrl: undefined, score: 80 },
-    ], 'REVIEW', 80);
+    ], 'REVIEW', 80, expect.any(Object));
   });
 
   it('cancels in-flight source requests when disabled', async () => {

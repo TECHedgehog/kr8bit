@@ -217,6 +217,10 @@ export class ArtworkService {
     }
   }
 
+  async clearAll(): Promise<void> {
+    await fs.rm(join(this.cacheDir, 'artwork'), { recursive: true, force: true });
+  }
+
   private cacheBustSuffix(url: string): string {
     try {
       const parsed = new URL(url);

@@ -82,14 +82,30 @@ export const repackCatalogRepository = {
         id: true, title: true, normalizedTitle: true,
         posts: { select: { title: true }, orderBy: { lastSeenAt: 'desc' }, take: 1 },
       },
-      orderBy: { updatedAt: 'asc' },
+      orderBy: [{ metadataSnapshot: 'asc' }, { updatedAt: 'asc' }],
     });
   },
 
-  async saveCandidates(id: string, candidates: RepackMatchCandidate[], status: string, score: number | null = null) {
-    return prisma.repackGame.update({
-      where: { id }, data: { matchCandidates: JSON.stringify(candidates), matchStatus: status, matchScore: score },
-    });
+  async saveCandidates(
+    id: string,
+    candidates: RepackMatchCandidate[],
+    status: string,
+    score: number | null = null,
+    metadataSnapshot?: RepackMetadataSnapshot | null,
+  ) {
+    const data: Record<string, unknown> = {
+      matchCandidates: JSON.stringify(candidates), matchStatus: status, matchScore: score,
+    };
+    if (metadataSnapshot) {
+      data.metadataSnapshot = JSON.stringify(metadataSnapshot);
+      data.genres = JSON.stringify(metadataSnapshot.genres);
+      data.steamDeckCategory = metadataSnapshot.steamDeckCompat?.category ?? null;
+    } else if (metadataSnapshot === null || status !== 'REVIEW') {
+      data.metadataSnapshot = null;
+      data.genres = '[]';
+      data.steamDeckCategory = null;
+    }
+    return prisma.repackGame.update({ where: { id }, data });
   },
 
   async listGames(options: RepackCatalogQuery) {
@@ -155,11 +171,18 @@ export const repackCatalogRepository = {
 
   async getArtworkGame(id: string) {
     const game = await prisma.repackGame.findUnique({
-      where: { id }, select: { providerName: true, metadataSnapshot: true },
+      where: { id }, select: {
+        title: true, providerName: true, providerRemoteId: true, normalizedTitle: true,
+        metadataSnapshot: true, matchCandidates: true,
+      },
     });
     if (!game) return null;
     return {
       providerName: game.providerName,
+      providerRemoteId: game.providerRemoteId,
+      title: game.title,
+      normalizedTitle: game.normalizedTitle,
+      matchCandidates: parseJson<RepackMatchCandidate[]>(game.matchCandidates, []),
       metadataSnapshot: game.metadataSnapshot
         ? parseJson<RepackMetadataSnapshot | null>(game.metadataSnapshot, null)
         : null,
@@ -185,10 +208,16 @@ export const repackCatalogRepository = {
     };
   },
 
-  async acceptMatch(id: string, candidate: RepackMatchCandidate, metadataSnapshot: RepackMetadataSnapshot) {
+  async acceptMatch(
+    id: string,
+    candidate: RepackMatchCandidate,
+    metadataSnapshot: RepackMetadataSnapshot,
+    candidates: RepackMatchCandidate[] = [candidate],
+  ) {
     return prisma.repackGame.update({ where: { id }, data: {
       providerName: candidate.providerName, providerRemoteId: candidate.remoteId,
       matchStatus: 'MATCHED', matchScore: candidate.score,
+      matchCandidates: JSON.stringify(candidates),
       metadataSnapshot: JSON.stringify(metadataSnapshot),
       genres: JSON.stringify(metadataSnapshot.genres),
       steamDeckCategory: metadataSnapshot.steamDeckCompat?.category ?? null,

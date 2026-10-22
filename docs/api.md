@@ -141,19 +141,19 @@ Comment heartbeats (`:ping`) are sent every 15s.
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/repack-catalog?offset=&limit=&q=&sort=&genre=&deck=&match=` | Paginated catalog `{ items, total }`; `q` searches title; optional sort (`title-asc`, `title-desc`, `newest`, `oldest`), comma-separated genre, Deck category (0-3), and match status filters. `limit` defaults to 24, max 100. |
-| `GET` | `/api/repack-catalog/genres` | Distinct genres from accepted metadata snapshots. |
+| `GET` | `/api/repack-catalog/genres` | Distinct genres from matched and provisional review metadata. |
 | `GET` | `/api/repack-catalog/settings` | Source settings: enabled, base URL, sync/audit intervals, full-import state. |
 | `GET` | `/api/repack-catalog/status` | Current job status: phase, running, processed, skipped, failed, total, startedAt. |
 | `GET` | `/api/repack-catalog/review?offset=&limit=` | Paginated `REVIEW` match queue `{ items, total }`. |
 | `POST` | `/api/repack-catalog/sync` | Sync recent posts. Body `{ "fullArchive": true }` requests full archive crawl. |
 | `POST` | `/api/repack-catalog/audit` | Re-fetch up to 50 oldest posts to refresh stored FitGirl fields. |
-| `GET` | `/api/repack-catalog/:id` | Catalog game detail: provider-only `metadataSnapshot`, aggregate FitGirl `tags`, posts with selected details/tags/downloadOptions. Full article text is not stored or returned. |
-| `GET` | `/api/repack-catalog/:id/artwork/:kind` | Serve cached provider artwork or redirect to provider CDN; `kind` = `header`, `cover`, `hero`, or `logo`. |
+| `GET` | `/api/repack-catalog/:id` | Catalog game detail: accepted or provisional-review `metadataSnapshot`, aggregate FitGirl `tags`, posts with selected details/tags/downloadOptions. Full article text is not stored or returned. |
+| `GET` | `/api/repack-catalog/:id/artwork/:kind` | Serve provider snapshot artwork, falling back to normalized-title library artwork, positive-score candidate cover, then SteamGridDB by app ID/name. Redirects to first available provider URL if downloads fail. `kind` = `header`, `cover`, `hero`, or `logo`. |
 | `POST` | `/api/repack-catalog/:id/candidates/search` | Search metadata providers. Body `{ "query"?: string }`; omitted/blank query uses catalog title. Returns `{ candidates: RepackMatchCandidate[] }`. |
 | `POST` | `/api/repack-catalog/:id/candidates/preview` | Fetch candidate metadata for comparison. Body `{ "providerName", "remoteId" }`. |
 | `POST` | `/api/repack-catalog/:id/match` | Accept `{ "action":"accept", "providerName", "remoteId" }` or reject/unmatch with `{ "action":"reject" }`. Accept stores provider metadata; FitGirl post data remains independent. |
 
-Accepted `metadataSnapshot` retains provider `remoteId`, title, year, description, developers, publishers, genres, artwork URLs, screenshots/videos, and Steam Deck compatibility. FitGirl post data retains selected size, based-on, installation, language, feature details, source tags, and download links; version/DLC posts group under base game title.
+Accepted and provisional-review `metadataSnapshot` retain provider identity, title, year, description, developers, publishers, genres, artwork URLs, screenshots/videos, and Steam Deck compatibility. Provisional metadata keeps match status `REVIEW`; it supports browsing and genre/Deck filters without auto-accepting the match. FitGirl post data retains selected size, based-on, installation, language, feature details, source tags, and download links; version/DLC posts group under base game title.
 
 ## Database
 
@@ -161,6 +161,22 @@ Accepted `metadataSnapshot` retains provider `remoteId`, title, year, descriptio
 |--------|-------------------------|--------------------------------------------------------------------------------------------------|
 | `POST` | `/api/database/reset`   | Destructive wipe of all data. Body `{ "confirm": "RESET" }` required, else `400`. `409 RESET_RUNNING` if a scan/job is active. |
 | `POST` | `/api/database/cleanup`  | Remove orphaned rows (games whose entry no longer exists on disk).                               |
+
+## Maintenance
+
+Destructive actions require a matching confirmation token in the request body. They delete database rows or cached artwork only; library files are never removed. Selective wipes preserve unrelated user settings.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/maintenance/library/wipe` | Wipe games, provider matches, and scan history. Body `{ "confirm": "DELETE_LIBRARY" }`. Sets the empty-library state to manually cleared. |
+| `POST` | `/api/maintenance/repack/wipe` | Wipe repack games/posts and reset full-import completion. Body `{ "confirm": "DELETE_REPACK" }`. Preserves repack source settings. |
+| `POST` | `/api/maintenance/artwork-cache/clear` | Delete all files under `CACHE_DIR/artwork`. Body `{ "confirm": "CLEAR_ARTWORK_CACHE" }`. |
+| `POST` | `/api/maintenance/metadata/refresh` | Start forced metadata refresh for every matched game, ignoring age and missing-field filters. Returns `202 { "started": true }`; `409` if another conflicting job/action is active. |
+| `GET` | `/api/maintenance/metadata/status` | Return `{ running, processed, failed }` for forced metadata refresh. |
+| `POST` | `/api/maintenance/artwork/recheck` | Start artwork cache recheck for every matched game. Missing or expired cache files are fetched from saved artwork URLs. Returns `202 { "started": true }`; `409` if another conflicting job/action is active. |
+| `GET` | `/api/maintenance/artwork/status` | Return `{ running, processed, failed }` for artwork recheck. |
+
+Maintenance actions are unavailable in demo mode. Wipes return `409` while conflicting scanner, refresh, or repack work is active.
 
 ---
 

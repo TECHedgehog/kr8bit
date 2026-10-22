@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { AppError, ConflictError, NotFoundError, ValidationError } from '../../shared/errors.js';
 import type { RepackCatalogJob } from '../../modules/repack-catalog/repack-catalog.job.js';
 import type { RepackCatalogService, RepackCatalogSettingsUpdate } from '../../modules/repack-catalog/repack-catalog.service.js';
-import { artworkService, type ArtworkKind } from '../../modules/artwork/artwork.service.js';
+import { artworkService, type ArtworkKind, type ArtworkService } from '../../modules/artwork/artwork.service.js';
 
 const ARTWORK_KINDS: ArtworkKind[] = ['header', 'cover', 'hero', 'logo'];
 const SORT_KEYS = ['title-asc', 'title-desc', 'newest', 'oldest'] as const;
@@ -44,7 +44,11 @@ function parseSettingsUpdate(body: unknown): RepackCatalogSettingsUpdate {
   return parsed;
 }
 
-export function createRepackCatalogController(service: RepackCatalogService, job: RepackCatalogJob) {
+export function createRepackCatalogController(
+  service: RepackCatalogService,
+  job: RepackCatalogJob,
+  artwork: ArtworkService = artworkService,
+) {
   return {
   async list(req: FastifyRequest, _reply: FastifyReply) {
     const query = (req.query ?? {}) as Record<string, unknown>;
@@ -91,20 +95,36 @@ export function createRepackCatalogController(service: RepackCatalogService, job
   async artwork(req: FastifyRequest, reply: FastifyReply) {
     const { id, kind } = req.params as { id: string; kind: string };
     if (!ARTWORK_KINDS.includes(kind as ArtworkKind)) throw new ValidationError(`invalid artwork kind: ${kind}`);
-    const game = await service.getArtworkGame(id);
-    if (!game) throw new NotFoundError('RepackGame', id);
-    const snapshot = game.metadataSnapshot;
-    const remoteUrl = snapshot?.[`${kind}Url` as 'coverUrl' | 'headerUrl' | 'heroUrl' | 'logoUrl'];
-    if (!snapshot || !remoteUrl || !game.providerName) throw new NotFoundError('Artwork', `${id}/${kind}`);
-    await artworkService.downloadToCacheGeneric(game.providerName, snapshot.remoteId, kind as ArtworkKind, remoteUrl);
-    const cached = await artworkService.readWithContentTypeGeneric(game.providerName, snapshot.remoteId, kind as ArtworkKind);
-    if (cached) {
+    const sources = await service.getArtworkSources(id, kind as ArtworkKind);
+    let lastResortUrl: string | undefined;
+    const serveSource = async (source: { providerName: string; remoteId: string; url: string; steamAppId?: number }) => {
+      if (source.steamAppId) {
+        await artwork.downloadToCache(source.steamAppId, kind as ArtworkKind, source.url);
+      } else {
+        await artwork.downloadToCacheGeneric(source.providerName, source.remoteId, kind as ArtworkKind, source.url);
+      }
+      const cached = source.steamAppId
+        ? await artwork.readWithContentType(source.steamAppId, kind as ArtworkKind)
+        : await artwork.readWithContentTypeGeneric(source.providerName, source.remoteId, kind as ArtworkKind);
+      if (!cached) return null;
       reply.header('Content-Type', cached.contentType);
       reply.header('Cache-Control', 'public, max-age=86400');
       return reply.send(cached.bytes);
+    };
+    for (const source of sources) {
+      lastResortUrl ??= source.url;
+      const response = await serveSource(source);
+      if (response) return response;
     }
+    const steamGridDbSource = await service.getSteamGridDbArtworkSource(id, kind as ArtworkKind);
+    if (steamGridDbSource) {
+      lastResortUrl ??= steamGridDbSource.url;
+      const response = await serveSource(steamGridDbSource);
+      if (response) return response;
+    }
+    if (!lastResortUrl) throw new NotFoundError('Artwork', `${id}/${kind}`);
     reply.header('Cache-Control', 'public, max-age=86400');
-    return reply.redirect(302, remoteUrl);
+    return reply.redirect(lastResortUrl, 302);
   },
   async review(req: FastifyRequest, _reply: FastifyReply) {
     const { offset, limit } = pageOptions((req.query ?? {}) as Record<string, unknown>);

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Settings maintenance panel for selective library/repack wipes, artwork cache purge, forced metadata refresh, and artwork recheck
 - Shared HTML entity decoding for FitGirl and Steam source titles
 - FitGirl repack catalog with selected per-post details/tags, grouped version/DLC entries, provider snapshots, and manual reassignment
 - GitHub Actions workflow (`.github/workflows/docker-publish.yml`) publishing the image to GHCR (`linux/amd64`) on push to `main` and version tags

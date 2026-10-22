@@ -181,6 +181,32 @@ export class MetadataService {
     return this.refreshSteam(game);
   }
 
+  async recheckArtwork(gameId: string): Promise<boolean> {
+    const game = await libraryRepository.findById(gameId);
+    const primary = await providerMatchRepository.findPrimaryByGame(gameId);
+    const artworkUrls: { kind: ArtworkKind; url: string | null }[] = [
+      { kind: 'cover', url: game.coverUrl },
+      { kind: 'header', url: game.headerUrl },
+      { kind: 'hero', url: game.heroUrl },
+      { kind: 'logo', url: game.logoUrl },
+    ];
+    const requested = artworkUrls.filter((artwork) => artwork.url);
+    if (!requested.length) return true;
+
+    if (primary && primary.providerName !== STEAM_PROVIDER_NAME) {
+      const results = await Promise.all(requested.map(({ kind, url }) =>
+        this.deps.artwork.downloadToCacheGeneric(primary.providerName, primary.remoteId, kind, url),
+      ));
+      return results.every(Boolean);
+    }
+
+    if (!game.steamAppId) return false;
+    const results = await Promise.all(requested.map(({ kind, url }) =>
+      this.deps.artwork.downloadToCache(game.steamAppId!, kind, url),
+    ));
+    return results.every(Boolean);
+  }
+
   async unlink(gameId: string): Promise<Game> {
     const game = await libraryRepository.findById(gameId);
 

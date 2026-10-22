@@ -245,6 +245,28 @@ describe('MetadataService.searchForGame', () => {
   });
 });
 
+describe('MetadataService.recheckArtwork', () => {
+  it('uses matched provider URLs to fill missing or stale cache files', async () => {
+    const gameId = await createGame({ status: MatchStatus.ACCEPTED, steamAppId: 620 });
+    await libraryRepository.update(gameId, {
+      coverUrl: 'https://art.test/cover.jpg',
+      headerUrl: 'https://art.test/header.jpg',
+    });
+    const artwork = mockArtwork();
+    const service = new MetadataService({
+      providers: mockRegistry([]),
+      artwork,
+      now: () => new Date(),
+    });
+
+    await expect(service.recheckArtwork(gameId)).resolves.toBe(true);
+
+    expect(artwork.downloadToCache).toHaveBeenCalledWith(620, 'cover', 'https://art.test/cover.jpg');
+    expect(artwork.downloadToCache).toHaveBeenCalledWith(620, 'header', 'https://art.test/header.jpg');
+    expect(artwork.downloadToCache).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('MetadataService.assign (steam)', () => {
   it('pulls metadata, downloads artwork via steam path, updates Game to MANUAL and leaves no ProviderMatch', async () => {
     const gameId = await createGame();

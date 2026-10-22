@@ -12,4 +12,11 @@ describe('repack catalog routes', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().message).toContain('limit must be between');
   });
+
+  it('rejects invalid artwork kinds before looking up catalog records', async () => {
+    app = await buildServer();
+    const response = await app.inject({ method: 'GET', url: '/api/repack-catalog/game-id/artwork/icon' });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().message).toContain('invalid artwork kind');
+  });
 });

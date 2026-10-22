@@ -6,6 +6,7 @@ import IconLayoutGrid from '@tabler/icons-react/dist/esm/icons/IconLayoutGrid.mj
 import IconMapPin from '@tabler/icons-react/dist/esm/icons/IconMapPin.mjs';
 import IconPalette from '@tabler/icons-react/dist/esm/icons/IconPalette.mjs';
 import IconWorld from '@tabler/icons-react/dist/esm/icons/IconWorld.mjs';
+import IconTool from '@tabler/icons-react/dist/esm/icons/IconTool.mjs';
 import { useEffectsSettings } from '../context/EffectsSettingsContext';
 import { BACKGROUND_EFFECTS } from '../components/effects/catalog';
 import { BACKGROUND_DARK_SHADES, BACKGROUND_LIGHT_SHADES, BACKGROUND_TINTS, useBackgroundSettings, type BackgroundTint } from '../context/BackgroundSettingsContext';
@@ -22,6 +23,7 @@ import { SettingsNavLens } from '../components/SettingsNavLens';
 import { isSettingsCategory, type SettingsCategory } from '../settings-categories';
 import { useRepackCatalogEnabled } from '../context/RepackCatalogEnabledContext';
 import { DiagnosticsSection } from '../components/DiagnosticsSection';
+import { MaintenancePanel } from '../components/MaintenancePanel';
 
 type SettingsNavigationItem = {
   id: string;
@@ -50,6 +52,10 @@ const SETTINGS_GROUPS: { label: string; items: SettingsNavigationItem[] }[] = [
   {
     label: 'Sources',
     items: [{ id: 'repack-catalog', label: 'Repack catalog', icon: IconWorld, color: '#f97316', category: 'sources' }],
+  },
+  {
+    label: 'System',
+    items: [{ id: 'maintenance', label: 'Maintenance', icon: IconTool, color: '#ef4444', category: 'maintenance' }],
   },
 ];
 
@@ -238,7 +244,13 @@ export function SettingsPage(): JSX.Element {
     </SettingsPanel>
   );
 
-  const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, behavior: renderBehavior, locations: renderLibrary, sources: renderSources };
+  const renderMaintenance = () => (
+    <SettingsPanel title="Maintenance" eyebrow="System">
+      <MaintenancePanel />
+    </SettingsPanel>
+  );
+
+  const panels: Record<SettingsCategory, () => JSX.Element> = { review: renderReview, appearance: renderAppearance, behavior: renderBehavior, locations: renderLibrary, sources: renderSources, maintenance: renderMaintenance };
 
   const renderMenu = (as: 'button' | 'copy') => {
     const content = SETTINGS_GROUPS.map((group) => (

@@ -49,6 +49,30 @@ describe('repackCatalogRepository', () => {
     const detail = await repackCatalogRepository.getGame(saved.gameId!);
     expect(detail?.matchStatus).toBe('MATCHED');
     expect(detail?.metadataSnapshot).toMatchObject({ title: 'Portal 2' });
+    expect(detail?.matchCandidates).toEqual([candidate]);
+  });
+
+  it('persists provisional metadata and filter fields for review games', async () => {
+    const saved = await repackCatalogRepository.upsertPost(post('https://fitgirl.test/provisional/'));
+    const candidate = { providerName: 'steam', remoteId: '620', title: 'Portal 2', score: 80 };
+    await repackCatalogRepository.saveCandidates(saved.gameId!, [candidate], 'REVIEW', 80, {
+      remoteId: '620', providerName: 'steam', fetchedAt: new Date().toISOString(), title: 'Portal 2',
+      developers: ['Valve'], publishers: ['Valve'], genres: ['Puzzle'],
+      steamDeckCompat: { category: 3, items: [] },
+    });
+
+    const detail = await repackCatalogRepository.getGame(saved.gameId!);
+    expect(detail?.matchStatus).toBe('REVIEW');
+    expect(detail?.metadataSnapshot).toMatchObject({ providerName: 'steam', title: 'Portal 2' });
+    expect(detail?.genres).toBe(JSON.stringify(['Puzzle']));
+    expect(detail?.steamDeckCategory).toBe(3);
+    expect(await repackCatalogRepository.listGenres()).toContain('Puzzle');
+
+    await repackCatalogRepository.saveCandidates(saved.gameId!, [candidate], 'PENDING', 0, null);
+    const pending = await repackCatalogRepository.getGame(saved.gameId!);
+    expect(pending?.metadataSnapshot).toBeNull();
+    expect(pending?.genres).toBe('[]');
+    expect(pending?.steamDeckCategory).toBeNull();
   });
 
   it('filters repacks by genre, Deck compatibility, and match status', async () => {
