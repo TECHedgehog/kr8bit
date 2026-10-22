@@ -2,7 +2,8 @@ import { config } from '../../config/index.js';
 import { version } from '../../app-version.js';
 import { MatchStatus, RE_MATCHABLE_STATUSES, STEAM_PROVIDER_NAME } from '../../shared/enums.js';
 import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
-import { normalizeGameName } from '../../shared/normalize.js';
+import { getTitleVariants, normalizeGameName } from '../../shared/normalize.js';
+import { scoreSearchResults } from '../../shared/title-scorer.js';
 import type { MetadataProvider, SearchResult } from '../../shared/types.js';
 import { providerMatchRepository } from '../metadata/provider-match.repository.js';
 import { providerRegistry } from '../metadata/provider-registry.js';
@@ -260,7 +261,8 @@ export class DiagnosticsService {
       }
     }
 
-    const decision = decideMatch(allResults, config.match);
+    const baseVariant = getTitleVariants(query).at(-1) ?? query;
+    const decision = decideMatch(scoreSearchResults(query, allResults, baseVariant), config.match);
     const primary = providerMatches.find((match) => match.isPrimary)
       ?? (game.steamAppId !== null
         ? { providerName: STEAM_PROVIDER_NAME, remoteId: String(game.steamAppId) }

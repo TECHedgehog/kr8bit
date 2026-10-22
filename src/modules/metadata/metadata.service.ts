@@ -14,7 +14,7 @@ import type {
   SteamGridDbImage,
   SteamGridDbImageQuery,
 } from '../artwork/steamgriddb/steamgriddb.http.types.js';
-import { normalizeForMatch, normalizeGameName } from '../../shared/normalize.js';
+import { getTitleVariants, normalizeForMatch, normalizeGameName } from '../../shared/normalize.js';
 
 function selectBestImage(images: SteamGridDbImage[]): SteamGridDbImage | undefined {
   if (images.length === 0) return undefined;
@@ -341,10 +341,14 @@ export class MetadataService {
   ): Promise<{ game: Game; fetchedArtwork: { header: boolean; cover: boolean } }> {
     const isSteam = provider.name === STEAM_PROVIDER_NAME;
     const releaseYear = metadata.releaseYear ?? game.releaseYear ?? undefined;
+    const artworkTitleVariants = [...new Set([
+      ...getTitleVariants(metadata.title),
+      ...getTitleVariants(normalizeGameName(game.entryName).query),
+    ])];
 
     const artworkState = isSteam
-      ? await this.cacheSteamArtwork(metadata, releaseYear)
-      : await this.cacheGenericArtwork(provider.name, metadata, releaseYear);
+      ? await this.cacheSteamArtwork(metadata, releaseYear, artworkTitleVariants)
+      : await this.cacheGenericArtwork(provider.name, metadata, releaseYear, artworkTitleVariants);
 
     const updatePayload: GameUpdateInput = {
       title: metadata.title,
@@ -392,6 +396,7 @@ export class MetadataService {
   private async cacheSteamArtwork(
     metadata: GameMetadata,
     releaseYear?: number,
+    titleVariants: string[] = getTitleVariants(metadata.title),
   ): Promise<ArtworkUrls> {
     const appId = Number(metadata.remoteId);
     const coverCached = await this.deps.artwork.downloadToCache(appId, 'cover', metadata.coverUrl);
@@ -399,7 +404,7 @@ export class MetadataService {
     const steamHeroCached = !!heroResult;
     const sgdb = await this.enrichWithSteamGridDb(
       appId,
-      metadata.title,
+      titleVariants,
       releaseYear,
       !!coverCached,
       steamHeroCached,
@@ -413,7 +418,7 @@ export class MetadataService {
     let coverUrl = coverCached ? metadata.coverUrl ?? null : sgdb.gridUrl;
 
     if (!coverUrl || !selectedHeroUrl) {
-      const igdbMetadata = await this.findIgdbArtwork(metadata.title, releaseYear);
+      const igdbMetadata = await this.findIgdbArtwork(titleVariants, releaseYear);
       if (!coverUrl && igdbMetadata?.coverUrl) {
         const cached = await this.deps.artwork.downloadToCache(appId, 'cover', igdbMetadata.coverUrl);
         if (cached) coverUrl = igdbMetadata.coverUrl;
@@ -459,6 +464,7 @@ export class MetadataService {
     providerName: string,
     metadata: GameMetadata,
     releaseYear?: number,
+    titleVariants: string[] = getTitleVariants(metadata.title),
   ): Promise<ArtworkUrls> {
     const initialHeaderCache = await this.deps.artwork.downloadToCacheGeneric(
       providerName,
@@ -484,7 +490,7 @@ export class MetadataService {
     let heroUrl = heroCached ? metadata.heroUrl ?? null : null;
 
     if (!headerCached || !heroCached) {
-      const fallbackHeroUrl = await this.findSteamGridDbHeroByName(metadata.title, releaseYear);
+      const fallbackHeroUrl = await this.findSteamGridDbHeroByName(titleVariants, releaseYear);
       if (fallbackHeroUrl) {
         const [fallbackHeaderCache, fallbackHeroCache] = await Promise.all([
           headerCached
@@ -517,7 +523,7 @@ export class MetadataService {
 
   private async enrichWithSteamGridDb(
     steamAppId: number,
-    title: string,
+    titleVariants: string[],
     releaseYear: number | undefined,
     coverDownloaded = false,
     heroDownloaded = false,
@@ -547,7 +553,7 @@ export class MetadataService {
     const logoUrl = await this.cacheBestSteamGridDbImage(steamAppId, 'logo', logos);
 
     if ((!coverDownloaded && !gridUrl) || (!heroDownloaded && !heroUrl)) {
-      const game = await this.findSteamGridDbGame(title, releaseYear);
+      const game = await this.findSteamGridDbGame(titleVariants, releaseYear);
       if (game) {
         const [nameGrids, nameHeroes] = await Promise.all([
           !coverDownloaded && !gridUrl
@@ -586,30 +592,42 @@ export class MetadataService {
     return cached ? image.url : null;
   }
 
-  private async findSteamGridDbGame(title: string, releaseYear?: number): Promise<SteamGridDbGame | null> {
+  private async findSteamGridDbGame(
+    titleVariants: string[],
+    releaseYear?: number,
+  ): Promise<SteamGridDbGame | null> {
     const client = this.deps.steamGridDb ?? null;
     if (!client) return null;
-    try {
-      const games = await client.searchGameByName(title);
-      const exactMatches = games.filter((game) => titleKey(game.name) === titleKey(title));
-      return exactMatches
-        .filter((game) => isYearCompatible(steamGridDbReleaseYear(game), releaseYear))
-        .sort((left, right) => Number(right.verified) - Number(left.verified))
-        .sort((left, right) => {
-          if (releaseYear === undefined) return 0;
-          return Math.abs(steamGridDbReleaseYear(left)! - releaseYear)
-            - Math.abs(steamGridDbReleaseYear(right)! - releaseYear);
-        })[0] ?? null;
-    } catch (error) {
-      logger.warn({ title, err: (error as Error).message }, 'steamgriddb name search failed');
-      return null;
+    for (const title of titleVariants) {
+      try {
+        const games = await client.searchGameByName(title);
+        const exactMatches = games
+          .filter((game) => titleKey(game.name) === titleKey(title))
+          .filter((game) => isYearCompatible(steamGridDbReleaseYear(game), releaseYear))
+          .sort((left, right) => {
+            const leftYear = steamGridDbReleaseYear(left);
+            const rightYear = steamGridDbReleaseYear(right);
+            const yearDistance = releaseYear === undefined
+              ? 0
+              : Math.abs((leftYear ?? releaseYear) - releaseYear)
+                - Math.abs((rightYear ?? releaseYear) - releaseYear);
+            return yearDistance || Number(right.verified) - Number(left.verified);
+          });
+        if (exactMatches[0]) return exactMatches[0];
+      } catch (error) {
+        logger.warn({ title, err: (error as Error).message }, 'steamgriddb name search failed');
+      }
     }
+    return null;
   }
 
-  private async findSteamGridDbHeroByName(title: string, releaseYear?: number): Promise<string | null> {
+  private async findSteamGridDbHeroByName(
+    titleVariants: string[],
+    releaseYear?: number,
+  ): Promise<string | null> {
     const client = this.deps.steamGridDb ?? null;
     if (!client) return null;
-    const game = await this.findSteamGridDbGame(title, releaseYear);
+    const game = await this.findSteamGridDbGame(titleVariants, releaseYear);
     if (!game) return null;
     try {
       const images = await client.getHeroesByGameId(game.id, {
@@ -618,28 +636,32 @@ export class MetadataService {
       });
       return selectBestImage(images)?.url ?? null;
     } catch (error) {
-      logger.warn({ title, gameId: game.id, err: (error as Error).message }, 'steamgriddb hero lookup failed');
+      logger.warn({ titleVariants, gameId: game.id, err: (error as Error).message }, 'steamgriddb hero lookup failed');
       return null;
     }
   }
 
-  private async findIgdbArtwork(title: string, releaseYear?: number): Promise<GameMetadata | null> {
+  private async findIgdbArtwork(titleVariants: string[], releaseYear?: number): Promise<GameMetadata | null> {
     const igdb = this.deps.providers.resolve('igdb');
     if (!igdb) return null;
-    try {
-      const results = await igdb.search(title);
-      const match = selectExactYearMatch(
-        results,
-        title,
-        releaseYear,
-        (result) => result.title,
-        (result) => result.releaseYear,
-      );
-      return match ? await igdb.getGame(match.remoteId) : null;
-    } catch (error) {
-      logger.warn({ title, err: (error as Error).message }, 'igdb artwork fallback failed');
-      return null;
+    for (const title of titleVariants) {
+      try {
+        const results = await igdb.search(title);
+        const match = selectExactYearMatch(
+          results,
+          title,
+          releaseYear,
+          (result) => result.title,
+          (result) => result.releaseYear,
+        );
+        if (!match) continue;
+        const metadata = await igdb.getGame(match.remoteId);
+        if (metadata) return metadata;
+      } catch (error) {
+        logger.warn({ title, err: (error as Error).message }, 'igdb artwork fallback failed');
+      }
     }
+    return null;
   }
 }
 

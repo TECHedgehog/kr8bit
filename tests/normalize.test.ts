@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { cleanGameTitle, normalizeGameName, normalizeForMatch, stripEditionPhrase } from '../src/shared/normalize.js';
+import {
+  cleanGameTitle,
+  getTitleVariants,
+  normalizeGameName,
+  normalizeForMatch,
+  stripEditionPhrase,
+} from '../src/shared/normalize.js';
 import { parseReleaseName } from '../src/shared/release-name.js';
 import { releaseNameFixtures } from './release-name.fixtures.js';
 
@@ -253,5 +259,19 @@ describe('stripEditionPhrase', () => {
 
   it('returns null when title has no edition phrase', () => {
     expect(stripEditionPhrase('Superhero Simulator')).toBeNull();
+  });
+});
+
+describe('getTitleVariants', () => {
+  it.each([
+    ['Broken Age - The Complete Adventure', ['Broken Age - The Complete Adventure', 'Broken Age']],
+    ['Dragon Ball: Xenoverse - Bundle Edition', [
+      'Dragon Ball: Xenoverse - Bundle Edition',
+      'Dragon Ball: Xenoverse',
+    ]],
+    ['Black Myth - Wukong', ['Black Myth - Wukong', 'Black Myth']],
+    ['MUSYNX-RETURN', ['MUSYNX-RETURN']],
+  ])('returns ordered unique variants for %s', (title, variants) => {
+    expect(getTitleVariants(title)).toEqual(variants);
   });
 });

@@ -5,7 +5,7 @@ import type { MetadataProvider, SearchResult } from '../../shared/types.js';
 import { decideMatch, type MatchDecision } from '../../shared/match-policy.js';
 import type { Game } from '../library/library.types.js';
 import { libraryRepository } from '../library/library.repository.js';
-import { normalizeGameName, stripEditionPhrase } from '../../shared/normalize.js';
+import { getTitleVariants, normalizeGameName } from '../../shared/normalize.js';
 import { scoreSearchResults } from '../../shared/title-scorer.js';
 import { applyMatchResult } from './match-apply.js';
 
@@ -21,17 +21,16 @@ export async function searchAllProviders(
   providers: MetadataProvider[],
   logContext: Record<string, unknown> = {},
 ): Promise<SearchResult[]> {
-  let results = await searchProvidersForQuery(query, providers, logContext);
-  const fallbackQueries = getFallbackQueries(query);
-  for (const fallbackQuery of fallbackQueries) {
+  const titleVariants = getTitleVariants(query);
+  let results: SearchResult[] = [];
+  for (const [index, variant] of titleVariants.entries()) {
     if (results.length > 0) break;
-    results = await searchProvidersForQuery(fallbackQuery, providers, {
-      ...logContext,
-      fallbackQuery,
-    });
+    results = await searchProvidersForQuery(variant, providers, index === 0
+      ? logContext
+      : { ...logContext, fallbackQuery: variant });
   }
 
-  const baseQuery = fallbackQueries.at(-1) ?? stripEditionPhrase(query) ?? query;
+  const baseQuery = titleVariants.at(-1) ?? query;
   return scoreSearchResults(query, results, baseQuery);
 }
 
@@ -118,14 +117,4 @@ export async function matchGame(
     || game.matchStatus === MatchStatus.ACCEPTED;
   const applied = await applyDecisionToGame(game.id, decision, deps.now(), hasExistingMatch);
   return { decision, applied };
-}
-
-function getFallbackQueries(query: string): string[] {
-  const candidates = [
-    stripEditionPhrase(query),
-    query.split(/\s+[–—-]\s+/u, 2)[0]?.trim() ?? null,
-  ];
-  return [...new Set(candidates.filter((candidate): candidate is string =>
-    !!candidate && candidate.length > 0 && candidate !== query,
-  ))];
 }

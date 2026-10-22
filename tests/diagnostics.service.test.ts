@@ -170,6 +170,29 @@ describe('DiagnosticsService', () => {
     expect(JSON.stringify(diagnosis)).not.toContain('/private/library');
   });
 
+  it('uses matching pipeline rescoring in live diagnostic decisions', async () => {
+    const provider: MetadataProvider = {
+      name: 'igdb',
+      search: vi.fn(async () => [{
+        providerName: 'igdb',
+        remoteId: 'example',
+        title: 'Example',
+        score: 46,
+      }]),
+      getGame: vi.fn(async () => null),
+    };
+    const service = makeService({ providers: [provider] });
+
+    const diagnosis = await service.diagnose({ game: game(), issues: ['unmatched'] });
+
+    expect(diagnosis.search.providers[0].candidates[0].score).toBe(46);
+    expect(diagnosis.search.decision).toMatchObject({
+      status: MatchStatus.ACCEPTED,
+      score: 100,
+      result: { score: 100 },
+    });
+  });
+
   it('records provider errors and redacts secret query strings', async () => {
     const provider: MetadataProvider = {
       name: 'steam',

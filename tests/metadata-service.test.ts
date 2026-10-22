@@ -612,15 +612,17 @@ describe('MetadataService.assign (igdb)', () => {
   });
 
   it('fills missing generic header and hero from year-matched SGDB game', async () => {
-    const gameId = await createGame({ steamAppId: null });
+    const gameId = await createGame({ entryName: 'Broken Age - The Complete Adventure.7z', steamAppId: null });
     const igdb = mockProvider('igdb', [], {
       broken: {
-        remoteId: 'broken', title: 'Broken Age', releaseYear: 2014,
+        remoteId: 'broken', title: 'Broken Age: The Complete Adventure', releaseYear: 2014,
         developers: [], publishers: [], genres: [], coverUrl: 'https://images.example/broken-age.jpg',
       },
     });
     const steamGridDb = mockSteamGridDb();
-    steamGridDb.searchGameByName = vi.fn(async () => [sgdbGame(2545, 'Broken Age', 2014)]);
+    steamGridDb.searchGameByName = vi.fn(async (name) =>
+      name === 'Broken Age' ? [sgdbGame(2545, 'Broken Age', 2014)] : [],
+    );
     steamGridDb.getHeroesByGameId = vi.fn(async () => [
       sgdbImage(2, 'https://sgdb.example/broken-age-hero.png'),
     ]);
@@ -634,7 +636,7 @@ describe('MetadataService.assign (igdb)', () => {
 
     const assigned = await service.assign(gameId, 'igdb', 'broken');
 
-    expect(steamGridDb.searchGameByName).toHaveBeenCalledWith('Broken Age');
+    expect(steamGridDb.searchGameByName).toHaveBeenLastCalledWith('Broken Age');
     expect(steamGridDb.getHeroesByGameId).toHaveBeenCalledWith(2545, expect.objectContaining({
       styles: ['alternate', 'blurred'],
       types: ['static'],
@@ -643,6 +645,45 @@ describe('MetadataService.assign (igdb)', () => {
     }));
     expect(assigned.game.headerUrl).toBe('https://sgdb.example/broken-age-hero.png');
     expect(assigned.game.heroUrl).toBe('https://sgdb.example/broken-age-hero.png');
+  });
+
+  it('strips Bundle Edition when SGDB name search needs Xenoverse base title', async () => {
+    const gameId = await createGame({
+      entryName: 'Dragon Ball Xenoverse - Bundle Edition.7z',
+      steamAppId: null,
+    });
+    const igdb = mockProvider('igdb', [], {
+      bundle: {
+        remoteId: 'bundle',
+        title: 'Dragon Ball: Xenoverse - Bundle Edition',
+        releaseYear: 2015,
+        developers: [],
+        publishers: [],
+        genres: [],
+        coverUrl: 'https://images.example/xenoverse-bundle.jpg',
+      },
+    });
+    const steamGridDb = mockSteamGridDb();
+    steamGridDb.searchGameByName = vi.fn(async (name) =>
+      name === 'Dragon Ball: Xenoverse'
+        ? [sgdbGame(5478, 'Dragon Ball: Xenoverse', 2015)]
+        : [],
+    );
+    steamGridDb.getHeroesByGameId = vi.fn(async () => [
+      sgdbImage(3, 'https://sgdb.example/xenoverse-hero.png'),
+    ]);
+    const service = new MetadataService({
+      providers: mockRegistry([igdb]),
+      artwork: mockArtwork(),
+      now: () => new Date(),
+      steamGridDb,
+    });
+
+    const assigned = await service.assign(gameId, 'igdb', 'bundle');
+
+    expect(steamGridDb.searchGameByName).toHaveBeenCalledWith('Dragon Ball: Xenoverse');
+    expect(assigned.game.headerUrl).toBe('https://sgdb.example/xenoverse-hero.png');
+    expect(assigned.game.heroUrl).toBe('https://sgdb.example/xenoverse-hero.png');
   });
 });
 

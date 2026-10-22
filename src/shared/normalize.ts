@@ -46,6 +46,23 @@ export function stripEditionPhrase(title: string): string | null {
   return baseTitle || null;
 }
 
+export function getTitleVariants(title: string): string[] {
+  const fullTitle = title.trim();
+  if (!fullTitle) return [];
+
+  const preDashTitle = fullTitle.split(/\s+[–—-]\s+/u, 2)[0]?.trim();
+  const editionStripped = stripEditionPhrase(fullTitle);
+  const editionKey = editionStripped ? normalizeForMatch(editionStripped) : '';
+  const preDashKey = preDashTitle ? normalizeForMatch(preDashTitle) : '';
+  const isLessSpecificThanPreDash = !!editionKey
+    && !!preDashKey
+    && preDashKey.startsWith(`${editionKey} `);
+
+  return [...new Set([fullTitle, isLessSpecificThanPreDash ? null : editionStripped, preDashTitle].filter(
+    (variant): variant is string => !!variant,
+  ))];
+}
+
 const NON_ALPHANUMERIC = /[^a-z0-9]+/g;
 
 export function normalizeForMatch(input: string): string {
